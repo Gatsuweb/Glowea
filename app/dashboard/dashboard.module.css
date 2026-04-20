@@ -1,0 +1,92 @@
+/* === Conteneur principal du Dashboard === */
+.mainContainer {
+  padding: 120px 24px 24px 24px; /* On augmente le padding-top pour ne pas chevaucher le TopHeader */
+  min-height: 100vh;
+  /* background-color: var(--background, #FFF); -> On le gère dans layout ou globals si besoin */
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.headerSection {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 32px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.headerTitles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.actionButtons {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.iconButton {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  box-shadow: var(--box-shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.iconButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(122, 122, 122, 0.25);
+}
+
+.buttonIcon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.plusIcon {
+  font-size: 28px;
+  color: var(--secondary, #FCD7D1);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.welcomeTitle {
+  font-family: var(--font-title, "Italiana", serif);
+  color: var(--tertiary);
+  font-size: 3rem;
+  font-weight: 400;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.dateSubtitle {
+  font-family: var(--font-serif, "Inria serif", serif);
+  color: #333333;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+  opacity: 0.8;
+}
+
+/* iPad et tablettes */
+@media (min-width: 768px) {
+  .welcomeTitle {
+    font-size: 4rem;
+  }
+  
+  .dateSubtitle {
+    font-size: 1rem;
+  }
+}
