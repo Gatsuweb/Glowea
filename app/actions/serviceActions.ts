@@ -39,6 +39,12 @@ export async function createService(data: {
         durationMin: service.durationMin || 60,
       } 
     };
+  } catch (error) {
+    console.error("Error creating service:", error);
+    return { success: false, error: "Erreur lors de la création de la prestation" };
+  }
+}
+
 export async function getServices() {
   const TENANT_ID = await getTenantId();
   try {
