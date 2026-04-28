@@ -81,7 +81,7 @@ export async function getVueEnsembleData(monthString: string) {
       amount: Number(t.amount)
     }));
 
-    const stockTransactions = stockMovementsThisMonth.map(sm => ({
+    const stockTransactions = stockMovementsThisMonth.map((sm: any) => ({
       id: sm.id,
       label: `Achat stock: ${sm.Product.name}`,
       category: 'Matériel',
@@ -90,7 +90,7 @@ export async function getVueEnsembleData(monthString: string) {
       sourceType: 'STOCK',
       transactionDate: sm.createdAt,
       isStock: true
-    })).filter(st => st.amount > 0);
+    })).filter((st: any) => st.amount > 0);
 
     const transactions = [...dbTransactions, ...stockTransactions].sort((a, b) => 
       new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime()
@@ -101,7 +101,7 @@ export async function getVueEnsembleData(monthString: string) {
       amount: Number(t.amount)
     }));
 
-    const stockPrevTransactions = stockMovementsPrevMonth.map(sm => ({
+    const stockPrevTransactions = stockMovementsPrevMonth.map((sm: any) => ({
       id: sm.id,
       label: `Achat stock: ${sm.Product.name}`,
       category: 'Matériel',
@@ -110,7 +110,7 @@ export async function getVueEnsembleData(monthString: string) {
       sourceType: 'STOCK',
       transactionDate: sm.createdAt,
       isStock: true
-    })).filter(st => st.amount > 0);
+    })).filter((st: any) => st.amount > 0);
 
     const prevTransactions = [...dbPrevTransactions, ...stockPrevTransactions];
 
