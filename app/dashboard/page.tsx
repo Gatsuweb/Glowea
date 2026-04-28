@@ -16,8 +16,10 @@ export default async function DashboardPage() {
     }
   }
 
-  const firstName = user?.firstName || "Sophie";
-  const lastName = user?.lastName || "Doe";
+  // Fallback intelligently to email if no name is provided
+  const emailName = user?.emailAddresses?.[0]?.emailAddress?.split('@')[0] || "Utilisateur";
+  const firstName = user?.firstName || emailName;
+  const lastName = user?.lastName || "";
 
   // Get start of today and end of today
   const todayStart = new Date();

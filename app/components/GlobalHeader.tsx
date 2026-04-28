@@ -31,16 +31,7 @@ export default async function GlobalHeader() {
         </Link>
         <NotificationBell />
         <div className={styles.avatarWrapper}>
-          <UserButton 
-            appearance={{
-              elements: {
-                userButtonAvatarBox: {
-                  width: "100%",
-                  height: "100%",
-                }
-              }
-            }}
-          />
+          <UserButton />
         </div>
       </div>
     </header>
