@@ -1,9 +1,9 @@
-import { SignIn } from '@clerk/nextjs'
+import { SignUp } from '@clerk/nextjs'
 
 export default function Page() {
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-      <SignIn forceRedirectUrl="/dashboard" />
+      <SignUp forceRedirectUrl="/dashboard" />
     </div>
   )
 }

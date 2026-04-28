@@ -30,12 +30,12 @@ export default function RootLayout({
         <ClerkProvider>
           <header className="flex justify-end items-center p-4 gap-4 h-16">
             <Show when="signed-out">
-              <SignInButton>
+              <SignInButton forceRedirectUrl="/dashboard">
                 <button style={{ background: "transparent", color: "var(--tertiary)", border: "none", fontWeight: "bold", cursor: "pointer", padding: "0.5rem 1rem" }}>
                   Se connecter
                 </button>
               </SignInButton>
-              <SignUpButton>
+              <SignUpButton forceRedirectUrl="/dashboard">
                 <button style={{ backgroundColor: "var(--tertiary)", color: "white", borderRadius: "9999px", fontWeight: "500", fontSize: "1rem", height: "2.5rem", padding: "0 1.25rem", cursor: "pointer", border: "none" }}>
                   S'inscrire
                 </button>
