@@ -76,7 +76,7 @@ export async function getVueEnsembleData(monthString: string) {
     });
 
     // Parse decimals
-    const dbTransactions = rawTransactions.map(t => ({
+    const dbTransactions = rawTransactions.map((t: any) => ({
       ...t,
       amount: Number(t.amount)
     }));
@@ -96,7 +96,7 @@ export async function getVueEnsembleData(monthString: string) {
       new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime()
     );
 
-    const dbPrevTransactions = rawPrevTransactions.map(t => ({
+    const dbPrevTransactions = rawPrevTransactions.map((t: any) => ({
       ...t,
       amount: Number(t.amount)
     }));
@@ -114,7 +114,7 @@ export async function getVueEnsembleData(monthString: string) {
 
     const prevTransactions = [...dbPrevTransactions, ...stockPrevTransactions];
 
-    const recurringExpenses = rawRecurringExpenses.map(r => ({
+    const recurringExpenses = rawRecurringExpenses.map((r: any) => ({
       ...r,
       amount: Number(r.amount)
     }));
