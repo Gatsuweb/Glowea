@@ -4,6 +4,8 @@ import StockClientWrapper from "../../components/StockClientWrapper";
 
 const TENANT_ID = "tenant_seed_123";
 
+export const dynamic = "force-dynamic";
+
 export default async function StockPage() {
   const categoriesData = await prisma.productCategory.findMany({
     where: { tenantId: TENANT_ID },

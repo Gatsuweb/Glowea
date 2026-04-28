@@ -2,6 +2,8 @@ import React from "react";
 import prisma from "../../../lib/prisma";
 import ClientsClientWrapper from "../../components/ClientsClientWrapper";
 
+export const dynamic = "force-dynamic";
+
 export default async function ClientsPage() {
   const tenantId = "tenant_seed_123";
 
