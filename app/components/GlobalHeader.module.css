@@ -4,6 +4,14 @@
   align-items: flex-start;
   width: 100%;
   margin-bottom: 20px;
+  margin-left: 0;
+  padding-left: 0;
+}
+
+@media (min-width: 1025px) {
+  .header {
+    padding-left: 0;
+  }
 }
 
 .logoContainer {
@@ -27,6 +35,23 @@
   padding: 15px 20px 20px 30px;
   border-radius: 0 0 0 50px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+.iconBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+  position: relative;
+  color: #888;
+}
+
+.iconBtn:hover {
+  transform: scale(1.1);
+  color: var(--tertiary);
 }
 
 .notificationBtn {

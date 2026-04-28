@@ -262,6 +262,12 @@
   gap: 6px;
 }
 
+.btnSecondary {
+  background-color: var(--tertiary);
+  color: white;
+  border: none;
+}
+
 .paramBtn {
   background: white;
   border: 1px solid #E5E5E5;

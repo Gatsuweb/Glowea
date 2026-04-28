@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import styles from './SessionModal.module.css';
+import { 
+  saveLashSession, 
+  getSessionModalData, 
+  getLashSessionByAppointmentId,
+  getBrowliftSessionByAppointmentId,
+  getLashLiftSessionByAppointmentId,
+  getNailSessionByAppointmentId,
+  saveBrowliftSession,
+  saveLashLiftSession,
+  saveNailSession
+} from '../actions/sessionActions';
 
 const TimerCard = ({ title, initialMinutes }: { title: string, initialMinutes: number }) => {
   const [timeLeft, setTimeLeft] = useState(initialMinutes * 60);
@@ -74,14 +85,26 @@ interface SessionModalProps {
   clientName?: string;
   time?: string;
   category?: string;
+  appointmentId?: string;
+  clientId?: string;
+  serviceId?: string;
+  isReadOnly?: boolean;
+  onPaymentRequest?: () => void;
 }
+
+import { exportElementToPDF } from "../../lib/exportUtils";
 
 export default function SessionModal({ 
   isOpen, 
   onClose, 
   clientName = "Johnny Doug", 
   time = "14:00", 
-  category = "Cils" 
+  category = "Cils",
+  appointmentId,
+  clientId,
+  serviceId,
+  isReadOnly = false,
+  onPaymentRequest
 }: SessionModalProps) {
   
   const [activeTab, setActiveTab] = useState("Cils");
@@ -97,12 +120,106 @@ export default function SessionModal({
   const [epaisseur, setEpaisseur] = useState("0.10");
   const [longueurActives, setLongueurActives] = useState<string[]>(["11", "12", "13"]);
 
-  const [products, setProducts] = useState([
-    { id: 1, name: "Colle Ultra Bond", stock: "Stock 1/1\nmultidose", checked: true },
-    { id: 2, name: "Primer", stock: "Stock 1/1\nmultidose", checked: false },
-    { id: 3, name: "Bonder", stock: "Stock 1/1\nmultidose", checked: false },
-    { id: 4, name: "Cils (Boite) D Curl 0.07", stock: "Stock 4/18\nDose unique", checked: false },
-  ]);
+  const [lashBrand, setLashBrand] = useState("");
+  const [lashReference, setLashReference] = useState("");
+  const [poseName, setPoseName] = useState("");
+  const [remarks, setRemarks] = useState("");
+
+  const [products, setProducts] = useState<any[]>([]);
+  const [clientDetails, setClientDetails] = useState<any>(null);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+
+  useEffect(() => {
+    async function loadData() {
+      if (isOpen) {
+        setIsLoadingData(true);
+        const res = await getSessionModalData(clientId);
+        if (res.success) {
+          if (res.clientInfo) setClientDetails(res.clientInfo);
+          if (res.products) setProducts(res.products);
+        }
+        
+        if (appointmentId) {
+          // Fetch Cils
+          const sessionRes = await getLashSessionByAppointmentId(appointmentId);
+          if (sessionRes.success && sessionRes.lashSession) {
+            const ls = sessionRes.lashSession;
+            setTechnique(ls.prestationType || "Cil à cil");
+            setCourbure(ls.generalCurl || "D");
+            setEpaisseur(ls.generalThickness || "0.10");
+            setPoseName(ls.poseName || "");
+            setLashBrand(ls.lashBrand || "");
+            setLashReference(ls.lashReference || "");
+            setRemarks(ls.remarks || "");
+
+            if (ls.generalLengthMapJson) {
+              const lengths = ls.generalLengthMapJson as unknown as string[];
+              if (Array.isArray(lengths)) {
+                setLongueurActives(lengths);
+              }
+            }
+
+            if (ls.globalParamsJson) {
+              const globalParams = ls.globalParamsJson as any;
+              if (globalParams.typeCils) setTypeCils(globalParams.typeCils);
+              if (globalParams.longueurActivesOeilG) setLongueurActivesOeilG(globalParams.longueurActivesOeilG);
+              if (globalParams.longueurActivesOeilD) setLongueurActivesOeilD(globalParams.longueurActivesOeilD);
+            }
+          }
+
+          // Fetch Browlift
+          const browliftRes = await getBrowliftSessionByAppointmentId(appointmentId);
+          if (browliftRes.success && browliftRes.browliftSession) {
+            const bs = browliftRes.browliftSession;
+            setHasTeinture(bs.tintEnabled);
+            setTintColorBrowlift(bs.tintColor || "Brun foncé");
+            setRemarks(bs.remarks || "");
+            if (bs.globalParamsJson) {
+              const gp = bs.globalParamsJson as any;
+              if (gp.products) setBrowliftProducts(gp.products);
+            }
+          }
+
+          // Fetch LashLift (Rehaussement)
+          const lashLiftRes = await getLashLiftSessionByAppointmentId(appointmentId);
+          if (lashLiftRes.success && lashLiftRes.lashLiftSession) {
+            const lls = lashLiftRes.lashLiftSession;
+            setHasRehaussementTeinture(lls.tintEnabled);
+            setTintColorRehaussement(lls.tintColor || "Brun foncé");
+            setRemarks(lls.remarks || "");
+            if (lls.globalParamsJson) {
+              const gp = lls.globalParamsJson as any;
+              if (gp.products) setRehaussementProducts(gp.products);
+            }
+          }
+
+          // Fetch Ongles
+          const nailRes = await getNailSessionByAppointmentId(appointmentId);
+          if (nailRes.success && nailRes.nailSession) {
+            const ns = nailRes.nailSession;
+            setPrestationOngles(ns.prestationType || "");
+            setTypePoseOngles(ns.poseType || "Pose complète");
+            setFormeOngles(ns.shape || "Coffin");
+            setTaillePoseOngles(ns.size || "M");
+            setBaseUsed(ns.baseUsed || "");
+            setGelUsed(ns.gelUsed || "");
+            setColorUsed(ns.colorUsed || "");
+            setPrimerUsed(ns.primerUsed || "");
+            setRemarks(ns.remarks || "");
+            if (ns.globalParamsJson) {
+              const gp = ns.globalParamsJson as any;
+              if (gp.mainOngles) setMainOngles(gp.mainOngles);
+              if (gp.capsulesGauche) setCapsulesGauche(gp.capsulesGauche);
+              if (gp.capsulesDroite) setCapsulesDroite(gp.capsulesDroite);
+            }
+          }
+        }
+        
+        setIsLoadingData(false);
+      }
+    }
+    loadData();
+  }, [isOpen, clientId, isReadOnly, appointmentId]);
 
   const [browliftProducts, setBrowliftProducts] = useState([
     { id: 101, name: "Lotion 1", stock: "Stock 1/1\nmultidose", checked: true, defaultTime: 5 },
@@ -119,21 +236,121 @@ export default function SessionModal({
   ]);
 
   const [hasRehaussementTeinture, setHasRehaussementTeinture] = useState(false);
+  const [tintColorBrowlift, setTintColorBrowlift] = useState("Brun foncé");
+  const [tintColorRehaussement, setTintColorRehaussement] = useState("Brun foncé");
 
   // States for Ongles
+  const [prestationOngles, setPrestationOngles] = useState("");
   const [typePoseOngles, setTypePoseOngles] = useState("Pose complète");
   const [taillePoseOngles, setTaillePoseOngles] = useState("M");
   const [formeOngles, setFormeOngles] = useState("Coffin");
   const [mainOngles, setMainOngles] = useState("gauche"); // "gauche" or "droite"
+  const [capsulesGauche, setCapsulesGauche] = useState<Record<string, string>>({
+    Pouce: "0", Index: "0", Majeur: "0", Annulaire: "0", Auriculaire: "0"
+  });
+  const [capsulesDroite, setCapsulesDroite] = useState<Record<string, string>>({
+    Pouce: "0", Index: "0", Majeur: "0", Annulaire: "0", Auriculaire: "0"
+  });
+  const [baseUsed, setBaseUsed] = useState("");
+  const [gelUsed, setGelUsed] = useState("");
+  const [colorUsed, setColorUsed] = useState("");
+  const [primerUsed, setPrimerUsed] = useState("");
 
   const [longueurActivesOeilG, setLongueurActivesOeilG] = useState<string[]>(["9", "10", "11", "12", "13", "14"]);
   const [longueurActivesOeilD, setLongueurActivesOeilD] = useState<string[]>(["9", "10", "11", "12", "13", "14"]);
 
   const [hasTeinture, setHasTeinture] = useState(false);
 
+  const handleSave = async (isDraft: boolean) => {
+    if (!appointmentId || !clientId) {
+      onClose();
+      return;
+    }
+
+    const saveStatus = isDraft ? "DRAFT" : "COMPLETED";
+    let res;
+
+    if (activeTab === "Cils") {
+      res = await saveLashSession({
+        appointmentId,
+        clientId,
+        serviceId,
+        prestationType: technique,
+        poseName: poseName,
+        lashBrand: lashBrand,
+        lashReference: lashReference,
+        glueUsed: products.find(p => p.checked && p.name.includes('Colle'))?.name || "",
+        generalCurl: courbure,
+        generalThickness: epaisseur,
+        generalLengthMapJson: longueurActives,
+        globalParamsJson: {
+          typeCils,
+          longueurActivesOeilG,
+          longueurActivesOeilD
+        },
+        remarks: remarks,
+        status: saveStatus,
+      });
+    } else if (activeTab === "Browlift") {
+      res = await saveBrowliftSession({
+        appointmentId,
+        clientId,
+        serviceId,
+        tintEnabled: hasTeinture,
+        tintColor: tintColorBrowlift,
+        globalParamsJson: { products: browliftProducts },
+        remarks: remarks,
+        status: saveStatus,
+      });
+    } else if (activeTab === "Rehaussement de cils") {
+      res = await saveLashLiftSession({
+        appointmentId,
+        clientId,
+        serviceId,
+        tintEnabled: hasRehaussementTeinture,
+        tintColor: tintColorRehaussement,
+        globalParamsJson: { products: rehaussementProducts },
+        remarks: remarks,
+        status: saveStatus,
+      });
+    } else if (activeTab === "Ongles") {
+      res = await saveNailSession({
+        appointmentId,
+        clientId,
+        serviceId,
+        prestationType: prestationOngles,
+        poseType: typePoseOngles,
+        shape: formeOngles,
+        size: taillePoseOngles,
+        baseUsed: baseUsed,
+        gelUsed: gelUsed,
+        colorUsed: colorUsed,
+        primerUsed: primerUsed,
+        globalParamsJson: { mainOngles, capsulesGauche, capsulesDroite },
+        remarks: remarks,
+        status: saveStatus,
+      });
+    }
+
+    if (res?.success) {
+      if (isDraft) {
+        alert("Brouillon enregistré avec succès.");
+        onClose();
+      } else {
+        if (onPaymentRequest) {
+          onPaymentRequest();
+        } else {
+          onClose();
+        }
+      }
+    } else {
+      alert(res?.error || "Erreur lors de la sauvegarde");
+    }
+  };
+
   if (!isOpen) return null;
 
-  const toggleProduct = (id: number) => {
+  const toggleProduct = (id: string | number) => {
     setProducts(products.map(p => p.id === id ? { ...p, checked: !p.checked } : p));
   };
 
@@ -256,12 +473,16 @@ export default function SessionModal({
               <span className={styles.badgeWhite}>Aucune allergie</span>
             </div>
           </div>
-          <button className={styles.closeBtn} onClick={onClose}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button className={styles.closeBtn} onClick={onClose} data-html2canvas-ignore="true">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
         </div>
 
-        {/* Tabs */}
+        {/* Export Container Starts Here */}
+        <div id="session-export-container" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+          {/* Tabs */}
         <div className={styles.tabs}>
           {["Cils", "Browlift", "Rehaussement de cils", "Ongles"].map(tab => (
             <button 
@@ -276,6 +497,7 @@ export default function SessionModal({
 
         {/* Scrollable Content */}
         <div className={styles.content}>
+          <div style={{ pointerEvents: isReadOnly ? 'none' : 'auto' }}>
           {activeTab === 'Cils' && (
             <>
               {/* ROW 1 */}
@@ -377,20 +599,26 @@ export default function SessionModal({
               <p className={styles.cardSubtitle}>Le stock se mettra à jour automatiquement.</p>
               
               <div className={styles.productList}>
-                {products.map(p => (
-                  <div key={p.id} className={styles.productItem}>
-                    <div 
-                      className={`${styles.checkbox} ${p.checked ? styles.checked : ''}`}
-                      onClick={() => toggleProduct(p.id)}
-                    ></div>
-                    {/* Placeholder for product bottle icon */}
-                    <div style={{ width: '12px', height: '20px', background: '#333', borderRadius: '2px 2px 0 0', position: 'relative' }}>
-                      <div style={{ position: 'absolute', top: '-4px', left: '3px', width: '6px', height: '4px', background: '#FF69B4' }}></div>
+                {isLoadingData ? (
+                  <div style={{ padding: '10px 0', color: '#888' }}>Chargement des produits...</div>
+                ) : products.length > 0 ? (
+                  products.map(p => (
+                    <div key={p.id} className={styles.productItem}>
+                      <div 
+                        className={`${styles.checkbox} ${p.checked ? styles.checked : ''}`}
+                        onClick={() => toggleProduct(p.id)}
+                      ></div>
+                      {/* Placeholder for product bottle icon */}
+                      <div style={{ width: '12px', height: '20px', background: '#333', borderRadius: '2px 2px 0 0', position: 'relative' }}>
+                        <div style={{ position: 'absolute', top: '-4px', left: '3px', width: '6px', height: '4px', background: '#FF69B4' }}></div>
+                      </div>
+                      <span className={styles.productName}>{p.name}</span>
+                      <span className={styles.productStock} style={{ whiteSpace: 'pre-line' }}>{p.stock}</span>
                     </div>
-                    <span className={styles.productName}>{p.name}</span>
-                    <span className={styles.productStock} style={{ whiteSpace: 'pre-line' }}>{p.stock}</span>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <div style={{ padding: '10px 0', color: '#888' }}>Aucun produit en stock.</div>
+                )}
               </div>
             </div>
           </div>
@@ -480,16 +708,31 @@ export default function SessionModal({
               <h3 className={styles.cardTitle}>MARQUE DES CILS UTILISÉS</h3>
               <div className={styles.inputGroup}>
                 <label>Marque / Gamme :</label>
-                <input type="text" className={styles.textInput} />
+                <input 
+                  type="text" 
+                  className={styles.textInput} 
+                  value={lashBrand} 
+                  onChange={e => setLashBrand(e.target.value)} 
+                />
               </div>
               <div className={styles.inputGroup}>
                 <label>Référence (optionnelle):</label>
-                <input type="text" className={styles.textInput} />
+                <input 
+                  type="text" 
+                  className={styles.textInput} 
+                  value={lashReference} 
+                  onChange={e => setLashReference(e.target.value)} 
+                />
               </div>
               
               <h3 className={styles.cardTitle} style={{ marginTop: '20px' }}>NOM DE LA POSE</h3>
               <div className={styles.inputGroup}>
-                <input type="text" className={styles.textInput} />
+                <input 
+                  type="text" 
+                  className={styles.textInput} 
+                  value={poseName} 
+                  onChange={e => setPoseName(e.target.value)} 
+                />
               </div>
             </div>
           </div>
@@ -499,23 +742,48 @@ export default function SessionModal({
             {/* Infos */}
             <div className={styles.card}>
               <h3 className={styles.cardTitle}>INFOS CLIENTE</h3>
-              <div className={styles.infoTitle} style={{ fontWeight: 600, color: '#333' }}>Sophie DOE</div>
-              <div className={styles.infoBlock}>
-                <div className={styles.infoCol}>
-                  <span className={styles.infoText}>06 01 02 03 04</span>
-                  <span className={styles.infoText}>ivan.duran@outlook.fr</span>
-                </div>
-                <div className={styles.infoCol}>
-                  <span className={styles.infoText}>5 rendez-vous effectué</span>
-                  <span className={styles.infoText}>Aucune allergie</span>
-                </div>
-              </div>
+              {isLoadingData ? (
+                <div style={{ padding: '10px 0', color: '#888' }}>Chargement...</div>
+              ) : clientDetails ? (
+                <>
+                  <div className={styles.infoTitle} style={{ fontWeight: 600, color: '#333' }}>
+                    {clientDetails.fullName}
+                    {clientDetails.isLoyal && (
+                      <span style={{
+                        marginLeft: '10px',
+                        background: '#FFE4E1',
+                        color: '#D87093',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '0.75rem',
+                        fontWeight: 'bold'
+                      }}>Cliente fidèle</span>
+                    )}
+                  </div>
+                  <div className={styles.infoBlock}>
+                    <div className={styles.infoCol}>
+                      <span className={styles.infoText}>{clientDetails.phone}</span>
+                      <span className={styles.infoText}>{clientDetails.email}</span>
+                    </div>
+                    <div className={styles.infoCol}>
+                      <span className={styles.infoText}>{clientDetails.appointmentCount} rendez-vous effectué(s)</span>
+                      <span className={styles.infoText}>{clientDetails.allergies}</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div style={{ padding: '10px 0', color: '#888' }}>Aucune information disponible.</div>
+              )}
             </div>
 
             {/* Remarques */}
             <div className={styles.card}>
               <h3 className={styles.cardTitle}>REMARQUES</h3>
-              <textarea className={styles.textarea}></textarea>
+              <textarea 
+                className={styles.textarea} 
+                value={remarks} 
+                onChange={e => setRemarks(e.target.value)} 
+              ></textarea>
             </div>
 
             {/* Photos */}
@@ -580,7 +848,7 @@ export default function SessionModal({
                   <div className={styles.teintureConfig} style={{ opacity: hasTeinture ? 1 : 0.4, pointerEvents: hasTeinture ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
                     <label className={styles.paramLabel} style={{display: 'block', marginTop: '20px', marginBottom: '8px'}}>Couleur utilisée</label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                      <input type="text" className={styles.textInput} defaultValue="Brun foncé" placeholder="Ex: Brun foncé, Noir..." style={{flex: 1}}/>
+                      <input type="text" className={styles.textInput} value={tintColorBrowlift} onChange={e => setTintColorBrowlift(e.target.value)} placeholder="Ex: Brun foncé, Noir..." style={{flex: 1}}/>
                       <div style={{backgroundColor: '#3B2F2F', width: '28px', height: '28px', borderRadius: '50%', border: '3px solid #E5E5E5'}}></div>
                     </div>
                     <p style={{fontSize: '0.75rem', color: '#888', marginTop: '8px'}}>Ex : Brun foncé, Noir, Graphite...</p>
@@ -606,7 +874,7 @@ export default function SessionModal({
               <div className={styles.browliftRow3} style={{marginTop: '15px'}}>
                 <div className={styles.card}>
                   <h3 className={styles.cardTitle}>REMARQUES</h3>
-                  <textarea className={styles.textarea} style={{minHeight: '80px'}}></textarea>
+                  <textarea className={styles.textarea} value={remarks} onChange={e => setRemarks(e.target.value)} style={{minHeight: '80px'}}></textarea>
                 </div>
                 <div className={styles.card}>
                   <h3 className={styles.cardTitle}>PHOTOS</h3>
@@ -636,17 +904,38 @@ export default function SessionModal({
               {/* Infos Cliente */}
               <div className={styles.card} style={{marginTop: '15px'}}>
                 <h3 className={styles.cardTitle}>INFOS CLIENTE</h3>
-                <div className={styles.infoTitle} style={{ fontWeight: 600, color: '#333' }}>Sophie DOE</div>
-                <div className={styles.infoBlock}>
-                  <div className={styles.infoCol}>
-                    <span className={styles.infoText}>06 01 02 03 04</span>
-                    <span className={styles.infoText}>ivan.duran@outlook.fr</span>
-                  </div>
-                  <div className={styles.infoCol}>
-                    <span className={styles.infoText}>5 rendez-vous effectué</span>
-                    <span className={styles.infoText}>Aucune allergie</span>
-                  </div>
-                </div>
+                {isLoadingData ? (
+                  <div style={{ padding: '10px 0', color: '#888' }}>Chargement...</div>
+                ) : clientDetails ? (
+                  <>
+                    <div className={styles.infoTitle} style={{ fontWeight: 600, color: '#333' }}>
+                      {clientDetails.fullName}
+                      {clientDetails.isLoyal && (
+                        <span style={{
+                          marginLeft: '10px',
+                          background: '#FFE4E1',
+                          color: '#D87093',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontSize: '0.75rem',
+                          fontWeight: 'bold'
+                        }}>Cliente fidèle</span>
+                      )}
+                    </div>
+                    <div className={styles.infoBlock}>
+                      <div className={styles.infoCol}>
+                        <span className={styles.infoText}>{clientDetails.phone}</span>
+                        <span className={styles.infoText}>{clientDetails.email}</span>
+                      </div>
+                      <div className={styles.infoCol}>
+                        <span className={styles.infoText}>{clientDetails.appointmentCount} rendez-vous effectué(s)</span>
+                        <span className={styles.infoText}>{clientDetails.allergies}</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ padding: '10px 0', color: '#888' }}>Aucune information disponible.</div>
+                )}
               </div>
               
               {/* Info Banner */}
@@ -690,7 +979,7 @@ export default function SessionModal({
                   <div className={styles.teintureConfig} style={{ opacity: hasRehaussementTeinture ? 1 : 0.4, pointerEvents: hasRehaussementTeinture ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
                     <label className={styles.paramLabel} style={{display: 'block', marginTop: '20px', marginBottom: '8px'}}>Couleur utilisée</label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                      <input type="text" className={styles.textInput} defaultValue="Brun foncé" placeholder="Ex: Brun foncé, Noir..." style={{flex: 1}}/>
+                      <input type="text" className={styles.textInput} value={tintColorRehaussement} onChange={e => setTintColorRehaussement(e.target.value)} placeholder="Ex: Brun foncé, Noir..." style={{flex: 1}}/>
                       <div style={{backgroundColor: '#3B2F2F', width: '28px', height: '28px', borderRadius: '50%', border: '3px solid #E5E5E5'}}></div>
                     </div>
                     <p style={{fontSize: '0.75rem', color: '#888', marginTop: '8px'}}>Ex : Brun foncé, Noir, Graphite...</p>
@@ -763,7 +1052,7 @@ export default function SessionModal({
               <div className={styles.browliftRow3} style={{marginTop: '15px'}}>
                 <div className={styles.card}>
                   <h3 className={styles.cardTitle}>REMARQUES</h3>
-                  <textarea className={styles.textarea} style={{minHeight: '80px'}}></textarea>
+                  <textarea className={styles.textarea} value={remarks} onChange={e => setRemarks(e.target.value)} style={{minHeight: '80px'}}></textarea>
                 </div>
                 <div className={styles.card}>
                   <h3 className={styles.cardTitle}>PHOTOS</h3>
@@ -793,17 +1082,38 @@ export default function SessionModal({
               {/* Infos Cliente */}
               <div className={styles.card} style={{marginTop: '15px'}}>
                 <h3 className={styles.cardTitle}>INFOS CLIENTE</h3>
-                <div className={styles.infoTitle} style={{ fontWeight: 600, color: '#333' }}>Sophie DOE</div>
-                <div className={styles.infoBlock}>
-                  <div className={styles.infoCol}>
-                    <span className={styles.infoText}>06 01 02 03 04</span>
-                    <span className={styles.infoText}>ivan.duran@outlook.fr</span>
-                  </div>
-                  <div className={styles.infoCol}>
-                    <span className={styles.infoText}>5 rendez-vous effectué</span>
-                    <span className={styles.infoText}>Aucune allergie</span>
-                  </div>
-                </div>
+                {isLoadingData ? (
+                  <div style={{ padding: '10px 0', color: '#888' }}>Chargement...</div>
+                ) : clientDetails ? (
+                  <>
+                    <div className={styles.infoTitle} style={{ fontWeight: 600, color: '#333' }}>
+                      {clientDetails.fullName}
+                      {clientDetails.isLoyal && (
+                        <span style={{
+                          marginLeft: '10px',
+                          background: '#FFE4E1',
+                          color: '#D87093',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontSize: '0.75rem',
+                          fontWeight: 'bold'
+                        }}>Cliente fidèle</span>
+                      )}
+                    </div>
+                    <div className={styles.infoBlock}>
+                      <div className={styles.infoCol}>
+                        <span className={styles.infoText}>{clientDetails.phone}</span>
+                        <span className={styles.infoText}>{clientDetails.email}</span>
+                      </div>
+                      <div className={styles.infoCol}>
+                        <span className={styles.infoText}>{clientDetails.appointmentCount} rendez-vous effectué(s)</span>
+                        <span className={styles.infoText}>{clientDetails.allergies}</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ padding: '10px 0', color: '#888' }}>Aucune information disponible.</div>
+                )}
               </div>
               
               {/* Info Banner */}
@@ -820,7 +1130,7 @@ export default function SessionModal({
                 <h3 className={styles.cardTitle}>TECHNIQUE</h3>
                 <div className={styles.inputGroup}>
                   <label className={styles.paramLabel}>Préstation :</label>
-                  <select className={styles.selectInput} defaultValue="">
+                  <select className={styles.selectInput} value={prestationOngles} onChange={e => setPrestationOngles(e.target.value)}>
                     <option value=""></option>
                     <option value="Gel">Pose Gel</option>
                     <option value="Acrygel">Acrygel</option>
@@ -892,21 +1202,34 @@ export default function SessionModal({
                         <div style={{width: '16px', height: '30px', background: '#E5C6B7', borderRadius: '8px 8px 0 0', position: 'relative'}}>
                           <div style={{position: 'absolute', top: 0, left: '2px', width: '12px', height: '15px', background: '#8B4B54', borderRadius: '6px 6px 0 0', opacity: 0.8}}></div>
                         </div>
-                        <select className={styles.capsuleSelect}>
+                        <select 
+                          className={styles.capsuleSelect}
+                          value={mainOngles === "gauche" ? capsulesGauche[doigt] : capsulesDroite[doigt]}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (mainOngles === "gauche") {
+                              setCapsulesGauche(prev => ({ ...prev, [doigt]: val }));
+                            } else {
+                              setCapsulesDroite(prev => ({ ...prev, [doigt]: val }));
+                            }
+                          }}
+                        >
                           {[0,1,2,3,4,5,6,7,8,9].map(n => <option key={n} value={n}>{n}</option>)}
                         </select>
                       </div>
                     ))}
                   </div>
 
-                  <div className={styles.segmentedControl} style={{marginTop: '15px'}}>
+                  <div className={styles.segmentedControl} style={{marginTop: '15px', pointerEvents: 'auto'}}>
                     <button 
+                      type="button"
                       className={`${styles.segmentBtn} ${mainOngles === "gauche" ? styles.active : styles.inactive}`}
                       onClick={() => setMainOngles("gauche")}
                     >
                       Mains gauche
                     </button>
                     <button 
+                      type="button"
                       className={`${styles.segmentBtn} ${mainOngles === "droite" ? styles.active : styles.inactive}`}
                       onClick={() => setMainOngles("droite")}
                     >
@@ -924,19 +1247,19 @@ export default function SessionModal({
                 <div style={{display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '20px'}}>
                   <div className={styles.inputGroup}>
                     <label className={styles.paramLabel}>BASE</label>
-                    <select className={styles.selectInput} defaultValue=""><option value=""></option></select>
+                    <select className={styles.selectInput} value={baseUsed} onChange={e => setBaseUsed(e.target.value)}><option value=""></option><option value="Base Clear">Base Clear</option></select>
                   </div>
                   <div className={styles.inputGroup}>
                     <label className={styles.paramLabel}>GEL</label>
-                    <select className={styles.selectInput} defaultValue=""><option value=""></option></select>
+                    <select className={styles.selectInput} value={gelUsed} onChange={e => setGelUsed(e.target.value)}><option value=""></option><option value="Gel Construction">Gel Construction</option></select>
                   </div>
                   <div className={styles.inputGroup}>
                     <label className={styles.paramLabel}>COULEUR</label>
-                    <select className={styles.selectInput} defaultValue=""><option value=""></option></select>
+                    <select className={styles.selectInput} value={colorUsed} onChange={e => setColorUsed(e.target.value)}><option value=""></option><option value="Rouge">Rouge</option></select>
                   </div>
                   <div className={styles.inputGroup}>
                     <label className={styles.paramLabel}>PRIMER</label>
-                    <select className={styles.selectInput} defaultValue=""><option value=""></option></select>
+                    <select className={styles.selectInput} value={primerUsed} onChange={e => setPrimerUsed(e.target.value)}><option value=""></option><option value="Primer Acid Free">Primer Acid Free</option></select>
                   </div>
                   <div className={styles.inputGroup}>
                     <label className={styles.paramLabel}>AUTRES PRODUITS</label>
@@ -949,7 +1272,7 @@ export default function SessionModal({
               <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
                 <div className={styles.card} style={{flex: 1}}>
                   <h3 className={styles.cardTitle}>REMARQUES</h3>
-                  <textarea className={styles.textarea} style={{height: 'calc(100% - 30px)'}}></textarea>
+                  <textarea className={styles.textarea} value={remarks} onChange={e => setRemarks(e.target.value)} style={{height: 'calc(100% - 30px)'}}></textarea>
                 </div>
                 
                 <div className={styles.card}>
@@ -978,31 +1301,75 @@ export default function SessionModal({
 
                 <div className={styles.card}>
                   <h3 className={styles.cardTitle}>INFOS CLIENTE</h3>
-                  <div className={styles.infoTitle} style={{ fontWeight: 600, color: '#333', fontSize: '0.85rem' }}>Sophie DOE</div>
-                  <div className={styles.infoBlock} style={{gap: '10px', marginTop: '5px'}}>
-                    <div className={styles.infoCol}>
-                      <span className={styles.infoText} style={{fontSize: '0.7rem'}}>06 01 02 03 04</span>
-                      <span className={styles.infoText} style={{fontSize: '0.7rem'}}>ivan.duran@outlook.fr</span>
-                    </div>
-                    <div className={styles.infoCol}>
-                      <span className={styles.infoText} style={{fontSize: '0.7rem'}}>5 rendez-vous effectué</span>
-                      <span className={styles.infoText} style={{fontSize: '0.7rem'}}>Aucune allergie</span>
-                    </div>
-                  </div>
+                  {isLoadingData ? (
+                    <div style={{ padding: '10px 0', color: '#888' }}>Chargement...</div>
+                  ) : clientDetails ? (
+                    <>
+                      <div className={styles.infoTitle} style={{ fontWeight: 600, color: '#333', fontSize: '0.85rem' }}>
+                        {clientDetails.fullName}
+                        {clientDetails.isLoyal && (
+                          <span style={{
+                            marginLeft: '10px',
+                            background: '#FFE4E1',
+                            color: '#D87093',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontSize: '0.75rem',
+                            fontWeight: 'bold'
+                          }}>Cliente fidèle</span>
+                        )}
+                      </div>
+                      <div className={styles.infoBlock} style={{gap: '10px', marginTop: '5px'}}>
+                        <div className={styles.infoCol}>
+                          <span className={styles.infoText} style={{fontSize: '0.7rem'}}>{clientDetails.phone}</span>
+                          <span className={styles.infoText} style={{fontSize: '0.7rem'}}>{clientDetails.email}</span>
+                        </div>
+                        <div className={styles.infoCol}>
+                          <span className={styles.infoText} style={{fontSize: '0.7rem'}}>{clientDetails.appointmentCount} rendez-vous effectué(s)</span>
+                          <span className={styles.infoText} style={{fontSize: '0.7rem'}}>{clientDetails.allergies}</span>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ padding: '10px 0', color: '#888' }}>Aucune information disponible.</div>
+                  )}
                 </div>
               </div>
             </div>
           )}
+          </div>
+        </div>
+
+        {/* End of Export Container */}
         </div>
 
         {/* Footer */}
-        <div className={styles.footer}>
-          <button className={styles.btnCancel} onClick={onClose}>Annuler le rendez-vous</button>
-          <div className={styles.footerRight}>
-            <button className={styles.btnDraft} onClick={onClose}>Enregistrer le brouillon</button>
-            <button className={styles.btnEnd} onClick={onClose}>Terminer la session</button>
+        {isReadOnly ? (
+          <div className={styles.footer} style={{ justifyContent: 'flex-end', gap: '10px' }} data-html2canvas-ignore="true">
+            <button 
+              className={styles.btnSecondary} 
+              onClick={() => exportElementToPDF('session-export-container', `fiche_session_${clientName.replace(' ', '_')}`, 'portrait')}
+              title="Télécharger la fiche"
+              style={{ padding: '8px 16px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Télécharger
+            </button>
+            <button className={styles.btnCancel} onClick={onClose}>Fermer</button>
           </div>
-        </div>
+        ) : (
+          <div className={styles.footer}>
+            <button className={styles.btnCancel} onClick={onClose}>Annuler le rendez-vous</button>
+            <div className={styles.footerRight}>
+              <button className={styles.btnDraft} onClick={() => handleSave(true)}>Enregistrer le brouillon</button>
+              <button className={styles.btnEnd} onClick={() => handleSave(false)}>Terminer la session</button>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

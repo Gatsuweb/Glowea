@@ -1,0 +1,18 @@
+.layoutWrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: url("/images/paper-texture.png");
+  padding-bottom: 145px; /* height of bottom nav */
+}
+
+.mainContent {
+  flex: 1;
+}
+
+@media (min-width: 1025px) {
+  .layoutWrapper {
+    padding-bottom: 0;
+    padding-left: 90px; /* width of sidebar nav */
+  }
+}

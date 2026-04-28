@@ -74,7 +74,7 @@
 }
 
 .sectionWhite {
-  background: url('/bg-texturé.svg') no-repeat center center;
+  background: #F5F5F5;
   border-radius: 15px;
   padding: 20px;
   margin-bottom: 20px;
@@ -397,4 +397,10 @@
 
 .submitBtn:hover {
   opacity: 0.9;
+}
+
+@media (max-width: 480px) {
+  .title {
+    font-size: 1.1rem;
+  }
 }

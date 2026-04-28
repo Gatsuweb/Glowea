@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Navbar from "../components/Navbar";
 import GlobalHeader from "../components/GlobalHeader";
+import styles from "./layout.module.css";
 
 export default async function DashboardLayout({
   children,
@@ -18,12 +19,14 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div style={{ paddingBottom: '100px', display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'url("/images/paper-texture.png")' }}>
-      <GlobalHeader />
-      <div style={{ flex: 1 }}>
+    <>
+      <Navbar />
+        <GlobalHeader />
+    <div className={styles.layoutWrapper}>
+      <div className={styles.mainContent}>
         {children}
       </div>
-      <Navbar />
     </div>
+    </>
   );
 }

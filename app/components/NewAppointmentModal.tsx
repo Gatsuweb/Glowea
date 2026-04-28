@@ -1,59 +1,114 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from './NewAppointmentModal.module.css';
 import NewClientModal from './NewClientModal';
+import { createAppointment, updateAppointment } from '../actions/appointmentActions';
 
 interface NewAppointmentModalProps {
   isOpen: boolean;
   onClose: () => void;
+  clients?: any[];
+  services?: any[];
+  initialData?: any;
 }
 
-export default function NewAppointmentModal({ isOpen, onClose }: NewAppointmentModalProps) {
+export default function NewAppointmentModal({ 
+  isOpen, 
+  onClose, 
+  clients = [], 
+  services = [],
+  initialData = null
+}: NewAppointmentModalProps) {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [category, setCategory] = useState<'ONGLES' | 'CILS' | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedPrestation, setSelectedPrestation] = useState<string | null>(null);
   const [clientSearch, setClientSearch] = useState('');
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [isDropdownOpen, setDropdownOpen] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Mock list of clients
-  const clientsList = [
-    "Sophie Doe",
-    "Laura Croft",
-    "Emma L.",
-    "Marie Dupont",
-    "Julie Martin"
-  ];
+  useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        // Pre-fill for edit
+        const date = new Date(initialData.scheduledAt);
+        setSelectedDate(date.toISOString().split('T')[0]);
+        const timeStr = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', ':');
+        // Keep timeStr as HH:mm to match timeSlots and input type="time"
+        setSelectedTime(timeStr);
+        setClientSearch(initialData.client?.name || '');
+        setSelectedClientId(initialData.client?.id || null);
+        setSelectedPrestation(initialData.service?.id || null);
+        // Notes aren't in initialData yet, but could be added later
+      } else {
+        // Reset for new
+        setSelectedTime(null);
+        setSelectedDate(new Date().toISOString().split('T')[0]);
+        setSelectedPrestation(null);
+        setClientSearch('');
+        setSelectedClientId(null);
+        setNotes('');
+      }
+    }
+  }, [isOpen, initialData]);
 
-  const filteredClients = clientsList.filter(client => 
-    client.toLowerCase().includes(clientSearch.toLowerCase())
+  const filteredClients = clients.filter(client => 
+    client.name.toLowerCase().includes(clientSearch.toLowerCase())
   );
 
   if (!isOpen) return null;
 
-  const timeSlots = ["8:00", "9:00", "10:00", "11:00", "14:00", "15:00", "16:00", "17:00"];
-  
-  const prestationsCils = [
-    { id: 'pose_complete', title: 'Pose Complète', price: '60€', time: '2h00' },
-    { id: 'remplissage_2', title: 'Remplissage 2 sem', price: '40€', time: '1h15' },
-    { id: 'remplissage_3', title: 'Remplissage 3 sem', price: '50€', time: '1h30' },
-  ];
+  // We generate timeslots from 8:00 to 18:00 (toutes les heures)
+  const timeSlots = [];
+  for (let i = 8; i <= 18; i++) {
+    timeSlots.push(`${i.toString().padStart(2, '0')}:00`);
+  }
 
-  const prestationsOngles = [
-    { id: 'pose_chablon', title: 'Pose Chablons', price: '55€', time: '1h45' },
-    { id: 'remplissage_ongles', title: 'Remplissage', price: '45€', time: '1h15' },
-    { id: 'semi_permanent', title: 'Semi-Permanent', price: '35€', time: '1h00' },
-  ];
+  // Filter services by category if needed, here we just show all services
+  const currentPrestations = services;
 
-  // Si on n'a pas sélectionné de catégorie, on affiche par défaut celles des cils (ou rien, mais pour l'UX c'est bien d'en avoir)
-  const currentPrestations = category === 'ONGLES' ? prestationsOngles : prestationsCils;
+  const handleSubmit = async () => {
+    if (!selectedClientId || !selectedPrestation || !selectedTime || !selectedDate) {
+      alert("Veuillez remplir tous les champs obligatoires (Client, Date, Heure, Prestation)");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const [hours, minutes] = selectedTime.split(':');
+    const scheduledAt = new Date(selectedDate);
+    scheduledAt.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+
+    const appointmentData = {
+      clientId: selectedClientId,
+      serviceId: selectedPrestation,
+      scheduledAt,
+      notes,
+    };
+
+    try {
+      if (initialData) {
+        await updateAppointment(initialData.id, appointmentData);
+      } else {
+        await createAppointment(appointmentData);
+      }
+      onClose();
+    } catch (error) {
+      console.error(error);
+      alert("Une erreur est survenue");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.modalContent} onClick={(e) => {
         e.stopPropagation();
-        setDropdownOpen(false); // Ferme le menu si on clique ailleurs dans la modale
+        setDropdownOpen(false);
       }}>
         
         {/* HEADER */}
@@ -63,7 +118,7 @@ export default function NewAppointmentModal({ isOpen, onClose }: NewAppointmentM
               <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
           </button>
-          <h1 className={styles.title}>Nouveau Rendez-vous</h1>
+          <h1 className={styles.title}>{initialData ? 'Modifier Rendez-vous' : 'Nouveau Rendez-vous'}</h1>
         </div>
 
         {/* CLIENT SECTION */}
@@ -79,6 +134,7 @@ export default function NewAppointmentModal({ isOpen, onClose }: NewAppointmentM
                 value={clientSearch}
                 onChange={(e) => {
                   setClientSearch(e.target.value);
+                  setSelectedClientId(null);
                   setDropdownOpen(true);
                 }}
                 onFocus={() => setDropdownOpen(true)}
@@ -92,11 +148,12 @@ export default function NewAppointmentModal({ isOpen, onClose }: NewAppointmentM
                         key={index} 
                         className={styles.clientDropdownItem}
                         onClick={() => {
-                          setClientSearch(client);
+                          setClientSearch(client.name);
+                          setSelectedClientId(client.id);
                           setDropdownOpen(false);
                         }}
                       >
-                        {client}
+                        {client.name}
                       </div>
                     ))
                   ) : (
@@ -123,14 +180,23 @@ export default function NewAppointmentModal({ isOpen, onClose }: NewAppointmentM
         {/* DATE & HEURES */}
         <div className={styles.sectionWhite}>
           <div className={styles.sectionTitle}>DATE & HEURES</div>
-          <input 
-            type="text" 
-            className={styles.timeInput} 
-            placeholder="Sélectionner l'horaire" 
-            value={selectedTime ? selectedTime : ''} 
-            readOnly 
-          />
-          <div className={styles.timeSlots}>
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+            <input 
+              type="date" 
+              className={styles.dateInput} 
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              style={{ flex: 2, padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
+            />
+            <input 
+              type="time" 
+              className={styles.dateInput}
+              value={selectedTime || ''}
+              onChange={(e) => setSelectedTime(e.target.value)}
+              style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
+            />
+          </div>
+          <div className={styles.timeSlots} style={{ maxHeight: '150px', overflowY: 'auto' }}>
             {timeSlots.map((time) => (
               <button 
                 key={time} 
@@ -143,48 +209,22 @@ export default function NewAppointmentModal({ isOpen, onClose }: NewAppointmentM
           </div>
         </div>
 
-        {/* CATÉGORIE */}
-        <div className={styles.sectionWhite}>
-          <div className={styles.sectionTitle}>CATÉGORIE</div>
-          <div className={styles.categoryTabs}>
-            <button 
-              className={`${styles.categoryBtn} ${category === 'ONGLES' ? styles.active : ''}`}
-              onClick={() => setCategory('ONGLES')}
-            >
-              ONGLES
-            </button>
-            <button 
-              className={`${styles.categoryBtn} ${category === 'CILS' ? styles.active : ''}`}
-              onClick={() => setCategory('CILS')}
-            >
-              CILS
-            </button>
-          </div>
-        </div>
-
         {/* PRESTATION */}
         <div className={styles.sectionPink}>
           <div className={styles.prestationHeader}>
             <div className={styles.sectionTitle} style={{ marginBottom: '5px' }}>PRESTATION</div>
-            <a className={styles.prestationLink}>
-              Refaire dernière prestation : Remplissage 
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="7" y1="17" x2="17" y2="7"></line>
-                <polyline points="7 7 17 7 17 17"></polyline>
-              </svg>
-            </a>
           </div>
           
-          <div className={styles.prestationCards}>
+          <div className={styles.prestationCards} style={{ maxHeight: '200px', overflowY: 'auto' }}>
             {currentPrestations.map((prest) => (
               <div 
                 key={prest.id} 
                 className={`${styles.prestationCard} ${selectedPrestation === prest.id ? styles.active : ''}`}
                 onClick={() => setSelectedPrestation(prest.id)}
               >
-                <span className={styles.prestationTitle}>{prest.title}</span>
-                <span className={styles.prestationPrice}>{prest.price}</span>
-                <span className={styles.prestationTime}>{prest.time}</span>
+                <span className={styles.prestationTitle}>{prest.name}</span>
+                <span className={styles.prestationPrice}>{prest.price}€</span>
+                <span className={styles.prestationTime}>{prest.durationMin}min</span>
               </div>
             ))}
           </div>
@@ -196,12 +236,18 @@ export default function NewAppointmentModal({ isOpen, onClose }: NewAppointmentM
           <textarea 
             className={styles.notesInput} 
             placeholder="Ajouter une note ou une demande spécifique..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
           ></textarea>
         </div>
 
         {/* VALIDATION */}
-        <button className={styles.submitBtn}>
-          Confirmer le rendez-vous
+        <button 
+          className={styles.submitBtn} 
+          onClick={handleSubmit}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? 'Enregistrement...' : (initialData ? 'Enregistrer les modifications' : 'Confirmer le rendez-vous')}
         </button>
 
       </div>
@@ -211,6 +257,7 @@ export default function NewAppointmentModal({ isOpen, onClose }: NewAppointmentM
         isOpen={isCreatingClient} 
         onClose={() => setIsCreatingClient(false)} 
         onSave={(clientName) => {
+          // Dans un cas réel on récupérerait l'ID du nouveau client créé
           setClientSearch(clientName);
         }}
       />

@@ -56,7 +56,7 @@ export default function SparkBarChart({ data, color = "#FCD7D1" }: SparkBarChart
       </div>
 
       <div style={{ width: '100%', height: '100%', paddingLeft: '5px', paddingBottom: '2px' }}>
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <BarChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
             <Bar dataKey="value" radius={[5, 5, 0, 0]}>
               {data.map((entry, index) => (

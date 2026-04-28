@@ -1,6 +1,6 @@
 .layout {
   padding: 40px;
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
   display: flex;
   gap: 50px;
@@ -119,11 +119,19 @@
 }
 
 .clientAvatar {
-  width: 50px;
-  height: 50px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
-  background-color: #E2E2E2;
+  background: linear-gradient(135deg, #FCD7D1, #FAF4F4);
+  color: var(--tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  font-weight: 700;
   flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border: 2px solid white;
 }
 
 .clientInfo {
@@ -480,7 +488,16 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background-color: #E2E2E2;
+  background: linear-gradient(135deg, #FCD7D1, #FAF4F4);
+  color: var(--tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border: 2px solid white;
 }
 
 .tdAvatarSquare {
@@ -505,6 +522,11 @@
 .statusOrange {
   background-color: #FFF2E5;
   color: #E59235;
+}
+
+.statusRed {
+  background-color: #FCE8E8;
+  color: #D32F2F;
 }
 
 .catBadge {
@@ -541,12 +563,20 @@
   background-color: #FAF4F4;
   color: var(--tertiary);
   border: none;
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 600;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   cursor: pointer;
   transition: all 0.2s;
+}
+
+.btnVoirFiche svg {
+  width: 18px;
+  height: 18px;
 }
 
 .btnVoirFiche:hover {

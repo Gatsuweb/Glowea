@@ -5,6 +5,7 @@ import Image from "next/image";
 import styles from "./profil.module.css";
 import { useUser } from "@clerk/nextjs";
 import PromoModal from "../../components/PromoModal";
+import PrestationsTab from "./PrestationsTab";
 
 export default function ProfilPage() {
   const { user } = useUser();
@@ -34,6 +35,7 @@ export default function ProfilPage() {
 
   const navItems = [
     { id: "compte", label: "Compte", icon: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" },
+    { id: "prestations", label: "Prestations", icon: "M14 2H6a2 2 0 0 0-2 2v16c0 1.1.9 2 2 2h12a2 2 0 0 0 2-2V8l-6-6z M14 3v5h5 M16 13H8 M16 17H8 M10 9H8" },
     { id: "agenda", label: "Agenda", icon: "M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z M16 2v4 M8 2v4 M3 10h18" },
     { id: "abonnements", label: "Abonnements", icon: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" },
     { id: "paiements", label: "Paiements", icon: "M21 4H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z M21 10H3 M21 16H3" },
@@ -253,6 +255,10 @@ export default function ProfilPage() {
                 </div>
               </section>
             </>
+          )}
+
+          {activeTab === 'prestations' && (
+            <PrestationsTab />
           )}
 
           {activeTab === 'agenda' && (
