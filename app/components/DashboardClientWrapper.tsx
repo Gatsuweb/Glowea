@@ -378,8 +378,8 @@ export default function DashboardClientWrapper({
       <NewClientModal
         isOpen={isNewClientModalOpen}
         onClose={() => setNewClientModalOpen(false)}
-        onSave={(clientName) => {
-          console.log("Nouveau client créé depuis le Dashboard:", clientName);
+        onSave={(client) => {
+          console.log("Nouveau client créé depuis le Dashboard:", client);
         }}
       />
 

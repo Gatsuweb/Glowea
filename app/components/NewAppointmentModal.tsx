@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import styles from './NewAppointmentModal.module.css';
 import NewClientModal from './NewClientModal';
+import NewServiceModal from './NewServiceModal';
 import { createAppointment, updateAppointment } from '../actions/appointmentActions';
 
 interface NewAppointmentModalProps {
@@ -27,8 +28,14 @@ export default function NewAppointmentModal({
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [isDropdownOpen, setDropdownOpen] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [isCreatingService, setIsCreatingService] = useState(false);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [localServices, setLocalServices] = useState(services);
+
+  useEffect(() => {
+    setLocalServices(services);
+  }, [services]);
 
   useEffect(() => {
     if (isOpen) {
@@ -68,7 +75,7 @@ export default function NewAppointmentModal({
   }
 
   // Filter services by category if needed, here we just show all services
-  const currentPrestations = services;
+  const currentPrestations = localServices;
 
   const handleSubmit = async () => {
     if (!selectedClientId || !selectedPrestation || !selectedTime || !selectedDate) {
@@ -211,23 +218,39 @@ export default function NewAppointmentModal({
 
         {/* PRESTATION */}
         <div className={styles.sectionPink}>
-          <div className={styles.prestationHeader}>
-            <div className={styles.sectionTitle} style={{ marginBottom: '5px' }}>PRESTATION</div>
+          <div className={styles.prestationHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <div className={styles.sectionTitle} style={{ marginBottom: '0' }}>PRESTATION</div>
+            <button 
+              className={styles.addServiceBtn} 
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsCreatingService(true);
+              }}
+            >
+              + Nouvelle prestation
+            </button>
           </div>
           
-          <div className={styles.prestationCards} style={{ maxHeight: '200px', overflowY: 'auto' }}>
-            {currentPrestations.map((prest) => (
-              <div 
-                key={prest.id} 
-                className={`${styles.prestationCard} ${selectedPrestation === prest.id ? styles.active : ''}`}
-                onClick={() => setSelectedPrestation(prest.id)}
-              >
-                <span className={styles.prestationTitle}>{prest.name}</span>
-                <span className={styles.prestationPrice}>{prest.price}€</span>
-                <span className={styles.prestationTime}>{prest.durationMin}min</span>
-              </div>
-            ))}
-          </div>
+          {currentPrestations.length > 0 ? (
+            <div className={styles.prestationCards} style={{ maxHeight: '200px', overflowY: 'auto' }}>
+              {currentPrestations.map((prest) => (
+                <div 
+                  key={prest.id} 
+                  className={`${styles.prestationCard} ${selectedPrestation === prest.id ? styles.active : ''}`}
+                  onClick={() => setSelectedPrestation(prest.id)}
+                >
+                  <span className={styles.prestationTitle}>{prest.name}</span>
+                  <span className={styles.prestationPrice}>{prest.price}€</span>
+                  <span className={styles.prestationTime}>{prest.durationMin}min</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '20px', color: '#666', fontStyle: 'italic', background: 'rgba(255,255,255,0.5)', borderRadius: '12px' }}>
+              Aucune prestation disponible.<br />
+              <span style={{ fontSize: '0.85rem' }}>Cliquez sur "+ Nouvelle prestation" pour en ajouter une.</span>
+            </div>
+          )}
         </div>
 
         {/* NOTES ADDITIONNELLES */}
@@ -256,9 +279,18 @@ export default function NewAppointmentModal({
       <NewClientModal 
         isOpen={isCreatingClient} 
         onClose={() => setIsCreatingClient(false)} 
-        onSave={(clientName) => {
-          // Dans un cas réel on récupérerait l'ID du nouveau client créé
-          setClientSearch(clientName);
+        onSave={(client) => {
+          setClientSearch(client.fullName || client.firstName);
+          setSelectedClientId(client.id);
+        }}
+      />
+      {/* Modal Nouvelle Prestation par dessus */}
+      <NewServiceModal 
+        isOpen={isCreatingService} 
+        onClose={() => setIsCreatingService(false)} 
+        onSave={(service) => {
+          setLocalServices(prev => [...prev, service]);
+          setSelectedPrestation(service.id);
         }}
       />
     </div>

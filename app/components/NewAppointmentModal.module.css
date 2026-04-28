@@ -294,6 +294,23 @@
 }
 
 /* Prestation */
+.addServiceBtn {
+  padding: 5px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--tertiary);
+  background: transparent;
+  color: var(--tertiary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.addServiceBtn:hover {
+  background: var(--tertiary);
+  color: white;
+}
+
 .prestationHeader {
   display: flex;
   flex-direction: column;

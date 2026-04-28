@@ -2,14 +2,17 @@
 
 import React, { useState } from 'react';
 import styles from './NewAppointmentModal.module.css'; // On réutilise le même style
+import { createClient } from '../actions/clientActions';
+import { useRouter } from 'next/navigation';
 
 interface NewClientModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (clientName: string) => void;
+  onSave?: (client: any) => void;
 }
 
 export default function NewClientModal({ isOpen, onClose, onSave }: NewClientModalProps) {
+  const router = useRouter();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
@@ -17,14 +20,64 @@ export default function NewClientModal({ isOpen, onClose, onSave }: NewClientMod
   const [instagram, setInstagram] = useState('');
   const [birthdate, setBirthdate] = useState('');
   const [recommendedBy, setRecommendedBy] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSave = () => {
-    // Logique de sauvegarde ici
-    const fullName = `${firstName} ${lastName}`.trim() || "Nouveau Client";
-    onSave(fullName);
-    onClose();
+  const handleSave = async () => {
+    if (!firstName.trim()) {
+      setError('Le prénom est obligatoire');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Parse birthdate if provided (ex: 25/03/1995 -> Date)
+      let parsedDate: Date | undefined;
+      if (birthdate) {
+        const parts = birthdate.split('/');
+        if (parts.length === 3) {
+          parsedDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+        }
+      }
+
+      const response = await createClient({
+        firstName: firstName.trim(),
+        lastName: lastName.trim() || undefined,
+        phone: phone.trim() || undefined,
+        email: email.trim() || undefined,
+        instagram: instagram.trim() || undefined,
+        birthDate: parsedDate,
+        referredBy: recommendedBy.trim() || undefined,
+      });
+
+      if (response.success) {
+        if (onSave) {
+          onSave(response.client);
+        }
+        
+        // Reset form
+        setFirstName('');
+        setLastName('');
+        setPhone('');
+        setEmail('');
+        setInstagram('');
+        setBirthdate('');
+        setRecommendedBy('');
+        
+        router.refresh();
+        onClose();
+      } else {
+        setError(response.error || 'Erreur lors de la création du client');
+      }
+    } catch (err) {
+      setError('Une erreur inattendue est survenue');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -111,8 +164,9 @@ export default function NewClientModal({ isOpen, onClose, onSave }: NewClientMod
         </div>
 
         {/* VALIDATION */}
-        <button className={styles.submitBtn} onClick={handleSave}>
-          Enregistrer le client
+        {error && <div style={{ color: 'red', textAlign: 'center', marginBottom: '10px' }}>{error}</div>}
+        <button className={styles.submitBtn} onClick={handleSave} disabled={isLoading}>
+          {isLoading ? 'Création en cours...' : 'Enregistrer le client'}
         </button>
 
       </div>
