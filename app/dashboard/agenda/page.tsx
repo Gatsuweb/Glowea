@@ -2,6 +2,8 @@ import { currentUser } from "@clerk/nextjs/server";
 import AgendaClientWrapper from "../../components/AgendaClientWrapper";
 import prisma from "../../../lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 export default async function AgendaPage() {
   const DEV_BYPASS_AUTH = process.env.NODE_ENV === "development";
   

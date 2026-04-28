@@ -2,6 +2,8 @@ import { currentUser } from "@clerk/nextjs/server";
 import DashboardClientWrapper from "../components/DashboardClientWrapper";
 import prisma from "../../lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   const DEV_BYPASS_AUTH = process.env.NODE_ENV === "development";
   
