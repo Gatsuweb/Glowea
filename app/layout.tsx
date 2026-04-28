@@ -16,6 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Glowéa - Dashboard",
   description: "Dashboard pour techniciennes de cils et ongle",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
