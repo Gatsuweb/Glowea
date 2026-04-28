@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
+import { getTenantId } from "../../lib/tenant";
 
-const TENANT_ID = "tenant_seed_123";
 
 export async function createProduct(data: {
   name: string;
@@ -13,6 +13,7 @@ export async function createProduct(data: {
   expireAt?: Date | null;
   categoryId?: string | null;
 }) {
+  const TENANT_ID = await getTenantId();
   try {
     const productId = `prod_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const lotId = `lot_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
@@ -74,6 +75,7 @@ export async function updateProduct(id: string, data: {
   price: number;
   categoryId?: string | null;
 }) {
+  const TENANT_ID = await getTenantId();
   try {
     const product = await prisma.product.update({
       where: { id, tenantId: TENANT_ID },
@@ -95,6 +97,7 @@ export async function updateProduct(id: string, data: {
 }
 
 export async function deleteProduct(id: string) {
+  const TENANT_ID = await getTenantId();
   try {
     await prisma.product.delete({
       where: { id, tenantId: TENANT_ID },
@@ -109,6 +112,7 @@ export async function deleteProduct(id: string) {
 }
 
 export async function adjustStock(productId: string, delta: number) {
+  const TENANT_ID = await getTenantId();
   try {
     // Get active lot
     const lot = await prisma.productLot.findFirst({
@@ -155,6 +159,7 @@ export async function adjustStock(productId: string, delta: number) {
 }
 
 export async function createProductCategory(name: string) {
+  const TENANT_ID = await getTenantId();
   try {
     const id = `pcat_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     

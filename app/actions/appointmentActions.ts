@@ -2,9 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
+import { getTenantId } from "../../lib/tenant";
 
-// We'll use the hardcoded tenant ID for now, as in other files
-const TENANT_ID = "tenant_seed_123";
 
 export async function createAppointment(data: {
   clientId: string;
@@ -13,6 +12,7 @@ export async function createAppointment(data: {
   endAt?: Date;
   notes?: string;
 }) {
+  const TENANT_ID = await getTenantId();
   try {
     const id = `app_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     
@@ -57,6 +57,7 @@ export async function updateAppointment(id: string, data: {
   endAt?: Date;
   notes?: string;
 }) {
+  const TENANT_ID = await getTenantId();
   try {
     // Si le service ou l'heure change et qu'il n'y a pas de date de fin, la recalculer
     let finalEndAt = data.endAt;
@@ -87,6 +88,7 @@ export async function updateAppointment(id: string, data: {
 }
 
 export async function deleteAppointment(id: string) {
+  const TENANT_ID = await getTenantId();
   try {
     await prisma.appointment.delete({
       where: { id, tenantId: TENANT_ID },

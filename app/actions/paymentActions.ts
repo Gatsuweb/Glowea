@@ -2,8 +2,8 @@
 
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { getTenantId } from "../../lib/tenant";
 
-const TENANT_ID = "tenant_seed_123";
 
 export async function processPayment(data: {
   appointmentId: string;
@@ -12,6 +12,7 @@ export async function processPayment(data: {
   paymentMethod: "CASH" | "CARD" | "TRANSFER" | "OTHER";
   serviceName: string;
 }) {
+  const TENANT_ID = await getTenantId();
   try {
     const { appointmentId, clientId, amount, paymentMethod, serviceName } = data;
 

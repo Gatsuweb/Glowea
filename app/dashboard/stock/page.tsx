@@ -1,12 +1,13 @@
 import React from "react";
 import prisma from "../../../lib/prisma";
 import StockClientWrapper from "../../components/StockClientWrapper";
+import { getTenantId } from "../../../lib/tenant";
 
-const TENANT_ID = "tenant_seed_123";
 
 export const dynamic = "force-dynamic";
 
 export default async function StockPage() {
+  const TENANT_ID = await getTenantId();
   const categoriesData = await prisma.productCategory.findMany({
     where: { tenantId: TENANT_ID },
     orderBy: { name: "asc" },

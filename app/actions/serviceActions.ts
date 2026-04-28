@@ -2,10 +2,11 @@
 
 import prisma from "../../lib/prisma";
 import { revalidatePath } from "next/cache";
+import { getTenantId } from "../../lib/tenant";
 
-const TENANT_ID = "tenant_seed_123";
 
 export async function getServices() {
+  const TENANT_ID = await getTenantId();
   try {
     const services = await prisma.service.findMany({
       where: { tenantId: TENANT_ID, isActive: true },
@@ -31,6 +32,7 @@ export async function createService(data: {
   price?: number;
   color?: string;
 }) {
+  const TENANT_ID = await getTenantId();
   try {
     const newId = `srv_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     
@@ -66,6 +68,7 @@ export async function updateService(id: string, data: {
   color?: string;
   isActive?: boolean;
 }) {
+  const TENANT_ID = await getTenantId();
   try {
     const updateData: any = {
       updatedAt: new Date(),
@@ -93,6 +96,7 @@ export async function updateService(id: string, data: {
 }
 
 export async function deleteService(id: string) {
+  const TENANT_ID = await getTenantId();
   try {
     // Instead of actual deletion, we can mark as inactive to preserve history (soft delete)
     // Or hard delete if there are no related appointments.

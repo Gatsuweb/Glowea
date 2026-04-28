@@ -2,6 +2,7 @@
 
 import prisma from "../../lib/prisma";
 import { revalidatePath } from "next/cache";
+import { getTenantId } from "../../lib/tenant";
 
 export async function getConsent(clientId: string) {
   if (!clientId) return null;
@@ -39,10 +40,11 @@ export async function saveConsent(clientId: string, data: any) {
       });
     } else {
       const id = `cons_${Date.now()}`;
+      const tenantId = await getTenantId();
       consent = await prisma.consentDocument.create({
         data: {
           id,
-          tenantId: "tenant_seed_123",
+          tenantId: tenantId,
           clientId,
           documentType: 'CONSENT',
           pdfUrl: '',

@@ -1,10 +1,11 @@
 "use server";
 
 import prisma from "../../lib/prisma";
+import { getTenantId } from "../../lib/tenant";
 
-const TENANT_ID = "tenant_seed_123";
 
 export async function getVueEnsembleData(monthString: string) {
+  const TENANT_ID = await getTenantId();
   try {
     const startDate = new Date(`${monthString}-01T00:00:00Z`);
     const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0, 23, 59, 59, 999);
@@ -133,6 +134,7 @@ export async function createTransaction(data: {
   category?: string;
   date: string;
 }) {
+  const TENANT_ID = await getTenantId();
   try {
     const transaction = await prisma.financialTransaction.create({
       data: {
@@ -155,6 +157,7 @@ export async function createTransaction(data: {
 }
 
 export async function getStatsData(monthString: string) {
+  const TENANT_ID = await getTenantId();
   try {
     const startDate = new Date(`${monthString}-01T00:00:00Z`);
     const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0, 23, 59, 59, 999);
@@ -329,6 +332,7 @@ export async function createCharge(data: {
   frequency?: 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
   startDate: string;
 }) {
+  const TENANT_ID = await getTenantId();
   try {
     if (data.isRecurring && data.frequency) {
       const recurring = await prisma.recurringExpense.create({

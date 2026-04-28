@@ -16,8 +16,9 @@ export default async function AgendaPage() {
     }
   }
 
-  // Use the tenant from our seed for demo purposes
-  const tenantId = "tenant_seed_123";
+  // Use the current user's tenant ID
+  const { getTenantId } = await import("../../../lib/tenant");
+  const tenantId = await getTenantId();
 
   // Fetch all appointments for the tenant, to be filtered on the client side
   // (In a real app, we'd fetch only the current month or week, and fetch more via an API route when changing weeks)

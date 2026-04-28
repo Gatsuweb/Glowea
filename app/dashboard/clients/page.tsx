@@ -1,11 +1,12 @@
 import React from "react";
 import prisma from "../../../lib/prisma";
 import ClientsClientWrapper from "../../components/ClientsClientWrapper";
+import { getTenantId } from "../../../lib/tenant";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClientsPage() {
-  const tenantId = "tenant_seed_123";
+  const tenantId = await getTenantId();
 
   // Fetch all clients for this tenant
   const clientsData = await prisma.client.findMany({

@@ -2,10 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
+import { getTenantId } from "../../lib/tenant";
 
-const TENANT_ID = "tenant_seed_123";
 
 export async function getSessionModalData(clientId: string | undefined) {
+  const TENANT_ID = await getTenantId();
   try {
     let clientInfo = null;
 
@@ -62,6 +63,7 @@ export async function getSessionModalData(clientId: string | undefined) {
 }
 
 export async function getLashSessionByAppointmentId(appointmentId: string) {
+  const TENANT_ID = await getTenantId();
   try {
     const session = await prisma.session.findUnique({
       where: { appointmentId },
@@ -82,6 +84,7 @@ export async function getLashSessionByAppointmentId(appointmentId: string) {
 }
 
 export async function getBrowliftSessionByAppointmentId(appointmentId: string) {
+  const TENANT_ID = await getTenantId();
   try {
     const session = await prisma.session.findUnique({
       where: { appointmentId },
@@ -102,6 +105,7 @@ export async function getBrowliftSessionByAppointmentId(appointmentId: string) {
 }
 
 export async function getLashLiftSessionByAppointmentId(appointmentId: string) {
+  const TENANT_ID = await getTenantId();
   try {
     const session = await prisma.session.findUnique({
       where: { appointmentId },
@@ -122,6 +126,7 @@ export async function getLashLiftSessionByAppointmentId(appointmentId: string) {
 }
 
 export async function getNailSessionByAppointmentId(appointmentId: string) {
+  const TENANT_ID = await getTenantId();
   try {
     const session = await prisma.session.findUnique({
       where: { appointmentId },
@@ -157,6 +162,7 @@ export async function saveLashSession(data: {
   remarks?: string;
   status?: "DRAFT" | "COMPLETED" | "IN_PROGRESS";
 }) {
+  const TENANT_ID = await getTenantId();
   try {
     const sessionId = `sess_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const lashSessionId = `lash_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
@@ -237,6 +243,7 @@ export async function saveBrowliftSession(data: {
   remarks?: string;
   status?: "DRAFT" | "COMPLETED" | "IN_PROGRESS";
 }) {
+  const TENANT_ID = await getTenantId();
   try {
     const sessionId = `sess_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const browliftSessionId = `brow_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
@@ -302,6 +309,7 @@ export async function saveLashLiftSession(data: {
   remarks?: string;
   status?: "DRAFT" | "COMPLETED" | "IN_PROGRESS";
 }) {
+  const TENANT_ID = await getTenantId();
   try {
     const sessionId = `sess_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const lashLiftSessionId = `lashlift_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
@@ -373,6 +381,7 @@ export async function saveNailSession(data: {
   remarks?: string;
   status?: "DRAFT" | "COMPLETED" | "IN_PROGRESS";
 }) {
+  const TENANT_ID = await getTenantId();
   try {
     const sessionId = `sess_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const nailSessionId = `nail_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;

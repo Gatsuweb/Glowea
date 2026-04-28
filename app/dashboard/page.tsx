@@ -29,8 +29,9 @@ export default async function DashboardPage() {
   const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
   const monthEnd = new Date(todayStart.getFullYear(), todayStart.getMonth() + 1, 0, 23, 59, 59, 999);
 
-  // Use the tenant from our seed for demo purposes
-  const tenantId = "tenant_seed_123";
+  // Use the current user's tenant ID
+  const { getTenantId } = await import("../../lib/tenant");
+  const tenantId = await getTenantId();
 
   // Fetch today's appointments
   const todaysAppointments = await prisma.appointment.findMany({
