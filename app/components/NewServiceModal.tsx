@@ -48,7 +48,7 @@ export default function NewServiceModal({ isOpen, onClose, onSave }: NewServiceM
         router.refresh();
         onClose();
       } else {
-        setError(response.error || 'Erreur lors de la création de la prestation');
+        setError('Erreur lors de la création de la prestation');
       }
     } catch (err) {
       setError('Une erreur inattendue est survenue');
