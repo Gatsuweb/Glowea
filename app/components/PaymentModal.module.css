@@ -1,0 +1,169 @@
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(5px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 450px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.headerLeft h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+}
+
+.headerLeft p {
+  margin: 5px 0 0;
+  font-size: 14px;
+  color: #888;
+}
+
+.btnClose {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #888;
+  cursor: pointer;
+  padding: 0;
+}
+
+.body {
+  padding: 24px;
+}
+
+.formGroup {
+  margin-bottom: 20px;
+}
+
+.formGroup label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #555;
+}
+
+.inputAmount {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  outline: none;
+}
+
+.inputAmount:focus {
+  border-color: #8B4B54;
+}
+
+.methodsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.methodBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  border: 2px solid #f0f0f0;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  gap: 8px;
+}
+
+.methodBtn span {
+  font-size: 14px;
+  font-weight: 500;
+  color: #555;
+}
+
+.methodBtn:hover {
+  border-color: #dcdcdc;
+  background: #fafafa;
+}
+
+.methodBtn.active {
+  border-color: #8B4B54;
+  background: #fff8f9;
+}
+
+.methodBtn.active span {
+  color: #8B4B54;
+  font-weight: 600;
+}
+
+.footer {
+  padding: 20px 24px;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btnCancel {
+  padding: 12px 20px;
+  border: none;
+  background: transparent;
+  color: #888;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.btnCancel:hover {
+  background: #f5f5f5;
+}
+
+.btnConfirm {
+  padding: 12px 24px;
+  border: none;
+  background: #8B4B54;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.btnConfirm:hover {
+  background: #6c3a41;
+}
+
+.btnConfirm:disabled {
+  background: #dcdcdc;
+  cursor: not-allowed;
+}

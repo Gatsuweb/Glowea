@@ -1,0 +1,248 @@
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease;
+}
+
+.modal {
+  background-color: #fff;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  position: relative;
+  animation: slideUp 0.3s ease;
+  font-family: var(--font-tertiary);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.closeButton {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #888;
+  transition: color 0.2s;
+  z-index: 10;
+}
+
+.closeButton:hover {
+  color: #333;
+}
+
+.header {
+  text-align: center;
+  padding: 30px 20px 20px;
+  background: linear-gradient(135deg, #fff5f5 0%, #fff 100%);
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.headerIcon {
+  background: white;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 15px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+.header h2 {
+  font-family: var(--font-title);
+  color: var(--tertiary);
+  margin: 0 0 5px 0;
+  font-size: 1.8rem;
+}
+
+.header p {
+  color: #666;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.content {
+  padding: 20px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sectionIcon {
+  font-size: 1.2rem;
+}
+
+.section h3 {
+  font-size: 1.1rem;
+  color: #333;
+  margin: 0;
+  font-weight: 600;
+}
+
+.sectionSubtext {
+  font-size: 0.8rem;
+  color: #888;
+  margin: -5px 0 5px 0;
+}
+
+.goalCard {
+  background: #fdfdfd;
+  border: 1px solid #f0f0f0;
+  border-radius: 12px;
+  padding: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.goalInfo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.goalLabel {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.goalValue {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--tertiary);
+  margin: 5px 0;
+  font-family: var(--font-title);
+}
+
+.goalDesc {
+  font-size: 0.8rem;
+  color: #4CAF50;
+  font-weight: 600;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.listItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.clientInfo {
+  display: flex;
+  flex-direction: column;
+}
+
+.serviceDetail {
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.dateTag {
+  background: var(--tertiary);
+  color: white;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.emptyText {
+  font-size: 0.9rem;
+  color: #aaa;
+  font-style: italic;
+  margin: 0;
+}
+
+.tipCard {
+  background: linear-gradient(135deg, var(--secondary) 0%, var(--tertiary) 100%);
+  color: white;
+  padding: 15px;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.tipHeader {
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 5px;
+}
+
+.tipCard p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  opacity: 0.9;
+}
+
+.footer {
+  padding: 20px 30px 30px;
+  display: flex;
+  justify-content: center;
+}
+
+.actionBtn {
+  background: var(--tertiary);
+  color: white;
+  border: none;
+  padding: 12px 30px;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  width: 100%;
+}
+
+.actionBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+}

@@ -1,92 +1,635 @@
-/* === Conteneur principal du Dashboard === */
-.mainContainer {
-  padding: 120px 24px 24px 24px; /* On augmente le padding-top pour ne pas chevaucher le TopHeader */
+.layout {
   min-height: 100vh;
-  /* background-color: var(--background, #FFF); -> On le gère dans layout ou globals si besoin */
-  max-width: 1200px;
+  padding: 20px 20px 100px 20px;
+  max-width: 1600px;
   margin: 0 auto;
+  font-family: var(--font-tertiary);
+  color: #4A4A4A;
 }
 
-.headerSection {
+@media (min-width: 1025px) {
+  .layout {
+    padding: 20px 60px 100px 100px;
+  }
+}
+
+.welcomeSection {
+  margin-bottom: 30px;
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  margin-bottom: 32px;
-  margin-top: 16px;
-  flex-wrap: wrap;
-  gap: 16px;
 }
 
-.headerTitles {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.welcomeText h1 {
+  font-family: var(--font-title);
+  font-size: 4rem;
+  color: var(--tertiary);
+  font-weight: 400;
+  margin-bottom: 5px;
+}
+
+.welcomeText p {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #666;
+  font-weight: 600;
 }
 
 .actionButtons {
   display: flex;
-  gap: 16px;
-  align-items: center;
+  gap: 10px;
 }
 
-.iconButton {
-  width: 50px;
-  height: 50px;
+.actionBtn {
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: var(--bg-card);
+  border: none;
+  background: white;
+  box-shadow: var(--box-shadow);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.actionBtn:hover {
+  transform: scale(1.05);
+}
+/* 
+.actionBtn img {
+  width: 18px;
+  height: 18px;
+} */
+
+/* Stats Grid */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.instaBtn:hover {
+  transform: scale(1.05);
+}
+
+.statCard {
+  background: url('/bg-texturé.svg') no-repeat center center;
+  border-radius: 15px;
+  padding: 20px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  border: none;
-  cursor: pointer;
+  gap: 15px;
   box-shadow: var(--box-shadow);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+  overflow: hidden;
 }
 
-.iconButton:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(122, 122, 122, 0.25);
+.statCardIcon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
 }
 
-.buttonIcon {
-  width: 24px;
-  height: 24px;
-  object-fit: contain;
+.statCardInfo {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
-.plusIcon {
-  font-size: 28px;
-  color: var(--secondary, #FCD7D1);
-  font-weight: 400;
-  line-height: 1;
-}
-
-.welcomeTitle {
-  font-family: var(--font-title, "Italiana", serif);
-  color: var(--tertiary);
-  font-size: 3rem;
-  font-weight: 400;
-  line-height: 1.1;
-  margin: 0;
-}
-
-.dateSubtitle {
-  font-family: var(--font-serif, "Inria serif", serif);
-  color: #333333;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0;
+.statCardChart {
+  width: 90px;
+  height: 50px;
+  min-width: 0;
+  min-height: 0;
+  margin-left: auto;
   opacity: 0.8;
 }
 
-/* iPad et tablettes */
-@media (min-width: 768px) {
-  .welcomeTitle {
+.statCardTitle {
+  font-family: var(--font-sans-serif);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.statCardTitle span {
+  font-weight: 400;
+  color: #888;
+}
+
+.statCardValue {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #000;
+}
+
+.statCardTrend {
+  font-size: 0.65rem;
+  color: #4CAF50;
+  position: absolute;
+  bottom: 12px;
+  right: 20px;
+  font-weight: 600;
+}
+
+.mainGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.card {
+  background: white;
+  border-radius: 15px;
+  padding: 20px;
+  box-shadow: var(--box-shadow);
+}
+
+.cardTitle {
+  font-family: var(--font-sans-serif);
+  font-size: 1.375rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.cardTitle span {
+  font-weight: 400;
+}
+
+/* Appointments */
+.appointmentList {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.appointmentItem {
+  display: flex;
+  align-items: center;
+  background: #FDFDFD;
+  border-radius: 12px;
+  padding: 15px 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  border: 1px solid #F0F0F0;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.appointmentItem:hover {
+  box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+  border-color: var(--secondary);
+}
+
+.appointmentTime {
+  font-size: 1.2rem;
+  color: var(--tertiary);
+  font-weight: 700;
+  margin-right: 20px;
+  min-width: 50px;
+}
+
+.appointmentDetails {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.appointmentName {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.appointmentType {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.appointmentTags {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.tagDemain {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: white;
+  background: var(--secondary);
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.appointmentActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.actionIcon {
+  cursor: pointer;
+  opacity: 0.8;
+  transition: all 0.2s ease;
+  box-shadow: var(--box-shadow);
+  padding: 6px;
+  border-radius: 50%;
+  box-sizing: content-box;
+}
+
+.actionIcon:hover {
+  opacity: 1;
+  background-color: var(--secondary);
+  transform: translateY(-2px);
+}
+
+.playButton {
+  background: var(--tertiary);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s;
+  margin-left: 10px;
+}
+
+.playButton:hover {
+  transform: scale(1.1);
+  background: #7a424a;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 20px;
+  background: #FDFDFD;
+  border-radius: 12px;
+  border: 1px dashed #E5E5E5;
+  text-align: center;
+  gap: 15px;
+  color: #888;
+}
+
+.emptyState p {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.emptyStateBtn {
+  background: var(--tertiary);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.emptyStateBtn:hover {
+  opacity: 0.9;
+}
+
+.appointmentActions {
+  display: flex;
+  gap: 5px;
+}
+
+.appointmentActions img {
+  width: 16px;
+  height: 16px;
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+/* Stock */
+.stockContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  width: 100%;
+}
+
+.stockItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 0;
+  border-bottom: 1px solid #F0F0F0;
+}
+
+.stockItem:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.stockInfo {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.stockIcon {
+  width: 45px;
+  height: 45px;
+  border-radius: 10px;
+  background: #FAFAFA;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.2rem;
+}
+
+.stockDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stockName {
+  font-weight: 700;
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.stockDate {
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.stockMovement {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.stockBadge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stockBadge.negative {
+  background: #FFF5F5;
+  color: #E53E3E;
+}
+
+.stockBadge.positive {
+  background: #F0FFF4;
+  color: #38A169;
+}
+
+.stockRemaining {
+  font-size: 0.8rem;
+  color: #666;
+  font-weight: 500;
+}
+
+.stockDonutsContainer {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+  align-items: center;
+  align-content: center;
+  flex-wrap: wrap;
+  gap: 25px;
+  margin-top: 15px;
+}
+
+/* Top Clientes */
+.topClientList {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.topClientItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #F0F0F0;
+}
+
+.topClientItem:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.topClientRank {
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  color: var(--tertiary);
+  width: 30px;
+  font-weight: 600;
+}
+
+.topClientInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.topClientName {
+  font-size: 1rem;
+  color: #333;
+  font-weight: 600;
+}
+
+.topClientDetail {
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.topClientAmount {
+  font-size: 1rem;
+  color: var(--tertiary);
+  font-weight: 700;
+  background-color: #FAF4F4;
+  padding: 5px 10px;
+  border-radius: 8px;
+}
+
+.topClientActions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.btnFideliser {
+  background-color: var(--tertiary);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: opacity 0.2s;
+  width: 100%;
+  justify-content: center;
+}
+
+.btnFideliser:hover {
+  opacity: 0.9;
+}
+
+/* Insight Banner */
+.insightBanner {
+  position: relative;
+  background-image: url('/bandeau-insight.png');
+  background-size: cover;
+  background-position: right center;
+  background-repeat: no-repeat;
+  border-radius: 15px;
+  display: flex;
+  overflow: hidden;
+  box-shadow: var(--box-shadow);
+  margin-bottom: 40px;
+  min-height: 220px;
+}
+
+.insightContent {
+  padding: 30px;
+  width: 55%; /* Limite la largeur du texte pour laisser voir l'image à droite */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+}
+
+.insightIcon {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 70px;
+  height: 70px;
+  background: var(--secondary); /* Fond rose du cercle */
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.insightIcon img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.insightText {
+  margin-left: 80px;
+}
+
+.insightTitle {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--tertiary);
+  margin-bottom: 10px;
+}
+
+.insightDesc {
+  font-size: 0.9rem;
+  color: #555;
+  margin-bottom: 15px;
+  line-height: 1.4;
+}
+
+.insightBtn {
+  background: var(--tertiary);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.insightImage {
+  display: none; /* Plus besoin du conteneur séparé puisque l'image est en background global */
+}
+
+/* Responsive */
+@media (max-width: 834px) {
+  .welcomeSection h1 {
     font-size: 4rem;
   }
-  
-  .dateSubtitle {
-    font-size: 1rem;
+  }
+@media (max-width: 768px) {
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+  .mainGrid {
+    grid-template-columns: 1fr;
+  }
+  .welcomeSection {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+
+  .welcomeText h1 {
+  font-size: 2rem;
+  color: var(--tertiary);
+}
+
+  .insightBanner {
+    flex-direction: column;
+    background-position: center;
+  }
+  .insightContent {
+    width: 100%;
+    padding: 20px;
+    align-items: center;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.85); /* Fond semi-transparent pour la lisibilité sur mobile */
+  }
+  .insightIcon {
+    position: relative;
+    left: auto;
+    top: auto;
+    transform: none;
+    margin-bottom: 15px;
+  }
+  .insightText {
+    margin-left: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .insightBtn {
+    align-self: center;
+  }
+  .insightImage {
+    display: none;
   }
 }

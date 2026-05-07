@@ -1,258 +1,423 @@
-/* === Overlay (Fond flouté) === */
-.overlay {
+.modalOverlay {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--background, #FFF); /* Fond blanc opaque */
-  z-index: 2000;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(5px);
+  z-index: 1000;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
-  padding: 24px; /* Un peu d'espace sur les bords */
+  align-items: center;
+}
+
+.modalContent {
+  background: url('/paper-texture.png') repeat;
+  background-color: #F8F6F6; /* Fallback */
+  width: 90%;
+  max-width: 700px;
+  max-height: 90vh;
   overflow-y: auto;
-  
-  /* Animation d'apparition */
-  animation: fadeIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* === Conteneur principal === */
-.modalContainer {
-  width: 100%;
-  height: 100%; /* Prend toute la hauteur */
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  /* Optionnel: limiter la largeur sur de très grands écrans (ordinateur) ou laisser prendre 100% partout */
-  /* max-width: 800px; */
-  /* margin: 0 auto; */
-  
-  /* Animation d'apparition par le bas */
-  animation: slideUp 0.4s ease forwards;
-}
-
-@keyframes slideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-/* === Header de la modale === */
-.headerCard {
-  background: #FFFFFF;
-  border-radius: 12px;
+  border-radius: 20px;
   padding: 20px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  position: relative;
+  font-family: var(--font-tertiary);
+  color: #333;
+}
+
+/* Pour cacher la scrollbar mais garder le scroll */
+.modalContent::-webkit-scrollbar {
+  display: none;
+}
+.modalContent {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.header {
+  background: #FFFDFD;
+  border-radius: 15px;
+  padding: 15px 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  box-shadow: 0 4px 15px rgba(134, 134, 134, 0.05);
+  margin-bottom: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.02);
 }
 
-.backButton {
+.backBtn {
   position: absolute;
   left: 20px;
   background: none;
   border: none;
   cursor: pointer;
+  padding: 5px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 8px;
-  border-radius: 50%;
-  transition: background-color 0.2s;
-}
-
-.backButton:hover {
-  background-color: #f5f5f5;
-}
-
-.closeButton {
-  position: absolute;
-  right: 20px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  border-radius: 50%;
-  transition: background-color 0.2s, transform 0.2s;
-}
-
-.closeButton:hover {
-  background-color: #f5f5f5;
-  transform: rotate(90deg);
 }
 
 .title {
-  font-family: var(--font-title, serif);
+  font-family: var(--font-title);
   font-size: 1.8rem;
+  color: var(--tertiary);
   font-weight: 400;
-  color: var(--tertiary, #8B4B54);
   margin: 0;
 }
 
-/* === Cartes de Section === */
-.sectionCard {
-  background: var(--bg-card);
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: var(--box-shadow);
+.sectionPink {
+  border-radius: 15px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.02);
 }
 
-.texturedCard {
-  background-image: url('/bg-card.svg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+.sectionWhite {
+  background: #F5F5F5;
+  border-radius: 15px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.02);
 }
 
 .sectionTitle {
-  font-family: var(--font-sans-serif, "Inria sans-serif", sans-serif);
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #666;
+  font-size: 0.8rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-top: 0;
-  margin-bottom: 16px;
+  letter-spacing: 1px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 15px;
 }
 
-/* === Client === */
+/* Client Section */
 .clientRow {
   display: flex;
-  gap: 16px;
+  gap: 15px;
   align-items: center;
+  position: relative;
 }
 
-.inputPill {
+.clientInputWrapper {
   flex: 1;
+  position: relative;
+}
+
+.clientInput {
+  width: 100%;
   height: 40px;
-  background: #D9D9D9; /* Gris du wireframe */
   border-radius: 20px;
+  border: 1px solid #333;
+  background: white;
+  padding: 0 15px;
+  font-family: inherit;
+  font-size: 0.9rem;
 }
 
-.plusBtn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #D9D9D9;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  color: #333;
+.clientInput:focus {
+  outline: none;
+  border-color: var(--tertiary);
+}
+
+.clientDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  background: white;
+  border: 1px solid #E0E0E0;
+  border-radius: 10px;
+  margin-top: 5px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.clientDropdownItem {
+  padding: 12px 15px;
   cursor: pointer;
-  transition: transform 0.2s;
+  border-bottom: 1px solid #F5F5F5;
+  transition: background 0.2s;
+  font-size: 0.9rem;
 }
 
-.plusBtn:hover {
+.clientDropdownItem:hover {
+  background: #FFF5F5;
+  color: var(--tertiary);
+}
+
+.clientDropdownItem:last-child {
+  border-bottom: none;
+}
+
+.clientDropdownEmpty {
+  padding: 15px;
+  font-size: 0.9rem;
+  color: #666;
+  text-align: center;
+}
+
+.clientAddBtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid #333;
+  background: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  font-size: 1.5rem;
+  line-height: 1;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.clientAddBtn:hover {
   transform: scale(1.05);
 }
 
-/* === Date & Heures === */
-.datePill {
+.newClientForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.newClientRow {
+  display: flex;
+  gap: 10px;
+}
+
+.newClientActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.cancelClientBtn {
+  padding: 8px 15px;
+  border-radius: 15px;
+  border: 1px solid #CCC;
+  background: white;
+  color: #666;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancelClientBtn:hover {
+  background: #F5F5F5;
+  color: #333;
+}
+
+.saveClientBtn {
+  padding: 8px 15px;
+  border-radius: 15px;
+  border: none;
+  background: var(--tertiary);
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.saveClientBtn:hover {
+  opacity: 0.9;
+}
+
+/* Date & Heures */
+.timeInput {
   width: 100%;
   height: 40px;
-  background: #D9D9D9;
   border-radius: 20px;
-  margin-bottom: 16px;
+  border: 1px solid #CCC;
+  background: white;
+  padding: 0 15px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: #333;
+  margin-bottom: 15px;
 }
 
-.hoursRow {
+.timeInput::placeholder {
+  color: #888;
+}
+
+.timeSlots {
   display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-  scrollbar-width: none; /* Firefox */
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.hoursRow::-webkit-scrollbar {
-  display: none; /* Chrome, Safari */
-}
-
-.hourPill {
-  min-width: 60px;
-  height: 30px;
-  background: #D9D9D9;
-  border-radius: 15px;
-  flex-shrink: 0;
-}
-
-/* === Catégorie === */
-.categoryRow {
-  display: flex;
-  gap: 16px;
-}
-
-.catBtn {
-  padding: 10px 24px;
-  background: #D9D9D9;
-  border: none;
-  border-radius: 4px;
-  font-family: var(--font-sans-serif, sans-serif);
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #444;
+.timeSlot {
+  padding: 8px 20px;
+  border-radius: 20px;
+  border: 1px solid #999;
+  background: white;
+  color: #333;
+  font-size: 0.85rem;
   cursor: pointer;
+  transition: all 0.2s;
 }
 
-.catBtn:hover {
-  background: #c0c0c0;
+.timeSlot:hover, .timeSlot.active {
+  background: var(--tertiary);
+  color: white;
+  border-color: var(--tertiary);
 }
 
-/* === Prestation === */
-.subLink {
-  background: none;
-  border: none;
+/* Catégorie */
+.categoryTabs {
+  display: flex;
+  gap: 15px;
+  
+}
+
+.categoryBtn {
+  padding: 10px 30px;
+  border: 1px solid #999;
+  background: white;
+  font-size: 0.8rem;
+  letter-spacing: 1px;
+  color: #333;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.2s;
+}
+
+.categoryBtn:hover, .categoryBtn.active {
+  background: var(--tertiary);
+  color: white;
+}
+
+/* Prestation */
+.addServiceBtn {
+  padding: 5px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--tertiary);
+  background: transparent;
+  color: var(--tertiary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.addServiceBtn:hover {
+  background: var(--tertiary);
+  color: white;
+}
+
+.prestationHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 15px;
+}
+
+.prestationLink {
   font-size: 0.75rem;
   color: #333;
   text-decoration: underline;
-  padding: 0;
-  margin-bottom: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   cursor: pointer;
-  display: inline-block;
+  font-weight: 500;
 }
 
-.prestationRow {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  padding-bottom: 8px;
-  scrollbar-width: none;
-}
-
-.prestationRow::-webkit-scrollbar {
-  display: none;
+.prestationCards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
 }
 
 .prestationCard {
-  min-width: 140px;
-  height: 120px;
-  background: #D9D9D9;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
   border-radius: 12px;
-  flex-shrink: 0;
+  padding: 20px 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-/* === Responsive === */
-@media (max-width: 768px) {
-  .overlay {
-    padding: 16px;
-  }
-  
+.prestationCard:hover, .prestationCard.active {
+  background: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  border-color: var(--tertiary);
+}
+
+.prestationTitle {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #333;
+}
+
+.prestationPrice {
+  font-size: 0.9rem;
+  color: var(--tertiary);
+  font-weight: 600;
+}
+
+.prestationTime {
+  font-size: 0.75rem;
+  color: #666;
+}
+
+/* Validation */
+.notesSection {
+  margin-bottom: 20px;
+}
+
+.notesInput {
+  width: 100%;
+  border-radius: 15px;
+  border: 1px solid #CCC;
+  padding: 15px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  min-height: 100px;
+  resize: vertical;
+  background: white;
+}
+
+.notesInput:focus {
+  outline: none;
+  border-color: var(--tertiary);
+}
+
+.submitBtn {
+  width: 100%;
+  background: var(--tertiary);
+  color: white;
+  border: none;
+  border-radius: 15px;
+  padding: 15px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+
+.submitBtn:hover {
+  opacity: 0.9;
+}
+
+@media (max-width: 480px) {
   .title {
-    font-size: 1.5rem;
-  }
-  
-  .sectionCard {
-    padding: 20px;
+    font-size: 1.1rem;
   }
 }

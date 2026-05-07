@@ -1,0 +1,857 @@
+.layout {
+  padding: 40px;
+  max-width: 1600px;
+  margin: 0 auto;
+  display: flex;
+  gap: 50px;
+  align-items: flex-start;
+}
+
+/* =========================================
+   SIDEBAR (Répertoire)
+   ========================================= */
+.sidebar {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background-color: rgba(255, 255, 255, 1);
+  border-radius: 20px;
+  padding: 30px;
+  box-shadow: var(--box-shadow);
+  min-height: calc(100vh - 80px);
+}
+
+.sidebarHeader {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.sidebarTitle {
+  font-family: var(--font-serif);
+  font-size: 2.8rem;
+  color: var(--tertiary);
+  margin: 0;
+  font-weight: 400;
+}
+
+.clientCount {
+  font-size: 0.95rem;
+  color: #666;
+  font-weight: 600;
+}
+
+.searchWrapper {
+  background: white;
+  border-radius: 30px;
+  padding: 12px 20px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+  display: flex;
+  align-items: center;
+}
+
+.searchInput {
+  border: none;
+  outline: none;
+  width: 100%;
+  font-size: 0.95rem;
+  color: #333;
+  background: transparent;
+}
+
+.selectAll {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  color: #555;
+  font-weight: 500;
+  cursor: pointer;
+  margin-left: 5px;
+}
+
+.selectAll input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--tertiary);
+}
+
+.clientList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.clientItem {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px 20px;
+  border-radius: 15px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.clientItem:hover {
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
+.clientItemActive {
+  background-color: white;
+  box-shadow: var(--box-shadow);
+}
+
+.clientItemActive::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background-color: var(--tertiary);
+}
+
+.clientAvatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #FCD7D1, #FAF4F4);
+  color: var(--tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border: 2px solid white;
+}
+
+.clientInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.clientName {
+  font-weight: 700;
+  color: #333;
+  font-size: 1.05rem;
+}
+
+.clientSub {
+  font-size: 0.75rem;
+  color: #888;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* =========================================
+   MAIN CONTENT (Fiche Client)
+   ========================================= */
+.mainContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+/* Header Card */
+.headerCard {
+  background: white;
+  border-radius: 20px;
+  padding: 30px 40px;
+  box-shadow: var(--box-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.headerTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.headerTitle {
+  font-family: var(--font-serif);
+  font-size: 2.8rem;
+  color: var(--tertiary);
+  margin: 0 0 5px 0;
+  font-weight: 400;
+}
+
+.headerSubtitle {
+  font-size: 0.95rem;
+  color: #666;
+  font-weight: 500;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.btnNewRdv {
+  background-color: var(--tertiary);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 2px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btnNewRdv:hover {
+  opacity: 0.9;
+}
+
+.iconBtn {
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  color: var(--tertiary);
+  transition: all 0.2s;
+}
+
+.iconBtn:hover {
+  background: #FAF4F4;
+  border-color: var(--tertiary);
+}
+
+.headerContact {
+  display: flex;
+  gap: 80px;
+}
+
+.contactBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.contactLabel {
+  font-weight: 700;
+  color: #000;
+  font-size: 0.95rem;
+}
+
+.contactValue {
+  color: #666;
+  font-size: 0.95rem;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 15px;
+}
+
+.tab {
+  padding: 10px 25px;
+  border-radius: 2px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.tabActive {
+  background-color: var(--tertiary);
+  color: white;
+  box-shadow: 0 4px 10px rgba(139, 75, 84, 0.3);
+}
+
+.tabInactive {
+  background-color: white;
+  color: #555;
+  box-shadow: var(--box-shadow);
+}
+
+.tabInactive:hover {
+  background-color: #FAF4F4;
+}
+
+/* Info Cards */
+.infoCard {
+  background: white;
+  border-radius: 20px;
+  padding: 35px 40px;
+  box-shadow: var(--box-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cardTitle {
+  font-family: var(--font-serif);
+  font-size: 2rem;
+  color: #333;
+  margin: 0;
+  font-weight: 400;
+}
+
+.cardIcons {
+  display: flex;
+  gap: 10px;
+}
+
+.iconPink {
+  color: #F4B8B2; /* secondary clair */
+}
+
+.iconBordeaux {
+  color: var(--tertiary);
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 25px;
+}
+
+/* On crée une classe spécifique pour la grille des coordonnées qui doit passer sur 1 colonne sur tablette */
+.contactGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 25px;
+}
+
+.infoBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.infoLabel {
+  font-weight: 700;
+  color: #000;
+  font-size: 0.95rem;
+}
+
+.infoValue {
+  color: #666;
+  font-size: 0.95rem;
+}
+
+/* Galerie */
+.galerieHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 10px 0 5px 0;
+}
+
+.galerieTitle {
+  font-family: var(--font-serif);
+  font-size: 2.5rem;
+  color: var(--tertiary);
+  margin: 0;
+  font-weight: 400;
+}
+
+.galerieGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 150px 150px;
+  gap: 20px;
+}
+
+.galerieMain {
+  grid-row: 1 / 3;
+  grid-column: 1 / 2;
+  background-color: white;
+  border-radius: 20px;
+  box-shadow: var(--box-shadow);
+}
+
+.galerieItem {
+  background-color: white;
+  border-radius: 20px;
+  box-shadow: var(--box-shadow);
+}
+
+.galerieGrid .galerieItem:nth-child(4) {
+  grid-column: 2 / 3;
+  grid-row: 2 / 3;
+}
+
+/* =========================================
+   ONGLET RDV (Tableaux)
+   ========================================= */
+.rdvTabContent {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.tableCard {
+  background: white;
+  border-radius: 20px;
+  padding: 35px 40px;
+  box-shadow: var(--box-shadow);
+  display: flex;
+  flex-direction: column;
+}
+
+.tableHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+}
+
+.tableTitle {
+  font-family: var(--font-serif);
+  font-size: 1.8rem;
+  color: #333;
+  margin: 0;
+  font-weight: 400;
+}
+
+.voirTout {
+  font-size: 0.85rem;
+  color: var(--tertiary);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.voirTout:hover {
+  text-decoration: underline;
+}
+
+.tableContainer {
+  overflow-x: auto;
+}
+
+.customTable {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.customTable th {
+  font-size: 0.75rem;
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #F0F0F0;
+}
+
+.customTable td {
+  padding: 20px 0;
+  border-bottom: 1px solid #F0F0F0;
+  font-size: 0.95rem;
+  color: #333;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+.customTable tr:last-child td {
+  border-bottom: none;
+}
+
+/* Éléments des tableaux */
+.tdClient {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tdAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #FCD7D1, #FAF4F4);
+  color: var(--tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border: 2px solid white;
+}
+
+.tdAvatarSquare {
+  width: 45px;
+  height: 32px;
+  border-radius: 6px;
+  background-color: #E2E2E2;
+}
+
+.statusBadge {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.statusGreen {
+  background-color: #E8F3EB;
+  color: #3B8251;
+}
+
+.statusOrange {
+  background-color: #FFF2E5;
+  color: #E59235;
+}
+
+.statusRed {
+  background-color: #FCE8E8;
+  color: #D32F2F;
+}
+
+.catBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #FAF4F4;
+  color: var(--tertiary);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.tdActionBtn {
+  background: transparent;
+  border: 1px solid #FCD7D1;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  color: var(--tertiary);
+  transition: all 0.2s;
+}
+
+.tdActionBtn:hover {
+  background: #FAF4F4;
+}
+
+.btnVoirFiche {
+  background-color: #FAF4F4;
+  color: var(--tertiary);
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnVoirFiche svg {
+  width: 18px;
+  height: 18px;
+}
+
+.btnVoirFiche:hover {
+  background-color: #FCD7D1;
+}
+
+/* =========================================
+   ONGLET CONSENTEMENT
+   ========================================= */
+.consentTabContent {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.consentActionsRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  padding: 20px 30px;
+  border-radius: 15px;
+  box-shadow: var(--box-shadow);
+}
+
+.consentDesc {
+  color: #666;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.consentTitleBox {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.consentIconBoxPink {
+  width: 45px;
+  height: 45px;
+  border-radius: 10px;
+  background-color: #FAF4F4;
+  color: var(--tertiary);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.consentIconBoxRed {
+  width: 45px;
+  height: 45px;
+  border-radius: 10px;
+  background-color: #FFF2E5;
+  color: #E59235;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.consentSub {
+  font-size: 0.85rem;
+  color: #888;
+}
+
+/* Grille Bilan Santé */
+.consentGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 25px;
+  margin-top: 10px;
+}
+
+.consentItem {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: #FAFAFA;
+  padding: 15px 20px;
+  border-radius: 10px;
+  border-left: 3px solid #FCD7D1;
+}
+
+.consentItemFull {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #FAFAFA;
+  padding: 20px;
+  border-radius: 10px;
+  border-left: 3px solid var(--tertiary);
+}
+
+.consentLabel {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.consentValue {
+  font-size: 1rem;
+  color: #333;
+  font-weight: 600;
+}
+
+.signatureBox {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  padding: 15px 20px;
+  border-radius: 8px;
+  border: 1px dashed #E5E5E5;
+}
+
+.signatureText {
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--tertiary);
+  font-size: 1.1rem;
+}
+
+.btnOutline {
+  background: transparent;
+  border: 1px solid var(--tertiary);
+  color: var(--tertiary);
+  padding: 6px 15px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnOutline:hover {
+  background: var(--tertiary);
+  color: white;
+}
+
+/* Droit à l'image (Toggles) */
+.consentList {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 10px;
+}
+
+.consentRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 0;
+  border-bottom: 1px solid #F0F0F0;
+}
+
+.consentRow:last-child {
+  border-bottom: none;
+}
+
+.consentRowText h4 {
+  margin: 0 0 5px 0;
+  font-size: 1.05rem;
+  color: #333;
+}
+
+.consentRowText p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #888;
+}
+
+.toggleWrapper {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.toggleTextOn {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #3B8251;
+}
+
+.toggleTextOff {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #888;
+}
+
+.toggleActive {
+  width: 50px;
+  height: 26px;
+  background-color: #3B8251;
+  border-radius: 15px;
+  position: relative;
+  cursor: pointer;
+}
+
+.toggleInactive {
+  width: 50px;
+  height: 26px;
+  background-color: #E5E5E5;
+  border-radius: 15px;
+  position: relative;
+  cursor: pointer;
+}
+
+.toggleThumb {
+  width: 20px;
+  height: 20px;
+  background-color: white;
+  border-radius: 50%;
+  position: absolute;
+  top: 3px;
+  transition: all 0.2s;
+}
+
+.toggleActive .toggleThumb {
+  right: 3px;
+}
+
+.toggleInactive .toggleThumb {
+  left: 3px;
+}
+
+/* Historique table addition */
+.tdDoc {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #333;
+  font-weight: 600;
+}
+
+.tdDoc svg {
+  color: var(--tertiary);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .layout {
+    flex-direction: row; /* On garde la disposition côte à côte sur tablette */
+    gap: 20px;
+    padding: 20px;
+  }
+  .sidebar {
+    width: 280px; /* On réduit un peu la largeur de la sidebar */
+    padding: 20px;
+  }
+  .galerieGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .headerContact {
+    gap: 20px;
+  }
+  .contactGrid {
+    grid-template-columns: 1fr 1fr; /* On force le maintien des 2 colonnes pour Coordonnées sur tablette */
+  }
+}
+
+@media (max-width: 768px) {
+  .layout {
+    flex-direction: column; /* Sur mobile seulement, on empile */
+  }
+  .sidebar {
+    width: 100%;
+    min-height: auto;
+  }
+  .headerContact {
+    flex-direction: column;
+    gap: 15px;
+  }
+  .infoGrid {
+    grid-template-columns: 1fr; /* Sur mobile, notes passe aussi sur 1 colonne */
+  }
+}

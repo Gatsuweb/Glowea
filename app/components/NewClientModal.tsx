@@ -1,65 +1,172 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import styles from './NewClientModal.module.css';
+import React, { useState } from 'react';
+import styles from './NewAppointmentModal.module.css'; // On réutilise le même style
+import { createClient } from '../actions/clientActions';
+import { useRouter } from 'next/navigation';
 
 interface NewClientModalProps {
+  isOpen: boolean;
   onClose: () => void;
+  onSave?: (client: any) => void;
 }
 
-export default function NewClientModal({ onClose }: NewClientModalProps) {
-  // Empêcher le scroll du body quand la modale est ouverte
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, []);
+export default function NewClientModal({ isOpen, onClose, onSave }: NewClientModalProps) {
+  const router = useRouter();
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [instagram, setInstagram] = useState('');
+  const [birthdate, setBirthdate] = useState('');
+  const [recommendedBy, setRecommendedBy] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!isOpen) return null;
+
+  const handleSave = async () => {
+    if (!firstName.trim()) {
+      setError('Le prénom est obligatoire');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Parse birthdate if provided (ex: 25/03/1995 -> Date)
+      let parsedDate: Date | undefined;
+      if (birthdate) {
+        const parts = birthdate.split('/');
+        if (parts.length === 3) {
+          parsedDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+        }
+      }
+
+      const response = await createClient({
+        firstName: firstName.trim(),
+        lastName: lastName.trim() || undefined,
+        phone: phone.trim() || undefined,
+        email: email.trim() || undefined,
+        instagram: instagram.trim() || undefined,
+        birthDate: parsedDate,
+        referredBy: recommendedBy.trim() || undefined,
+      });
+
+      if (response.success) {
+        if (onSave) {
+          onSave(response.client);
+        }
+        
+        // Reset form
+        setFirstName('');
+        setLastName('');
+        setPhone('');
+        setEmail('');
+        setInstagram('');
+        setBirthdate('');
+        setRecommendedBy('');
+        
+        router.refresh();
+        onClose();
+      } else {
+        setError(response.error || 'Erreur lors de la création du client');
+      }
+    } catch (err) {
+      setError('Une erreur inattendue est survenue');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modalContainer} onClick={(e) => e.stopPropagation()}>
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
         
-        {/* Header de la modale */}
-        <div className={styles.headerCard}>
-          <button className={styles.backButton} onClick={onClose} aria-label="Retour">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M20 12H4M4 12L10 6M4 12L10 18" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        {/* HEADER */}
+        <div className={styles.header}>
+          <button className={styles.backBtn} onClick={onClose}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
           </button>
-          
-          <h2 className={styles.title}>Nouveau Client</h2>
-
-          <button className={styles.closeButton} onClick={onClose} aria-label="Fermer">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M18 6L6 18M6 6L18 18" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
+          <h1 className={styles.title}>Nouveau Client</h1>
         </div>
 
-        {/* Section INFORMATIONS PERSONNELLES */}
-        <div className={`${styles.sectionCard} ${styles.texturedCard}`}>
-          <h3 className={styles.sectionTitle}>INFORMATIONS PERSONNELLES</h3>
-          <div className={styles.formGrid}>
-            <input type="text" className={styles.inputPill} placeholder="Nom" />
-            <input type="text" className={styles.inputPill} placeholder="Prénom" />
-            <input type="tel" className={styles.inputPill} placeholder="Téléphone" />
-            <input type="email" className={styles.inputPill} placeholder="Email" />
+        {/* INFORMATIONS CLIENT */}
+        <div className={styles.sectionPink}>
+          <div className={styles.sectionTitle}>INFORMATIONS PERSONNELLES</div>
+          
+          <div className={styles.newClientForm}>
+            <div className={styles.newClientRow}>
+              <input 
+                type="text" 
+                className={styles.clientInput} 
+                placeholder="Prénom" 
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                style={{ flex: 1 }} 
+              />
+              <input 
+                type="text" 
+                className={styles.clientInput} 
+                placeholder="Nom" 
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                style={{ flex: 1 }} 
+              />
+            </div>
+            
+            <input 
+              type="tel" 
+              className={styles.clientInput} 
+              placeholder="Téléphone" 
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+            
+            <input 
+              type="email" 
+              className={styles.clientInput} 
+              placeholder="Adresse e-mail (optionnel)" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            
+            <div className={styles.newClientRow}>
+              <input 
+                type="text" 
+                className={styles.clientInput} 
+                placeholder="Pseudo Instagram (optionnel)" 
+                value={instagram}
+                onChange={(e) => setInstagram(e.target.value)}
+                style={{ flex: 1 }} 
+              />
+              <input 
+                type="text" 
+                className={styles.clientInput} 
+                placeholder="Date de naissance (ex: 25/03/1995)" 
+                value={birthdate}
+                onChange={(e) => setBirthdate(e.target.value)}
+                style={{ flex: 1 }} 
+              />
+            </div>
+
+            <input 
+              type="text" 
+              className={styles.clientInput} 
+              placeholder="Recommandé(e) par :" 
+              value={recommendedBy}
+              onChange={(e) => setRecommendedBy(e.target.value)}
+            />
           </div>
         </div>
 
-        {/* Section NOTES / PRÉFÉRENCES */}
-        <div className={styles.sectionCard}>
-          <h3 className={styles.sectionTitle}>NOTES / PRÉFÉRENCES</h3>
-          <textarea 
-            className={styles.textareaPill} 
-            placeholder="Allergies, habitudes, type de pose favorite..."
-          ></textarea>
-        </div>
-
-        {/* Bouton d'action */}
-        <button className={styles.saveButton} onClick={onClose}>
-          ENREGISTRER LE CLIENT
+        {/* VALIDATION */}
+        {error && <div style={{ color: 'red', textAlign: 'center', marginBottom: '10px' }}>{error}</div>}
+        <button className={styles.submitBtn} onClick={handleSave} disabled={isLoading}>
+          {isLoading ? 'Création en cours...' : 'Enregistrer le client'}
         </button>
 
       </div>
