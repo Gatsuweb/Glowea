@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import styles from './NewAppointmentModal.module.css'; // On réutilise le même style
 import { useRouter } from 'next/navigation';
+import { schedule24hRemindersForUpcomingAppointments } from '../actions/appointmentActions';
 
 interface SendPromoModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ export default function SendPromoModal({ isOpen, onClose }: SendPromoModalProps)
   const router = useRouter();
   const [targetAudience, setTargetAudience] = useState<'ALL' | 'TOP' | 'INACTIVE'>('ALL');
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
 
   if (!isOpen) return null;
 
@@ -37,13 +39,30 @@ export default function SendPromoModal({ isOpen, onClose }: SendPromoModalProps)
     }
   ];
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!selectedTemplate) {
       alert("Veuillez sélectionner un template");
       return;
     }
-    console.log("Envoi de la promo:", { targetAudience, templateId: selectedTemplate });
-    onClose();
+    setIsSending(true);
+    try {
+      if (selectedTemplate === "t3") {
+        const res = await schedule24hRemindersForUpcomingAppointments();
+        if (!res?.success) {
+          alert("Impossible d'activer le rappel 24h avant.");
+          return;
+        }
+        alert(`Rappel 24h avant activé : ${res.remindersScheduled} rendez-vous planifié(s).`);
+        onClose();
+        return;
+      }
+
+      console.log("Envoi de la promo:", { targetAudience, templateId: selectedTemplate });
+      alert("Campagne envoyée (démo).");
+      onClose();
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleCreateNewTemplate = () => {
@@ -171,8 +190,9 @@ export default function SendPromoModal({ isOpen, onClose }: SendPromoModalProps)
         <button 
           className={styles.submitBtn} 
           onClick={handleSend}
+          disabled={isSending}
         >
-          Envoyer la campagne
+          {isSending ? "Envoi..." : "Envoyer la campagne"}
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: '5px' }}>
             <line x1="22" y1="2" x2="11" y2="13"></line>
             <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>

@@ -3,10 +3,17 @@ import styles from './NewAppointmentModal.module.css'; // On réutilise le même
 import { createService } from '../actions/serviceActions';
 import { useRouter } from 'next/navigation';
 
+type CreatedService = {
+  id: string;
+  name: string;
+  price: string;
+  durationMin: number;
+};
+
 interface NewServiceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave?: (service: any) => void;
+  onSave?: (service: CreatedService) => void;
 }
 
 export default function NewServiceModal({ isOpen, onClose, onSave }: NewServiceModalProps) {
@@ -50,7 +57,7 @@ export default function NewServiceModal({ isOpen, onClose, onSave }: NewServiceM
       } else {
         setError('Erreur lors de la création de la prestation');
       }
-    } catch (err) {
+    } catch {
       setError('Une erreur inattendue est survenue');
     } finally {
       setIsLoading(false);

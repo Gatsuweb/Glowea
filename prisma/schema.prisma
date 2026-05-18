@@ -41,6 +41,7 @@ model Appointment {
   Tenant                   Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   AppointmentAttachment    AppointmentAttachment[]
   AppointmentReminder      AppointmentReminder[]
+  AppointmentReminderLog   AppointmentReminderLog[]
   AppointmentStatusHistory AppointmentStatusHistory[]
   ConsentDocument          ConsentDocument[]
   FinancialTransaction     FinancialTransaction[]
@@ -88,6 +89,30 @@ model AppointmentReminder {
   @@index([tenantId])
 }
 
+model AppointmentReminderLog {
+  id               String              @id
+  tenantId         String
+  appointmentId    String
+  clientId         String?
+  type             ReminderLogType
+  channel          MessageChannel      @default(SMS)
+  status           MessageLogStatus    @default(PENDING)
+  twilioMessageSid String?
+  errorMessage     String?
+  sentAt           DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime
+  Appointment      Appointment         @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  Client           Client?             @relation(fields: [clientId], references: [id])
+  Tenant           Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([appointmentId, type])
+  @@index([clientId])
+  @@index([sentAt])
+  @@index([tenantId])
+  @@index([type, status])
+}
+
 model AppointmentStatusHistory {
   id              String             @id
   appointmentId   String
@@ -110,6 +135,7 @@ model BillingProfile {
   legalStatus  String?
   billingEmail String?
   vatNumber    String?
+  siret        String?
   addressLine1 String?
   addressLine2 String?
   postalCode   String?
@@ -158,6 +184,8 @@ model BusinessSettings {
   primaryColor    String?
   defaultCurrency String   @default("EUR")
   bookingEnabled  Boolean  @default(false)
+  smsRemindersEnabled Boolean @default(false)
+  smsReminderDelayHours Int   @default(24)
   createdAt       DateTime @default(now())
   updatedAt       DateTime
   Tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -188,6 +216,7 @@ model Client {
   ClientNote          ClientNote[]
   ClientTagAssignment ClientTagAssignment[]
   ConsentDocument     ConsentDocument[]
+  AppointmentReminderLog AppointmentReminderLog[]
   MessageLog          MessageLog[]
   Notification        Notification[]
   Session             Session[]
@@ -829,11 +858,13 @@ model Tenant {
   id                   String                 @id
   name                 String
   slug                 String?                @unique
+  subscriptionPlan     SubscriptionPlan       @default(FREE)
   createdAt            DateTime               @default(now())
   updatedAt            DateTime
   AgendaSettings       AgendaSettings?
   Appointment          Appointment[]
   AppointmentReminder  AppointmentReminder[]
+  AppointmentReminderLog AppointmentReminderLog[]
   BillingProfile       BillingProfile?
   BusinessSettings     BusinessSettings?
   Client               Client[]
@@ -863,7 +894,10 @@ model User {
   id                       String                     @id
   clerkUserId              String                     @unique
   email                    String                     @unique
+  firstName                String?
+  lastName                 String?
   fullName                 String?
+  phone                    String?
   avatarUrl                String?
   role                     UserRole                   @default(OWNER)
   tenantId                 String
@@ -1053,6 +1087,10 @@ enum ReminderStatus {
   CANCELED
 }
 
+enum ReminderLogType {
+  SMS_24H_REMINDER
+}
+
 enum SessionCategory {
   LASHES
   BROWLIFT
@@ -1081,6 +1119,12 @@ enum SubscriptionStatus {
   CANCELED
   INCOMPLETE
   PAUSED
+}
+
+enum SubscriptionPlan {
+  FREE
+  PRO
+  PREMIUM
 }
 
 enum ThemeMode {

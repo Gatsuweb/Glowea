@@ -52,6 +52,9 @@ export default async function AgendaPage() {
     endAt: app.endAt ? app.endAt.toISOString() : new Date(app.scheduledAt.getTime() + (app.Service?.durationMin || 60) * 60000).toISOString(),
     status: app.status,
     paymentStatus: app.paymentStatus,
+    notes: app.notes || '',
+    clientId: app.clientId,
+    serviceId: app.serviceId || '',
     client: {
       id: app.Client?.id,
       name: `${app.Client?.firstName} ${app.Client?.lastName || ''}`.trim(),
@@ -59,7 +62,7 @@ export default async function AgendaPage() {
       phone: app.Client?.phone || '',
     },
     service: {
-      id: app.Service?.id,
+      id: app.Service?.id || '',
       name: app.Service?.name || 'Prestation',
       durationMin: app.Service?.durationMin || 60,
       price: app.Service?.price ? Number(app.Service.price) : 0,

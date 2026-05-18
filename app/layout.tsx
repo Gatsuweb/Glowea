@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { ClerkProvider, Show, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs'
+import { ClerkProvider, Show, SignInButton, SignUpButton } from "@clerk/nextjs";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -37,7 +37,7 @@ export default function RootLayout({
               </SignInButton>
               <SignUpButton forceRedirectUrl="/dashboard">
                 <button style={{ backgroundColor: "var(--tertiary)", color: "white", borderRadius: "9999px", fontWeight: "500", fontSize: "1rem", height: "2.5rem", padding: "0 1.25rem", cursor: "pointer", border: "none" }}>
-                  S'inscrire
+                  S&apos;inscrire
                 </button>
               </SignUpButton>
             </Show>

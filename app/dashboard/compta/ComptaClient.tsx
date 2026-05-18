@@ -1,19 +1,86 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import styles from "./compta.module.css";
 import SparkBarChart from "../../components/SparkBarChart";
 import { getVueEnsembleData, createTransaction, createCharge, getStatsData } from "../../actions/comptaActions";
 import { exportElementToPDF } from "../../../lib/exportUtils";
 
-export default function ComptaClient({ initialData, initialStatsData, currentMonth }: { initialData: any, initialStatsData: any, currentMonth: string }) {
+type TransactionType = "INCOME" | "EXPENSE";
+
+type TransactionItem = {
+  id: string;
+  label?: string | null;
+  category?: string | null;
+  amount: number;
+  type: TransactionType;
+  transactionDate: string | Date;
+};
+
+type RecurringExpenseItem = {
+  id: string;
+  label: string;
+  category?: string | null;
+  amount: number;
+};
+
+type VueEnsembleData = {
+  transactions: TransactionItem[];
+  prevTransactions: TransactionItem[];
+  recurringExpenses: RecurringExpenseItem[];
+};
+
+type StatAmountItem = {
+  name: string;
+  amount: number;
+};
+
+type DayStat = {
+  day: string;
+  count: number;
+  level: string;
+};
+
+type StatsData = {
+  rdvThisMonth: number;
+  rdvTrendStr: string;
+  topPrestations: StatAmountItem[];
+  maxPrestationAmount: number;
+  topClients: StatAmountItem[];
+  maxClientAmount: number;
+  daysData: DayStat[];
+  meilleureSemaine: {
+    label: string;
+    amount: string;
+    chartData: Array<{ value: number }>;
+  };
+};
+
+type DisplayTransaction = {
+  id: string;
+  name: string;
+  details: string;
+  amount: string;
+  rawAmount: number;
+  type: "revenus" | "depenses";
+  date: Date;
+};
+
+export default function ComptaClient({
+  initialData,
+  initialStatsData,
+  currentMonth,
+}: {
+  initialData: VueEnsembleData;
+  initialStatsData: StatsData;
+  currentMonth: string;
+}) {
   const [filterType, setFilterType] = useState("all");
   const [filterMonth, setFilterMonth] = useState(currentMonth);
   const [activeTab, setActiveTab] = useState("vue"); // "vue", "stats", "simulation"
   const [data, setData] = useState(initialData);
   const [statsData, setStatsData] = useState(initialStatsData);
-  const [isLoading, setIsLoading] = useState(false);
 
   // States pour les Modales de Création
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
@@ -33,27 +100,29 @@ export default function ComptaClient({ initialData, initialStatsData, currentMon
   const [chargeIsRecurring, setChargeIsRecurring] = useState(false);
   const [chargeFrequency, setChargeFrequency] = useState<'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY'>('MONTHLY');
 
-  const refreshData = async () => {
-    setIsLoading(true);
+  const refreshData = useCallback(async () => {
     const res = await getVueEnsembleData(filterMonth);
-    if (res.success) {
+    if (res.success && res.data) {
       setData(res.data);
     }
     const statsRes = await getStatsData(filterMonth);
-    if (statsRes.success) {
+    if (statsRes.success && statsRes.data) {
       setStatsData(statsRes.data);
     }
-    setIsLoading(false);
-  };
+  }, [filterMonth]);
 
   useEffect(() => {
-    if (filterMonth !== currentMonth) {
-      refreshData();
-    } else {
-      setData(initialData);
-      setStatsData(initialStatsData);
-    }
-  }, [filterMonth, currentMonth, initialData, initialStatsData]);
+    const timer = window.setTimeout(() => {
+      if (filterMonth !== currentMonth) {
+        void refreshData();
+      } else {
+        setData(initialData);
+        setStatsData(initialStatsData);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [filterMonth, currentMonth, initialData, initialStatsData, refreshData]);
 
   const handleCreateTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,13 +166,22 @@ export default function ComptaClient({ initialData, initialStatsData, currentMon
     setIsSubmitting(false);
   };
 
-  const caMois = data.transactions.filter((t: any) => t.type === 'INCOME').reduce((sum: number, t: any) => sum + t.amount, 0);
-  const prevCA = data.prevTransactions.filter((t: any) => t.type === 'INCOME').reduce((sum: number, t: any) => sum + t.amount, 0);
+  const caMois = data.transactions
+    .filter((t: TransactionItem) => t.type === "INCOME")
+    .reduce((sum: number, t: TransactionItem) => sum + t.amount, 0);
+  const prevCA = data.prevTransactions
+    .filter((t: TransactionItem) => t.type === "INCOME")
+    .reduce((sum: number, t: TransactionItem) => sum + t.amount, 0);
   const caTrend = prevCA > 0 ? ((caMois - prevCA) / prevCA) * 100 : 0;
   const caTrendStr = caTrend >= 0 ? `+${caTrend.toFixed(1)}%` : `${caTrend.toFixed(1)}%`;
 
-  const chargesRecurrentes = data.recurringExpenses.reduce((sum: number, r: any) => sum + r.amount, 0);
-  const chargesMateriels = data.transactions.filter((t: any) => t.type === 'EXPENSE').reduce((sum: number, t: any) => sum + t.amount, 0);
+  const chargesRecurrentes = data.recurringExpenses.reduce(
+    (sum: number, r: RecurringExpenseItem) => sum + r.amount,
+    0,
+  );
+  const chargesMateriels = data.transactions
+    .filter((t: TransactionItem) => t.type === "EXPENSE")
+    .reduce((sum: number, t: TransactionItem) => sum + t.amount, 0);
   const totalCharges = chargesRecurrentes + chargesMateriels;
 
   // States pour le Simulateur
@@ -122,10 +200,14 @@ export default function ComptaClient({ initialData, initialStatsData, currentMon
 
   // Synchroniser le simulateur si les données réelles changent (changement de mois par ex)
   useEffect(() => {
-    setSimObjCharges(totalCharges.toString());
-    setSimTarif(actualAverageBasket);
-    setSimRdv(actualRdv);
-    setSimCharges(totalCharges);
+    const timer = window.setTimeout(() => {
+      setSimObjCharges(totalCharges.toString());
+      setSimTarif(actualAverageBasket);
+      setSimRdv(actualRdv);
+      setSimCharges(totalCharges);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [totalCharges, actualAverageBasket, actualRdv]);
 
   const urssafRate = 0.212; // 21.2% URSSAF
@@ -149,7 +231,7 @@ export default function ComptaClient({ initialData, initialStatsData, currentMon
   const urssafTax = caMois * urssafRate;
   const beneficeNet = caMois - totalCharges - urssafTax;
 
-  const mappedTransactions = data.transactions.map((t: any) => ({
+  const mappedTransactions: DisplayTransaction[] = data.transactions.map((t: TransactionItem) => ({
     id: t.id,
     name: t.label || "Transaction",
     details: `${t.category || ''} - ${new Date(t.transactionDate).toLocaleDateString()}`,
@@ -159,7 +241,7 @@ export default function ComptaClient({ initialData, initialStatsData, currentMon
     date: new Date(t.transactionDate)
   }));
 
-  const mappedRecurring = data.recurringExpenses.map((r: any) => ({
+  const mappedRecurring: DisplayTransaction[] = data.recurringExpenses.map((r: RecurringExpenseItem) => ({
     id: r.id,
     name: `${r.label} (Récurrent)`,
     details: `${r.category || 'Charge fixe'} - Mensuel`,
@@ -173,20 +255,10 @@ export default function ComptaClient({ initialData, initialStatsData, currentMon
     (a, b) => b.date.getTime() - a.date.getTime()
   );
 
-  const filteredTransactions = allTransactions.filter((t: any) => {
+  const filteredTransactions = allTransactions.filter((t: DisplayTransaction) => {
     const matchType = filterType === "all" || t.type === filterType;
     return matchType;
   });
-
-  const daysData = [
-    { day: "L", count: 2, level: "low" },
-    { day: "M", count: 1, level: "low" },
-    { day: "M", count: 8, level: "high" },
-    { day: "J", count: 3, level: "low" },
-    { day: "V", count: 5, level: "medium" },
-    { day: "S", count: 6, level: "medium" },
-    { day: "D", count: 0, level: "empty" }
-  ];
 
   const monthFormatter = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' });
   const displayMonth = monthFormatter.format(new Date(`${filterMonth}-01`));
@@ -333,7 +405,7 @@ export default function ComptaClient({ initialData, initialStatsData, currentMon
           className={`${styles.tab} ${activeTab === 'vue' ? styles.tabActive : styles.tabInactive}`}
           onClick={() => setActiveTab('vue')}
         >
-          Vue d'ensemble
+          Vue d&apos;ensemble
         </button>
         <button 
           className={`${styles.tab} ${activeTab === 'stats' ? styles.tabActive : styles.tabInactive}`}
@@ -374,7 +446,7 @@ export default function ComptaClient({ initialData, initialStatsData, currentMon
                 <div className={styles.statTitle}>Top prestations</div>
               </div>
               <div className={styles.statList}>
-                {statsData.topPrestations.map((p: any, i: number) => (
+                {statsData.topPrestations.map((p: StatAmountItem, i: number) => (
                   <div className={styles.statListItem} key={i}>
                     <span className={styles.statListLabel}>{p.name} :</span>
                     <div className={styles.statListBar}>
@@ -397,7 +469,7 @@ export default function ComptaClient({ initialData, initialStatsData, currentMon
                 <div className={styles.statTitle}>Top clients</div>
               </div>
               <div className={styles.statList}>
-                {statsData.topClients.map((c: any, i: number) => (
+                {statsData.topClients.map((c: StatAmountItem, i: number) => (
                   <div className={styles.statListItem} key={i}>
                     <span className={styles.statListLabel}>{c.name}</span>
                     <div className={styles.statListBar}>
@@ -429,11 +501,11 @@ export default function ComptaClient({ initialData, initialStatsData, currentMon
               </div>
             </div>
 
-            {/* Card 5: Revenu à l'heure */}
+            {/* Card 5: Revenu a l'heure */}
             <div className={styles.statCardLarge}>
               <div className={styles.statHeader}>
                 <div className={styles.statTitleBlock}>
-                  <div className={styles.statTitle}>Revenu à l'heure</div>
+                  <div className={styles.statTitle}>Revenu a l&apos;heure</div>
                 </div>
               </div>
               <div className={styles.statBigText}>
@@ -449,7 +521,7 @@ export default function ComptaClient({ initialData, initialStatsData, currentMon
                 <div className={styles.statTitle}>Meilleur jour de la semaine</div>
               </div>
               <div className={styles.dayBlocksContainer}>
-                {statsData.daysData.map((d: any, index: number) => (
+                {statsData.daysData.map((d: DayStat, index: number) => (
                   <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                     <div 
                       className={`${styles.dayBlock} ${styles[d.level]}`}
@@ -475,7 +547,7 @@ export default function ComptaClient({ initialData, initialStatsData, currentMon
           {/* Alert Banner */}
           <section className={styles.alertBanner}>
             <div className={styles.alertText}>
-              3 clientes n'ont pas repris RDV depuis plus de 6 semaines. Une relance personnalisée pourrait récupérer ~180€ de CA.
+              3 clientes n&apos;ont pas repris RDV depuis plus de 6 semaines. Une relance personnalisee pourrait recuperer ~180EUR de CA.
             </div>
             <a className={styles.alertLink}>Relancer les clients concernés ↗</a>
           </section>
@@ -652,7 +724,7 @@ export default function ComptaClient({ initialData, initialStatsData, currentMon
                 <div className={styles.statTopValue}>- {chargesRecurrentes.toFixed(2)} €</div>
               </div>
               <div className={styles.statList}>
-                {data.recurringExpenses.slice(0, 3).map((r: any, idx: number) => (
+                {data.recurringExpenses.slice(0, 3).map((r: RecurringExpenseItem, idx: number) => (
                   <div className={styles.statListItem} key={idx}>
                     <span className={styles.statListLabel}>{r.label} :</span>
                     <div className={styles.statListBar}>
@@ -676,7 +748,10 @@ export default function ComptaClient({ initialData, initialStatsData, currentMon
                 <div className={styles.statTopValue}>- {chargesMateriels.toFixed(2)} €</div>
               </div>
               <div className={styles.statList}>
-                {data.transactions.filter((t: any) => t.type === 'EXPENSE').slice(0, 3).map((t: any, idx: number) => (
+                {data.transactions
+                  .filter((t: TransactionItem) => t.type === "EXPENSE")
+                  .slice(0, 3)
+                  .map((t: TransactionItem, idx: number) => (
                   <div className={styles.statListItem} key={idx}>
                     <span className={styles.statListLabel}>{t.label || t.category || "Dépense"} :</span>
                     <div className={styles.statListBar}>
@@ -685,7 +760,7 @@ export default function ComptaClient({ initialData, initialStatsData, currentMon
                     <span className={styles.statListValue}>{t.amount.toFixed(2)} €</span>
                   </div>
                 ))}
-                {data.transactions.filter((t: any) => t.type === 'EXPENSE').length === 0 && (
+                {data.transactions.filter((t: TransactionItem) => t.type === "EXPENSE").length === 0 && (
                   <div style={{ color: '#888', fontSize: '0.8rem', marginTop: '10px' }}>Aucune charge ponctuelle</div>
                 )}
               </div>
@@ -749,7 +824,7 @@ export default function ComptaClient({ initialData, initialStatsData, currentMon
             <h2 className={styles.revenusTitle}>Mes Transactions</h2>
             <div className={styles.transactionsWrapper}>
               {filteredTransactions.length > 0 ? (
-                filteredTransactions.map((transaction: any) => (
+                filteredTransactions.map((transaction: DisplayTransaction) => (
                   <div key={transaction.id} className={styles.transactionItem}>
                     <div className={styles.transLeft}>
                       <div className={transaction.type === 'revenus' ? styles.transIcon : styles.transIconRed}>
@@ -850,7 +925,15 @@ export default function ComptaClient({ initialData, initialStatsData, currentMon
               {chargeIsRecurring && (
                 <div className={styles.formGroup} style={{ marginTop: '15px' }}>
                   <label>Périodicité</label>
-                  <select value={chargeFrequency} onChange={(e) => setChargeFrequency(e.target.value as any)} required>
+                  <select
+                    value={chargeFrequency}
+                    onChange={(e) =>
+                      setChargeFrequency(
+                        e.target.value as "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY",
+                      )
+                    }
+                    required
+                  >
                     <option value="WEEKLY">Hebdomadaire</option>
                     <option value="MONTHLY">Mensuelle</option>
                     <option value="QUARTERLY">Trimestrielle</option>

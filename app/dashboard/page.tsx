@@ -4,6 +4,24 @@ import prisma from "../../lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+type InsightAction = "promo" | "brief" | "stock" | "appointment";
+
+type SmartInsight = {
+  id: string;
+  title: string;
+  description: string;
+  actionLabel: string;
+  action: InsightAction;
+  priority: number;
+};
+
+type RefillClient = {
+  id: string;
+  name: string;
+  lastVisit: string;
+  serviceName: string;
+};
+
 export default async function DashboardPage() {
   const DEV_BYPASS_AUTH = process.env.NODE_ENV === "development";
   
@@ -26,10 +44,16 @@ export default async function DashboardPage() {
   todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date();
   todayEnd.setHours(23, 59, 59, 999);
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+  const tomorrowEnd = new Date(tomorrowStart);
+  tomorrowEnd.setHours(23, 59, 59, 999);
 
   // Get start and end of current month
   const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
   const monthEnd = new Date(todayStart.getFullYear(), todayStart.getMonth() + 1, 0, 23, 59, 59, 999);
+  const previousMonthStart = new Date(todayStart.getFullYear(), todayStart.getMonth() - 1, 1);
+  const previousMonthEnd = new Date(todayStart.getFullYear(), todayStart.getMonth(), 0, 23, 59, 59, 999);
 
   // Use the current user's tenant ID
   const { getTenantId } = await import("../../lib/tenant");
@@ -45,8 +69,24 @@ export default async function DashboardPage() {
       },
     },
     include: {
-      Client: true,
+      Client: {
+        include: {
+          ConsentDocument: {
+            where: { documentType: "CONSENT" },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
+        },
+      },
       Service: true,
+      AppointmentAttachment: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
+      ConsentDocument: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
     },
     orderBy: {
       scheduledAt: 'asc',
@@ -68,9 +108,32 @@ export default async function DashboardPage() {
   });
 
   const monthAppointmentsCount = monthAppointments.length;
-  const monthRevenues = monthAppointments
+  const projectedMonthRevenues = monthAppointments
     .filter(app => app.status === 'COMPLETED' || app.status === 'SCHEDULED') // For demo, let's include scheduled to show some revenue
     .reduce((sum, app) => sum + Number(app.Service?.price || 0), 0);
+
+  const monthRevenueTransactions = await prisma.financialTransaction.findMany({
+    where: {
+      tenantId,
+      transactionDate: { gte: monthStart, lte: monthEnd },
+      type: 'INCOME'
+    }
+  });
+
+  const previousMonthRevenueTransactions = await prisma.financialTransaction.findMany({
+    where: {
+      tenantId,
+      transactionDate: { gte: previousMonthStart, lte: previousMonthEnd },
+      type: 'INCOME'
+    }
+  });
+
+  const transactionMonthRevenues = monthRevenueTransactions.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  const previousMonthRevenues = previousMonthRevenueTransactions.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  const monthRevenues = transactionMonthRevenues > 0 ? transactionMonthRevenues : projectedMonthRevenues;
+  const revenueTrendPercent = previousMonthRevenues > 0
+    ? Math.round(((monthRevenues - previousMonthRevenues) / previousMonthRevenues) * 100)
+    : null;
 
   // Fetch data for the last 7 days (Trend charts)
   const sevenDaysAgo = new Date(todayStart);
@@ -199,7 +262,7 @@ export default async function DashboardPage() {
         });
       }
       return acc;
-    }, [] as any[])
+    }, [] as RefillClient[])
     .slice(0, 3); // Limit to 3 for UI
 
   const weeklyBriefData = {
@@ -237,16 +300,38 @@ export default async function DashboardPage() {
 
   // Format data for the client wrapper
   const formattedAppointments = todaysAppointments.map(app => {
+    const appointmentDocument = app.AppointmentAttachment[0]?.url
+      || app.ConsentDocument[0]?.pdfUrl
+      || app.Client?.ConsentDocument[0]?.pdfUrl
+      || "";
+
     return {
       id: app.id,
       clientId: app.clientId,
       serviceId: app.serviceId,
+      scheduledAt: app.scheduledAt.toISOString(),
+      notes: app.notes || "",
       time: app.scheduledAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
       clientName: `${app.Client?.firstName} ${app.Client?.lastName || ''}`.trim(),
+      clientEmail: app.Client?.email || "",
+      clientPhone: app.Client?.phone || "",
       serviceName: app.Service?.name || 'Prestation',
       servicePrice: app.Service?.price ? Number(app.Service.price) : 0,
+      serviceDurationMin: app.Service?.durationMin || 60,
+      documentUrl: appointmentDocument,
+      hasDocument: Boolean(appointmentDocument),
       status: app.status,
       isTomorrow: app.scheduledAt > todayEnd,
+      client: {
+        id: app.Client?.id || app.clientId,
+        name: `${app.Client?.firstName} ${app.Client?.lastName || ''}`.trim(),
+      },
+      service: {
+        id: app.Service?.id || app.serviceId || "",
+        name: app.Service?.name || "Prestation",
+        price: app.Service?.price ? Number(app.Service.price) : 0,
+        durationMin: app.Service?.durationMin || 60,
+      },
     };
   });
 
@@ -297,6 +382,98 @@ export default async function DashboardPage() {
     };
   });
 
+  const tomorrowAppointmentsCount = await prisma.appointment.count({
+    where: {
+      tenantId,
+      scheduledAt: { gte: tomorrowStart, lte: tomorrowEnd },
+      status: { notIn: ['CANCELED', 'NO_SHOW'] },
+    },
+  });
+
+  const lowStockProducts = products.filter((product) => {
+    const alertLevel = product.idealQuantity / 2;
+    return product.currentQuantity <= alertLevel;
+  });
+
+  const monthDayProgress = todayStart.getDate() / monthEnd.getDate();
+  const objectiveProgress = monthAppointmentsCount / 34;
+  const isObjectiveLate = monthDayProgress > 0.35 && objectiveProgress < monthDayProgress * 0.75;
+  const bestRecentRevenueDay = revTrend.reduce(
+    (best, day) => day.val > best.val ? day : best,
+    { name: "", val: 0 }
+  );
+
+  const smartInsights = [
+    tomorrowAppointmentsCount <= 1 && {
+      id: "planning-tomorrow",
+      title: "Planning a remplir demain",
+      description: `Tu as ${tomorrowAppointmentsCount} rendez-vous demain. Une promo ciblee peut aider a remplir les creux.`,
+      actionLabel: "Envoyer une promo",
+      action: "promo",
+      priority: 100,
+    },
+    clientsToRefill.length > 0 && {
+      id: "refills",
+      title: "Relances remplissage",
+      description: `${clientsToRefill.length} cliente${clientsToRefill.length > 1 ? "s" : ""} sont dans la bonne fenetre de retour, sans futur rendez-vous.`,
+      actionLabel: "Voir le brief",
+      action: "brief",
+      priority: 90,
+    },
+    lowStockProducts.length > 0 && {
+      id: "stock",
+      title: "Stock a surveiller",
+      description: `${lowStockProducts[0].name} est proche du seuil bas. Anticipe avant tes prochains rendez-vous.`,
+      actionLabel: "Gerer le stock",
+      action: "stock",
+      priority: 80,
+    },
+    birthdaysThisWeek.length > 0 && {
+      id: "birthdays",
+      title: "Occasion relation client",
+      description: `${birthdaysThisWeek.length} anniversaire${birthdaysThisWeek.length > 1 ? "s" : ""} cette semaine. C'est le bon moment pour une attention personnalisee.`,
+      actionLabel: "Envoyer une promo",
+      action: "promo",
+      priority: 70,
+    },
+    revenueTrendPercent !== null && revenueTrendPercent < 0 && {
+      id: "revenue-drop",
+      title: "Revenus en baisse",
+      description: `Tes revenus sont a ${revenueTrendPercent}% vs le mois dernier. Priorise les clientes fideles et les prestations a panier eleve.`,
+      actionLabel: "Envoyer une promo",
+      action: "promo",
+      priority: 60,
+    },
+    isObjectiveLate && {
+      id: "objective",
+      title: "Objectif en retard",
+      description: `Tu es a ${Math.round(objectiveProgress * 100)}% de ton objectif alors que le mois est avance a ${Math.round(monthDayProgress * 100)}%.`,
+      actionLabel: "Creer un RDV",
+      action: "appointment",
+      priority: 50,
+    },
+    bestRecentRevenueDay.val > 0 && {
+      id: "best-day",
+      title: "Jour fort repere",
+      description: `${bestRecentRevenueDay.name} a genere ${Math.round(bestRecentRevenueDay.val)} euros recemment. Replique ce type de creneau ou d'offre.`,
+      actionLabel: "Creer un RDV",
+      action: "appointment",
+      priority: 30,
+    },
+  ]
+    .filter((insight): insight is SmartInsight => Boolean(insight))
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, 4);
+
+  const insightData: SmartInsight[] = smartInsights.length > 0 ? smartInsights : [{
+    id: "steady",
+    title: "Activite stable",
+    description: "Ton dashboard ne montre pas d'alerte prioritaire aujourd'hui. Profite-en pour planifier tes prochaines relances.",
+    actionLabel: "Voir le brief",
+    action: "brief",
+    priority: 10,
+  }];
+
   return (
     <DashboardClientWrapper 
       firstName={firstName} 
@@ -307,7 +484,8 @@ export default async function DashboardPage() {
         objectiveCurrent: monthAppointmentsCount,
         objectiveTotal: 34,
         apptTrend,
-        revTrend
+        revTrend,
+        revenueTrendPercent
       }}
       appointments={formattedAppointments}
       topClients={topClients}
@@ -315,6 +493,7 @@ export default async function DashboardPage() {
       services={services}
       weeklyBriefData={weeklyBriefData}
       products={products}
+      insights={insightData}
     />
   );
 }

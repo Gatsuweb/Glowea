@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import Image from "next/image";
 import styles from "./WeeklyBriefModal.module.css";
 
@@ -27,13 +27,7 @@ interface WeeklyBriefModalProps {
 }
 
 export default function WeeklyBriefModal({ isOpen, onClose, data }: WeeklyBriefModalProps) {
-  const [isVisible, setIsVisible] = useState(isOpen);
-
-  useEffect(() => {
-    setIsVisible(isOpen);
-  }, [isOpen]);
-
-  if (!isVisible) return null;
+  if (!isOpen) return null;
 
   return (
     <div className={styles.overlay} onClick={onClose}>
@@ -90,7 +84,7 @@ export default function WeeklyBriefModal({ isOpen, onClose, data }: WeeklyBriefM
               <span className={styles.sectionIcon}>💅</span>
               <h3>Clientes à relancer (Remplissage)</h3>
             </div>
-            <p className={styles.sectionSubtext}>Ces clientes sont venues il y a ~3-4 semaines et n'ont pas repris de RDV.</p>
+            <p className={styles.sectionSubtext}>Ces clientes sont venues il y a ~3-4 semaines et n&apos;ont pas repris de RDV.</p>
             {data.refills.length > 0 ? (
               <ul className={styles.list}>
                 {data.refills.map(r => (
@@ -111,12 +105,12 @@ export default function WeeklyBriefModal({ isOpen, onClose, data }: WeeklyBriefM
           {/* Conseil de la semaine */}
           <div className={styles.tipCard}>
             <div className={styles.tipHeader}>💡 Conseil de la semaine</div>
-            <p>Pense à partager des photos avant/après de tes poses sur Instagram pour attirer de nouvelles clientes !</p>
+            <p>Pense a partager des photos avant/apres de tes poses sur Instagram pour attirer de nouvelles clientes !</p>
           </div>
         </div>
 
         <div className={styles.footer}>
-          <button className={styles.actionBtn} onClick={onClose}>C'est parti ! 🚀</button>
+          <button className={styles.actionBtn} onClick={onClose}>C&apos;est parti ! 🚀</button>
         </div>
       </div>
     </div>

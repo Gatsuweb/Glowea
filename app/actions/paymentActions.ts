@@ -17,13 +17,34 @@ export async function processPayment(data: {
     const { appointmentId, clientId, amount, paymentMethod, serviceName } = data;
 
     // Verify appointment exists
-    const appointment = await prisma.appointment.findUnique({
-      where: { id: appointmentId },
+    const appointment = await prisma.appointment.findFirst({
+      where: { id: appointmentId, tenantId: TENANT_ID },
       include: { Session: true }
     });
 
     if (!appointment) {
       return { success: false, error: "Rendez-vous introuvable" };
+    }
+
+    if (appointment.clientId !== clientId) {
+      return { success: false, error: "Cliente invalide pour ce rendez-vous" };
+    }
+
+    if (appointment.paymentStatus === "PAID") {
+      return { success: false, error: "Ce rendez-vous est deja paye" };
+    }
+
+    const existingPayment = await prisma.financialTransaction.findFirst({
+      where: {
+        tenantId: TENANT_ID,
+        appointmentId,
+        type: "INCOME",
+        sourceType: "APPOINTMENT",
+      },
+    });
+
+    if (existingPayment) {
+      return { success: false, error: "Un paiement existe deja pour ce rendez-vous" };
     }
 
     // Generate transaction ID

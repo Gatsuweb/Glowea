@@ -5,18 +5,46 @@ import styles from "../dashboard/stock/stock.module.css";
 import { adjustStock, deleteProduct } from "../actions/stockActions";
 import NewProductModal from "./NewProductModal";
 
+type StockProduct = {
+  id: string;
+  name: string;
+  desc: string;
+  tags: string[];
+  rawPrice: number;
+  count: number;
+  statusColor: string;
+  status: string;
+  price: string;
+  expire: string;
+  categoryId?: string | null;
+  expireAt?: string | Date | null;
+};
+
+type StockMovement = {
+  id: string;
+  type: "out" | "in";
+  name: string;
+  desc: string;
+  amount: string;
+};
+
+type StockCategory = {
+  id: string;
+  name: string;
+};
+
 export default function StockClientWrapper({ 
   initialProducts = [],
   movements = [],
   categories = []
 }: { 
-  initialProducts?: any[],
-  movements?: any[],
-  categories?: any[]
+  initialProducts?: StockProduct[],
+  movements?: StockMovement[],
+  categories?: StockCategory[]
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setModalOpen] = useState(false);
-  const [productToEdit, setProductToEdit] = useState<any>(null);
+  const [productToEdit, setProductToEdit] = useState<StockProduct | null>(null);
   const [loadingProductId, setLoadingProductId] = useState<string | null>(null);
 
   const filteredProducts = initialProducts.filter(p => 
@@ -44,7 +72,7 @@ export default function StockClientWrapper({
     }
   };
 
-  const handleEdit = (product: any) => {
+  const handleEdit = (product: StockProduct) => {
     setProductToEdit(product);
     setModalOpen(true);
   };

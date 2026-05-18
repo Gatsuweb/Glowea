@@ -358,6 +358,68 @@
   font-size: 0.95rem;
 }
 
+.editForm {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.formInput,
+.formTextarea {
+  width: 100%;
+  border: 1px solid #E8D8D8;
+  border-radius: 8px;
+  padding: 11px 12px;
+  color: #333;
+  background: #FFF;
+  font: inherit;
+  outline: none;
+}
+
+.formTextarea {
+  resize: vertical;
+  min-height: 110px;
+}
+
+.formInput:focus,
+.formTextarea:focus {
+  border-color: var(--tertiary);
+  box-shadow: 0 0 0 3px rgba(139, 75, 84, 0.08);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.formError,
+.formSuccess {
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.formError {
+  color: #8B1E2D;
+  background: #FFF2F4;
+  border: 1px solid #F0B8C0;
+}
+
+.formSuccess {
+  color: #286B3B;
+  background: #F1FBF4;
+  border: 1px solid #BFE7C9;
+}
+
 /* Galerie */
 .galerieHeader {
   display: flex;

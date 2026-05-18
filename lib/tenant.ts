@@ -15,13 +15,24 @@ export async function getTenantId() {
   if (!tenant) {
     const user = await currentUser();
     const email = user?.emailAddresses[0]?.emailAddress || `${userId}@example.com`;
-    const fullName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Utilisateur';
+    const firstName = user?.firstName || "";
+    const lastName = user?.lastName || "";
+    const fullName = `${firstName} ${lastName}`.trim() || "Utilisateur";
 
     await prisma.tenant.create({
       data: {
         id: userId,
         name: `Espace de ${fullName}`,
+        subscriptionPlan: "FREE",
         updatedAt: new Date(),
+        BusinessSettings: {
+          create: {
+            id: `biz_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+            smsRemindersEnabled: false,
+            smsReminderDelayHours: 24,
+            updatedAt: new Date(),
+          },
+        },
       },
     });
 
@@ -31,6 +42,8 @@ export async function getTenantId() {
           id: userId,
           clerkUserId: userId,
           email: email,
+          firstName: firstName || null,
+          lastName: lastName || null,
           fullName: fullName,
           role: "OWNER",
           tenantId: userId,

@@ -1,37 +1,135 @@
 "use client";
 
-import React, { useState } from "react";
-import Image from "next/image";
+import React, { useEffect, useMemo, useState } from "react";
 import styles from "./profil.module.css";
-import { useUser } from "@clerk/nextjs";
 import PromoModal from "../../components/PromoModal";
 import PrestationsTab from "./PrestationsTab";
+import { getProfileData, updateProfileData, type ProfileData } from "../../actions/profileActions";
 
 export default function ProfilPage() {
-  const { user } = useUser();
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState("compte");
   const [isPromoModalOpen, setPromoModalOpen] = useState(false);
 
-  const [profileData, setProfileData] = useState({
-    firstName: "John",
-    lastName: "Doe",
-    email: "john.doe@example.com",
-    phone: "+33 6 12 34 56 78",
-    salonName: "Glowéa Studio",
-    siret: "123 456 789 00012",
-    address: "15 Rue de la Beauté, 75008 Paris",
+  const [profileData, setProfileData] = useState<ProfileData>({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    salonName: "",
+    siret: "",
+    address: "",
+    subscriptionPlan: "FREE",
+    canUseAutomaticSmsReminders: false,
+    smsRemindersEnabled: false,
+    smsReminderDelayHours: 24,
   });
+
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingSmsReminders, setIsSavingSmsReminders] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function load() {
+      setIsLoadingProfile(true);
+      setError(null);
+      try {
+        const res = await getProfileData();
+        if (!isMounted) return;
+        if (res.success) {
+          setProfileData(res.data);
+        } else {
+          setError(res.error || "Erreur lors de la récupération du profil");
+        }
+      } catch {
+        if (!isMounted) return;
+        setError("Une erreur inattendue est survenue");
+      } finally {
+        if (!isMounted) return;
+        setIsLoadingProfile(false);
+      }
+    }
+
+    void load();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setProfileData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSave = () => {
-    setIsEditing(false);
-    // Ici on ajouterait la logique de sauvegarde en base de données (ex: Prisma)
+  const canEdit = !isLoadingProfile && !isSaving;
+  const canToggleSmsReminders = (profileData.canUseAutomaticSmsReminders || profileData.smsRemindersEnabled) && !isLoadingProfile && !isSavingSmsReminders;
+
+  const handleSave = async () => {
+    if (!canEdit) return;
+    setIsSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const res = await updateProfileData(profileData);
+      if (res.success) {
+        setIsEditing(false);
+        setSuccessMessage("Profil mis à jour");
+      } else {
+        setError(res.error || "Erreur lors de l'enregistrement");
+      }
+    } catch {
+      setError("Une erreur inattendue est survenue");
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  const handleSmsReminderToggle = async () => {
+    if (isSavingSmsReminders) return;
+
+    const nextEnabled = !profileData.smsRemindersEnabled;
+    setIsSavingSmsReminders(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const res = await fetch("/api/settings/sms-reminders", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: nextEnabled }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setError(data.error || "Impossible de mettre a jour les rappels SMS");
+        return;
+      }
+
+      setProfileData((prev) => ({
+        ...prev,
+        subscriptionPlan: data.subscriptionPlan || prev.subscriptionPlan,
+        canUseAutomaticSmsReminders: Boolean(data.canUseAutomaticSmsReminders),
+        smsRemindersEnabled: Boolean(data.smsRemindersEnabled),
+        smsReminderDelayHours: Number(data.smsReminderDelayHours || 24),
+      }));
+      setSuccessMessage(data.smsRemindersEnabled ? "Rappels SMS actives" : "Rappels SMS desactives");
+    } catch {
+      setError("Une erreur inattendue est survenue");
+    } finally {
+      setIsSavingSmsReminders(false);
+    }
+  };
+
+  const displayName = useMemo(() => {
+    const full = `${profileData.firstName} ${profileData.lastName}`.trim();
+    if (full) return full;
+    return "Mon compte";
+  }, [profileData.firstName, profileData.lastName]);
 
   const navItems = [
     { id: "compte", label: "Compte", icon: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" },
@@ -59,7 +157,7 @@ export default function ProfilPage() {
                 <path d="M12 12C14.21 12 16 10.21 16 8C16 5.79 14.21 4 12 4C9.79 4 8 5.79 8 8C8 10.21 9.79 12 12 12ZM12 14C9.33 14 4 15.34 4 18V20H20V18C20 15.34 14.67 14 12 14Z" />
               </svg>
             </div>
-            <h2 className={styles.userName}>{profileData.firstName} {profileData.lastName}</h2>
+            <h2 className={styles.userName}>{displayName}</h2>
           </div>
 
           <nav className={styles.navMenu}>
@@ -93,14 +191,24 @@ export default function ProfilPage() {
           
           {activeTab === 'compte' && (
             <>
+              {(error || successMessage) && (
+                <div className={styles.statusRow}>
+                  {error && <div className={`${styles.statusMessage} ${styles.statusError}`}>{error}</div>}
+                  {successMessage && <div className={`${styles.statusMessage} ${styles.statusSuccess}`}>{successMessage}</div>}
+                </div>
+              )}
               {/* Informations Personnelles */}
               <section className={styles.card}>
                 <div className={styles.cardHeader}>
                   <h2 className={styles.cardTitle}>Informations Personnelles</h2>
                   {isEditing ? (
-                    <button className={styles.btnSave} onClick={handleSave}>Enregistrer</button>
+                    <button className={styles.btnSave} onClick={handleSave} disabled={!canEdit}>
+                      {isSaving ? "Enregistrement..." : "Enregistrer"}
+                    </button>
                   ) : (
-                    <button className={styles.btnEdit} onClick={() => setIsEditing(true)}>Modifier</button>
+                    <button className={styles.btnEdit} onClick={() => setIsEditing(true)} disabled={!canEdit}>
+                      Modifier
+                    </button>
                   )}
                 </div>
 
@@ -113,7 +221,7 @@ export default function ProfilPage() {
                       className={styles.input} 
                       value={profileData.firstName} 
                       onChange={handleChange} 
-                      disabled={!isEditing} 
+                      disabled={!isEditing || !canEdit} 
                     />
                   </div>
                   <div className={styles.formGroup}>
@@ -124,7 +232,7 @@ export default function ProfilPage() {
                       className={styles.input} 
                       value={profileData.lastName} 
                       onChange={handleChange} 
-                      disabled={!isEditing} 
+                      disabled={!isEditing || !canEdit} 
                     />
                   </div>
                   <div className={styles.formGroupFull}>
@@ -135,7 +243,7 @@ export default function ProfilPage() {
                       className={styles.input} 
                       value={profileData.email} 
                       onChange={handleChange} 
-                      disabled={!isEditing} 
+                      disabled={!isEditing || !canEdit} 
                     />
                   </div>
                   <div className={styles.formGroupFull}>
@@ -146,7 +254,7 @@ export default function ProfilPage() {
                       className={styles.input} 
                       value={profileData.phone} 
                       onChange={handleChange} 
-                      disabled={!isEditing} 
+                      disabled={!isEditing || !canEdit} 
                     />
                   </div>
                 </div>
@@ -155,11 +263,15 @@ export default function ProfilPage() {
               {/* Informations Professionnelles */}
               <section className={styles.card}>
                 <div className={styles.cardHeader}>
-                  <h2 className={styles.cardTitle}>Informations de l'Entreprise</h2>
+                  <h2 className={styles.cardTitle}>Informations de l&apos;Entreprise</h2>
                   {isEditing ? (
-                    <button className={styles.btnSave} onClick={handleSave}>Enregistrer</button>
+                    <button className={styles.btnSave} onClick={handleSave} disabled={!canEdit}>
+                      {isSaving ? "Enregistrement..." : "Enregistrer"}
+                    </button>
                   ) : (
-                    <button className={styles.btnEdit} onClick={() => setIsEditing(true)}>Modifier</button>
+                    <button className={styles.btnEdit} onClick={() => setIsEditing(true)} disabled={!canEdit}>
+                      Modifier
+                    </button>
                   )}
                 </div>
 
@@ -172,7 +284,7 @@ export default function ProfilPage() {
                       className={styles.input} 
                       value={profileData.salonName} 
                       onChange={handleChange} 
-                      disabled={!isEditing} 
+                      disabled={!isEditing || !canEdit} 
                     />
                   </div>
                   <div className={styles.formGroupFull}>
@@ -183,7 +295,7 @@ export default function ProfilPage() {
                       className={styles.input} 
                       value={profileData.siret} 
                       onChange={handleChange} 
-                      disabled={!isEditing} 
+                      disabled={!isEditing || !canEdit} 
                     />
                   </div>
                   <div className={styles.formGroupFull}>
@@ -194,7 +306,7 @@ export default function ProfilPage() {
                       className={styles.input} 
                       value={profileData.address} 
                       onChange={handleChange} 
-                      disabled={!isEditing} 
+                      disabled={!isEditing || !canEdit} 
                     />
                   </div>
                 </div>
@@ -241,10 +353,10 @@ export default function ProfilPage() {
 
                   <div className={styles.docRow}>
                     <div className={styles.docInfo}>
-                      <span className={styles.docName}>Attestation d'Assurance Responsabilité Civile Pro (RC Pro)</span>
+                      <span className={styles.docName}>Attestation d&apos;Assurance Responsabilité Civile Pro (RC Pro)</span>
                       <span className={`${styles.docStatus} ${styles.docStatusRed}`}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                        Manquante - Veuillez l'importer
+                        Manquante - Veuillez l&apos;importer
                       </span>
                     </div>
                     <button className={styles.btnDownload}>
@@ -298,7 +410,7 @@ export default function ProfilPage() {
                   
                   <div className={styles.planActions}>
                     <button className={styles.btnEdit}>Changer de forfait</button>
-                    <button className={styles.btnOutlineRed}>Résilier l'abonnement</button>
+                    <button className={styles.btnOutlineRed}>Résilier l&apos;abonnement</button>
                   </div>
                 </div>
               </section>
@@ -322,7 +434,7 @@ export default function ProfilPage() {
                     </div>
                     <div className={styles.paymentDetails}>
                       <h4>Visa se terminant par 4242</h4>
-                      <p>Date d'expiration : 12/2026</p>
+                      <p>Date d&apos;expiration : 12/2026</p>
                     </div>
                   </div>
                   <button className={styles.btnEdit}>Mettre à jour</button>
@@ -380,10 +492,52 @@ export default function ProfilPage() {
                 <h2 className={styles.cardTitle}>Préférences de Notifications</h2>
               </div>
               
+              {(error || successMessage) && (
+                <div className={styles.statusRow}>
+                  {error && <div className={`${styles.statusMessage} ${styles.statusError}`}>{error}</div>}
+                  {successMessage && <div className={`${styles.statusMessage} ${styles.statusSuccess}`}>{successMessage}</div>}
+                </div>
+              )}
+
+              <div className={styles.settingsRow}>
+                <div className={styles.settingsInfo}>
+                  <div className={styles.settingsTitleRow}>
+                    <h4>Rappels SMS automatiques</h4>
+                    {!profileData.canUseAutomaticSmsReminders && (
+                      <span className={styles.badgePro}>Pro</span>
+                    )}
+                  </div>
+                  <p>Envoyez automatiquement un SMS a vos clientes {profileData.smsReminderDelayHours}h avant leur rendez-vous.</p>
+                  {!profileData.canUseAutomaticSmsReminders && (
+                    <p className={styles.featureLockedText}>Disponible avec l&apos;abonnement Pro.</p>
+                  )}
+                </div>
+                <div className={styles.settingActions}>
+                  {!profileData.canUseAutomaticSmsReminders && (
+                    <button className={styles.btnEdit} type="button" disabled>
+                      Debloquer
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={styles.toggleButton}
+                    onClick={handleSmsReminderToggle}
+                    disabled={!canToggleSmsReminders}
+                    aria-pressed={profileData.smsRemindersEnabled}
+                    aria-label="Activer ou desactiver les rappels SMS automatiques"
+                  >
+                    <span className={profileData.smsRemindersEnabled ? styles.toggleActive : styles.toggleInactive}>
+                      <span className={styles.toggleThumb}></span>
+                    </span>
+                    {isSavingSmsReminders && <span className={styles.savingText}>Sauvegarde...</span>}
+                  </button>
+                </div>
+              </div>
+
               <div className={styles.settingsRow}>
                 <div className={styles.settingsInfo}>
                   <h4>Nouveau rendez-vous</h4>
-                  <p>Soyez alertée par e-mail lorsqu'une cliente réserve une prestation en ligne.</p>
+                  <p>Soyez alertée par e-mail lorsqu&apos;une cliente réserve une prestation en ligne.</p>
                 </div>
                 <div className={styles.toggleWrapper}>
                   <div className={styles.toggleActive}>
@@ -419,7 +573,7 @@ export default function ProfilPage() {
               <div className={styles.settingsRow}>
                 <div className={styles.settingsInfo}>
                   <h4>Rapport Quotidien</h4>
-                  <p>Recevez chaque soir le récapitulatif de votre chiffre d'affaires et de vos rendez-vous du lendemain.</p>
+                  <p>Recevez chaque soir le récapitulatif de votre chiffre d&apos;affaires et de vos rendez-vous du lendemain.</p>
                 </div>
                 <div className={styles.toggleWrapper}>
                   <div className={styles.toggleInactive}>
@@ -469,7 +623,7 @@ export default function ProfilPage() {
                     </div>
                     <div className={styles.settingsInfo}>
                       <h4>Rappel 24h Avant</h4>
-                      <p>Pour éviter les no-shows. Rappel des conditions d'annulation.</p>
+                      <p>Pour éviter les no-shows. Rappel des conditions d&apos;annulation.</p>
                     </div>
                   </div>
                   <button className={styles.btnEdit}>Éditer</button>
@@ -481,7 +635,7 @@ export default function ProfilPage() {
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                     </div>
                     <div className={styles.settingsInfo}>
-                      <h4>Demande d'Avis (Google/Insta)</h4>
+                      <h4>Demande d&apos;Avis (Google/Insta)</h4>
                       <p>Envoyé 2h après la prestation pour booster votre réputation en ligne.</p>
                     </div>
                   </div>

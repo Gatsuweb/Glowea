@@ -18,8 +18,8 @@ export default function InstallAppModal({ isOpen, onClose }: InstallAppModalProp
         <button className={styles.closeButton} onClick={onClose}>×</button>
 
         <div className={styles.header}>
-          <img src="/logo.svg" alt="Glowéa" className={styles.logo} />
-          <h2 className={styles.title}>Installer Glowea sur votre écran d'accueil</h2>
+          <Image src="/logo.svg" alt="Glowea" className={styles.logo} width={120} height={40} />
+          <h2 className={styles.title}>Installer Glowea sur votre ecran d&apos;accueil</h2>
           <p className={styles.subtitle}>Accédez à Glowea comme une vraie application, en un clic.</p>
         </div>
 
@@ -40,7 +40,7 @@ export default function InstallAppModal({ isOpen, onClose }: InstallAppModalProp
               </div>
               <div className={styles.stepRow}>
                 <div className={styles.stepNumber}>2</div>
-                <div className={styles.stepText}>Touchez l'icône Partager</div>
+                <div className={styles.stepText}>Touchez l&apos;icone Partager</div>
                 <div className={styles.stepIcon}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="#C79C9C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>
                 </div>
@@ -49,7 +49,7 @@ export default function InstallAppModal({ isOpen, onClose }: InstallAppModalProp
                 <div className={styles.stepNumber}>3</div>
                 <div className={styles.stepText}>
                   Sélectionnez
-                  <span className={styles.stepTextHighlight}>Ajouter à l'écran d'accueil</span>
+                  <span className={styles.stepTextHighlight}>Ajouter a l&apos;ecran d&apos;accueil</span>
                 </div>
                 <div className={styles.stepIcon}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="#C79C9C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
@@ -83,7 +83,7 @@ export default function InstallAppModal({ isOpen, onClose }: InstallAppModalProp
                 <div className={styles.stepNumber}>3</div>
                 <div className={styles.stepText}>
                   Sélectionnez
-                  <span className={styles.stepTextHighlight}>Ajouter à l'écran d'accueil</span>
+                  <span className={styles.stepTextHighlight}>Ajouter a l&apos;ecran d&apos;accueil</span>
                 </div>
                 <div className={styles.stepIcon}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="#C79C9C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
@@ -96,8 +96,8 @@ export default function InstallAppModal({ isOpen, onClose }: InstallAppModalProp
         <div className={styles.successBox}>
           <div className={styles.appIcon}>G</div>
           <div className={styles.successText}>
-            <h3>C'est prêt !</h3>
-            <p>Retrouvez Glowea sur votre écran d'accueil.</p>
+            <h3>C&apos;est pret !</h3>
+            <p>Retrouvez Glowea sur votre ecran d&apos;accueil.</p>
           </div>
           <div className={styles.heartIcon}>
             <svg viewBox="0 0 24 24" fill="#F8B4B4" stroke="none">
@@ -107,7 +107,7 @@ export default function InstallAppModal({ isOpen, onClose }: InstallAppModalProp
         </div>
 
         <button className={styles.actionButton} onClick={onClose}>
-          J'ai compris
+          J&apos;ai compris
         </button>
       </div>
     </div>

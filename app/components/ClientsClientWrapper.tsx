@@ -1,14 +1,52 @@
 "use client";
 
+/* eslint-disable @typescript-eslint/no-explicit-any, react/no-unescaped-entities, react-hooks/exhaustive-deps */
+
 import React, { useState, useEffect } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import styles from "../dashboard/clients/clients.module.css";
 import SessionModal from "./SessionModal";
-import { getConsent, saveConsent } from "../actions/consentActions";
+import { getConsent, saveConsent, type ConsentSnapshot } from "../actions/consentActions";
+import { updateClientProfile } from "../actions/clientActions";
+
+type ConsentDocumentItem = {
+  id: string;
+  documentType: string;
+  pdfUrl: string;
+  signedAt: Date | string | null;
+  expiresAt: Date | string | null;
+  snapshotJson: unknown;
+  createdAt: Date | string;
+};
+
+type ConsentState = ConsentSnapshot & {
+  dateSigned: string;
+  lentilles?: string;
+  cyanoacrylate?: string;
+  acrylates?: string;
+  traitement?: string;
+  instagram?: boolean;
+  anonymat?: boolean;
+};
+
+const emptyConsentData: ConsentState = {
+  contactLenses: "Non",
+  cyanoacrylateAllergy: "Aucune connue",
+  acrylatesSensitivity: "Aucune connue",
+  medicalTreatment: "Aucun",
+  contraindications: "",
+  notes: "",
+  mediaConsent: false,
+  anonymizeMedia: true,
+  careConsentAccepted: false,
+  dataConsentAccepted: false,
+  signedBy: "",
+  dateSigned: "",
+};
 
 export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
   const searchParams = useSearchParams();
-  const router = useRouter();
+  const [clientList, setClientList] = useState<any[]>(clients);
 
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "infos");
   const [isSessionModalOpen, setSessionModalOpen] = useState(false);
@@ -16,7 +54,7 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
   
   // Set initial selected client from URL or first client
   const [selectedClientId, setSelectedClientId] = useState<string | null>(
-    searchParams.get("clientId") || (clients.length > 0 ? clients[0].id : null)
+    searchParams.get("clientId") || (clientList.length > 0 ? clientList[0].id : null)
   );
 
   useEffect(() => {
@@ -33,17 +71,30 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
 
   const [searchQuery, setSearchQuery] = useState("");
 
-  const [consentData, setConsentData] = useState<any>({
-    lentilles: "Non",
-    cyanoacrylate: "Aucune connue",
-    acrylates: "Aucune",
-    traitement: "Aucun",
-    instagram: true,
-    anonymat: false,
-    dateSigned: null
-  });
+  const [consentData, setConsentData] = useState<ConsentState>(emptyConsentData);
+  const [consentHistory, setConsentHistory] = useState<ConsentDocumentItem[]>([]);
+  const [consentSignedAt, setConsentSignedAt] = useState<string | null>(null);
+  const [consentExpiresAt, setConsentExpiresAt] = useState<string | null>(null);
   const [isEditingConsent, setIsEditingConsent] = useState(false);
   const [isLoadingConsent, setIsLoadingConsent] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+  const [consentSuccess, setConsentSuccess] = useState<string | null>(null);
+  const [isEditingContact, setIsEditingContact] = useState(false);
+  const [isEditingHealth, setIsEditingHealth] = useState(false);
+  const [isSavingClient, setIsSavingClient] = useState(false);
+  const [clientError, setClientError] = useState<string | null>(null);
+  const [clientSuccess, setClientSuccess] = useState<string | null>(null);
+  const [clientForm, setClientForm] = useState({
+    firstName: "",
+    lastName: "",
+    phone: "",
+    email: "",
+    instagram: "",
+    birthDate: "",
+    referredBy: "",
+    note: "",
+    allergiesText: "",
+  });
 
   useEffect(() => {
     if (activeTab === "consentement" && selectedClientId) {
@@ -53,23 +104,38 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
 
   const loadConsent = async () => {
     setIsLoadingConsent(true);
+    setConsentError(null);
+    setConsentSuccess(null);
     try {
-      const consent = await getConsent(selectedClientId!);
-      if (consent && consent.snapshotJson) {
-        setConsentData({ ...consentData, ...(consent.snapshotJson as any), dateSigned: consent.signedAt });
-      } else {
+      const res = await getConsent(selectedClientId!);
+      if (!res.success) {
+        setConsentError(res.error);
+        setConsentData(emptyConsentData);
+        setConsentHistory([]);
+        setConsentSignedAt(null);
+        setConsentExpiresAt(null);
+        return;
+      }
+
+      setConsentHistory(res.history);
+
+      if (res.latest?.snapshotJson) {
+        const snapshot = res.latest.snapshotJson as Partial<ConsentSnapshot>;
         setConsentData({
-          lentilles: "Non",
-          cyanoacrylate: "Aucune connue",
-          acrylates: "Aucune",
-          traitement: "Aucun",
-          instagram: true,
-          anonymat: false,
-          dateSigned: null
+          ...emptyConsentData,
+          ...snapshot,
+          signedBy: snapshot.signedBy || res.suggestedSigner,
         });
+        setConsentSignedAt(res.latest.signedAt ? new Date(res.latest.signedAt).toISOString() : null);
+        setConsentExpiresAt(res.latest.expiresAt ? new Date(res.latest.expiresAt).toISOString() : null);
+      } else {
+        setConsentData({ ...emptyConsentData, signedBy: res.suggestedSigner });
+        setConsentSignedAt(null);
+        setConsentExpiresAt(null);
       }
     } catch (error) {
       console.error(error);
+      setConsentError("Une erreur inattendue est survenue");
     } finally {
       setIsLoadingConsent(false);
     }
@@ -77,25 +143,144 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
 
   const handleSaveConsent = async () => {
     setIsLoadingConsent(true);
+    setConsentError(null);
+    setConsentSuccess(null);
     try {
       const res = await saveConsent(selectedClientId!, consentData);
       if (res.success) {
         setIsEditingConsent(false);
-        setConsentData({ ...consentData, dateSigned: res.consent?.signedAt });
+        setConsentSuccess("Consentement signé et enregistré");
+        await loadConsent();
+      } else {
+        setConsentError(res.error || "Impossible d'enregistrer le consentement");
       }
     } catch (error) {
       console.error(error);
+      setConsentError("Une erreur inattendue est survenue");
     } finally {
       setIsLoadingConsent(false);
     }
   };
 
-  const filteredClients = clients.filter(c => {
+  const filteredClients = clientList.filter(c => {
     const fullName = `${c.firstName} ${c.lastName || ''}`.toLowerCase();
     return fullName.includes(searchQuery.toLowerCase());
   });
 
-  const selectedClient = clients.find(c => c.id === selectedClientId) || null;
+  const selectedClient = clientList.find(c => c.id === selectedClientId) || null;
+  const selectedClientNote = selectedClient?.ClientNote?.[0]?.content || "";
+
+  useEffect(() => {
+    if (!selectedClient) {
+      return;
+    }
+
+    setClientForm({
+      firstName: selectedClient.firstName || "",
+      lastName: selectedClient.lastName || "",
+      phone: selectedClient.phone || "",
+      email: selectedClient.email || "",
+      instagram: selectedClient.instagram || "",
+      birthDate: selectedClient.birthDate ? new Date(selectedClient.birthDate).toISOString().slice(0, 10) : "",
+      referredBy: selectedClient.referredBy || "",
+      note: selectedClientNote,
+      allergiesText: (selectedClient.ClientAllergy || [])
+        .map((allergy: any) => allergy.notes ? `${allergy.label} - ${allergy.notes}` : allergy.label)
+        .join("\n"),
+    });
+    setIsEditingContact(false);
+    setIsEditingHealth(false);
+    setClientError(null);
+    setClientSuccess(null);
+  }, [selectedClientId, selectedClient, selectedClientNote]);
+
+  const parseAllergies = (value: string) => {
+    return value
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [label, ...notes] = line.split(" - ");
+        return {
+          label: label.trim(),
+          notes: notes.join(" - ").trim() || undefined,
+        };
+      });
+  };
+
+  const handleSaveClient = async () => {
+    if (!selectedClient) {
+      return;
+    }
+
+    setIsSavingClient(true);
+    setClientError(null);
+    setClientSuccess(null);
+
+    try {
+      const response = await updateClientProfile({
+        clientId: selectedClient.id,
+        firstName: clientForm.firstName,
+        lastName: clientForm.lastName,
+        phone: clientForm.phone,
+        email: clientForm.email,
+        instagram: clientForm.instagram,
+        birthDate: clientForm.birthDate,
+        referredBy: clientForm.referredBy,
+        note: clientForm.note,
+        allergies: parseAllergies(clientForm.allergiesText),
+      });
+
+      if (!response.success || !response.client) {
+        setClientError(response.error || "Impossible d'enregistrer la fiche cliente");
+        return;
+      }
+
+      setClientList((current) =>
+        current.map((client) =>
+          client.id === response.client?.id
+            ? {
+                ...client,
+                ...response.client,
+                Appointment: client.Appointment,
+                ConsentDocument: client.ConsentDocument,
+              }
+            : client
+        )
+      );
+      setIsEditingContact(false);
+      setIsEditingHealth(false);
+      setClientSuccess("Fiche cliente enregistree");
+    } catch (error) {
+      console.error(error);
+      setClientError("Une erreur inattendue est survenue");
+    } finally {
+      setIsSavingClient(false);
+    }
+  };
+
+  const resetClientForm = () => {
+    if (!selectedClient) {
+      return;
+    }
+
+    setClientForm({
+      firstName: selectedClient.firstName || "",
+      lastName: selectedClient.lastName || "",
+      phone: selectedClient.phone || "",
+      email: selectedClient.email || "",
+      instagram: selectedClient.instagram || "",
+      birthDate: selectedClient.birthDate ? new Date(selectedClient.birthDate).toISOString().slice(0, 10) : "",
+      referredBy: selectedClient.referredBy || "",
+      note: selectedClientNote,
+      allergiesText: (selectedClient.ClientAllergy || [])
+        .map((allergy: any) => allergy.notes ? `${allergy.label} - ${allergy.notes}` : allergy.label)
+        .join("\n"),
+    });
+    setIsEditingContact(false);
+    setIsEditingHealth(false);
+    setClientError(null);
+  };
 
   // Calculs pour le client sélectionné
   const clientAppointments = selectedClient?.Appointment || [];
@@ -142,7 +327,7 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
       <aside className={styles.sidebar}>
         <div className={styles.sidebarHeader}>
           <h1 className={styles.sidebarTitle}>Répertoire</h1>
-          <span className={styles.clientCount}>{clients.length} clients</span>
+          <span className={styles.clientCount}>{clientList.length} clients</span>
         </div>
 
         <div className={styles.searchWrapper}>
@@ -196,7 +381,15 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
             </div>
             <div className={styles.headerActions}>
               <button className={styles.btnNewRdv}>+ Nouveau RDV</button>
-              <button className={styles.iconBtn}>
+              <button
+                className={styles.iconBtn}
+                onClick={() => {
+                  setActiveTab("infos");
+                  setIsEditingContact(true);
+                }}
+                disabled={!selectedClient}
+                title="Modifier la cliente"
+              >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -215,6 +408,12 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
             </div>
           </div>
         </div>
+
+        {(clientError || clientSuccess) && (
+          <div className={clientError ? styles.formError : styles.formSuccess}>
+            {clientError || clientSuccess}
+          </div>
+        )}
 
         {/* Tabs */}
         <div className={styles.tabs}>
@@ -251,7 +450,13 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
                       <polyline points="22,6 12,13 2,6"></polyline>
                     </svg>
                   </button>
-                  <button className={styles.iconBtn} style={{ borderColor: 'transparent' }}>
+                  <button
+                    className={styles.iconBtn}
+                    style={{ borderColor: 'transparent' }}
+                    onClick={() => setIsEditingContact(true)}
+                    disabled={!selectedClient || isSavingClient}
+                    title="Modifier les coordonnees"
+                  >
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -259,6 +464,46 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
                   </button>
                 </div>
               </div>
+              {isEditingContact ? (
+                <div className={styles.editForm}>
+                  <div className={styles.contactGrid}>
+                    <label className={styles.formField}>
+                      <span className={styles.infoLabel}>Prenom *</span>
+                      <input className={styles.formInput} value={clientForm.firstName} onChange={(e) => setClientForm({ ...clientForm, firstName: e.target.value })} />
+                    </label>
+                    <label className={styles.formField}>
+                      <span className={styles.infoLabel}>Nom</span>
+                      <input className={styles.formInput} value={clientForm.lastName} onChange={(e) => setClientForm({ ...clientForm, lastName: e.target.value })} />
+                    </label>
+                    <label className={styles.formField}>
+                      <span className={styles.infoLabel}>Email</span>
+                      <input className={styles.formInput} type="email" value={clientForm.email} onChange={(e) => setClientForm({ ...clientForm, email: e.target.value })} />
+                    </label>
+                    <label className={styles.formField}>
+                      <span className={styles.infoLabel}>Telephone</span>
+                      <input className={styles.formInput} value={clientForm.phone} onChange={(e) => setClientForm({ ...clientForm, phone: e.target.value })} />
+                    </label>
+                    <label className={styles.formField}>
+                      <span className={styles.infoLabel}>Instagram</span>
+                      <input className={styles.formInput} value={clientForm.instagram} onChange={(e) => setClientForm({ ...clientForm, instagram: e.target.value })} placeholder="@cliente" />
+                    </label>
+                    <label className={styles.formField}>
+                      <span className={styles.infoLabel}>Date de naissance</span>
+                      <input className={styles.formInput} type="date" value={clientForm.birthDate} onChange={(e) => setClientForm({ ...clientForm, birthDate: e.target.value })} />
+                    </label>
+                    <label className={styles.formField}>
+                      <span className={styles.infoLabel}>Recommandee par</span>
+                      <input className={styles.formInput} value={clientForm.referredBy} onChange={(e) => setClientForm({ ...clientForm, referredBy: e.target.value })} />
+                    </label>
+                  </div>
+                  <div className={styles.formActions}>
+                    <button className={styles.btnOutline} onClick={resetClientForm} disabled={isSavingClient}>Annuler</button>
+                    <button className={styles.btnNewRdv} onClick={handleSaveClient} disabled={isSavingClient}>
+                      {isSavingClient ? "Enregistrement..." : "Enregistrer"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
               <div className={styles.contactGrid}>
                 <div className={styles.infoBlock}>
                   <span className={styles.infoLabel}>Nom complet :</span>
@@ -280,7 +525,12 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
                   <span className={styles.infoLabel}>Email :</span>
                   <span className={styles.infoValue}>{selectedClient?.email || 'Non renseigné'}</span>
                 </div>
+                <div className={styles.infoBlock}>
+                  <span className={styles.infoLabel}>Telephone :</span>
+                  <span className={styles.infoValue}>{selectedClient?.phone || 'Non renseigné'}</span>
+                </div>
               </div>
+              )}
             </div>
 
             {/* Notes & Allergies Card */}
@@ -288,7 +538,13 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
               <div className={styles.cardHeader}>
                 <h3 className={styles.cardTitle}>Notes & Allergies</h3>
                 <div className={styles.cardIcons}>
-                  <button className={styles.iconBtn} style={{ borderColor: 'transparent' }}>
+                  <button
+                    className={styles.iconBtn}
+                    style={{ borderColor: 'transparent' }}
+                    onClick={() => setIsEditingHealth(true)}
+                    disabled={!selectedClient || isSavingClient}
+                    title="Modifier notes et allergies"
+                  >
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -296,7 +552,41 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
                   </button>
                 </div>
               </div>
+              {isEditingHealth ? (
+                <div className={styles.editForm}>
+                  <label className={styles.formField}>
+                    <span className={styles.infoLabel}>Note cliente</span>
+                    <textarea
+                      className={styles.formTextarea}
+                      value={clientForm.note}
+                      onChange={(e) => setClientForm({ ...clientForm, note: e.target.value })}
+                      rows={4}
+                      placeholder="Preferences, habitudes, points importants..."
+                    />
+                  </label>
+                  <label className={styles.formField}>
+                    <span className={styles.infoLabel}>Allergies</span>
+                    <textarea
+                      className={styles.formTextarea}
+                      value={clientForm.allergiesText}
+                      onChange={(e) => setClientForm({ ...clientForm, allergiesText: e.target.value })}
+                      rows={4}
+                      placeholder={"Une allergie par ligne. Exemple : Colle cils - reaction legere"}
+                    />
+                  </label>
+                  <div className={styles.formActions}>
+                    <button className={styles.btnOutline} onClick={resetClientForm} disabled={isSavingClient}>Annuler</button>
+                    <button className={styles.btnNewRdv} onClick={handleSaveClient} disabled={isSavingClient}>
+                      {isSavingClient ? "Enregistrement..." : "Enregistrer"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
               <div className={styles.infoGrid}>
+                <div className={styles.infoBlock}>
+                  <span className={styles.infoLabel}>Note</span>
+                  <span className={styles.infoValue}>{selectedClientNote || "Aucune note enregistree."}</span>
+                </div>
                 {selectedClient?.ClientAllergy && selectedClient.ClientAllergy.length > 0 ? (
                   selectedClient.ClientAllergy.map((allergy: any, index: number) => (
                     <div className={styles.infoBlock} key={allergy.id}>
@@ -310,6 +600,7 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
                   </div>
                 )}
               </div>
+              )}
             </div>
 
             {/* Galerie des projets */}
@@ -458,6 +749,214 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
         )}
 
         {activeTab === 'consentement' && (
+          <div className={styles.consentTabContent}>
+            <div className={styles.consentActionsRow}>
+              <p className={styles.consentDesc}>
+                Consentement aux soins, informations de sensibilite et autorisation d'image. Une nouvelle version signee est archivee a chaque sauvegarde.
+              </p>
+              {!isEditingConsent ? (
+                <button className={styles.btnNewRdv} onClick={() => setIsEditingConsent(true)} disabled={isLoadingConsent || !selectedClient}>
+                  {consentSignedAt ? "Renouveler" : "Remplir"}
+                </button>
+              ) : (
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                  <button className={styles.btnNewRdv} onClick={() => { setIsEditingConsent(false); loadConsent(); }} disabled={isLoadingConsent}>
+                    Annuler
+                  </button>
+                  <button className={styles.btnNewRdv} onClick={handleSaveConsent} disabled={isLoadingConsent}>
+                    {isLoadingConsent ? "Enregistrement..." : "Signer et enregistrer"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {(consentError || consentSuccess) && (
+              <div style={{ marginBottom: "16px" }}>
+                {consentError && <div style={{ color: "#8B1E2D", background: "#FFF2F4", border: "1px solid #F0B8C0", padding: "10px 12px", borderRadius: "8px" }}>{consentError}</div>}
+                {consentSuccess && <div style={{ color: "#286B3B", background: "#F1FBF4", border: "1px solid #BFE7C9", padding: "10px 12px", borderRadius: "8px" }}>{consentSuccess}</div>}
+              </div>
+            )}
+
+            <div className={styles.tableCard}>
+              <div className={styles.tableHeader}>
+                <div className={styles.consentTitleBox}>
+                  <div className={styles.consentIconBoxPink}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+                  </div>
+                  <div>
+                    <h3 className={styles.tableTitle}>Bilan sante & sensibilites</h3>
+                    <span className={styles.consentSub}>Derniere signature : {consentSignedAt ? new Date(consentSignedAt).toLocaleDateString("fr-FR") : "non signee"}</span>
+                  </div>
+                </div>
+                {consentSignedAt ? (
+                  <span className={`${styles.statusBadge} ${styles.statusGreen}`}>A jour</span>
+                ) : (
+                  <span className={`${styles.statusBadge} ${styles.statusRed}`}>Non rempli</span>
+                )}
+              </div>
+
+              <div className={styles.consentGrid}>
+                <div className={styles.consentItem}>
+                  <span className={styles.consentLabel}>Port de lentilles de contact</span>
+                  {isEditingConsent ? (
+                    <select className={styles.modalSelect} value={consentData.contactLenses} onChange={(e) => setConsentData({ ...consentData, contactLenses: e.target.value === "Oui" ? "Oui" : "Non" })}>
+                      <option value="Non">Non</option>
+                      <option value="Oui">Oui</option>
+                    </select>
+                  ) : (
+                    <span className={styles.consentValue}>{consentData.contactLenses}</span>
+                  )}
+                </div>
+                <div className={styles.consentItem}>
+                  <span className={styles.consentLabel}>Allergie cyanoacrylate / colle cils</span>
+                  {isEditingConsent ? (
+                    <input type="text" className={styles.modalInput} value={consentData.cyanoacrylateAllergy} onChange={(e) => setConsentData({ ...consentData, cyanoacrylateAllergy: e.target.value })} />
+                  ) : (
+                    <span className={styles.consentValue}>{consentData.cyanoacrylateAllergy}</span>
+                  )}
+                </div>
+                <div className={styles.consentItem}>
+                  <span className={styles.consentLabel}>Sensibilite acrylates / gels UV</span>
+                  {isEditingConsent ? (
+                    <input type="text" className={styles.modalInput} value={consentData.acrylatesSensitivity} onChange={(e) => setConsentData({ ...consentData, acrylatesSensitivity: e.target.value })} />
+                  ) : (
+                    <span className={styles.consentValue}>{consentData.acrylatesSensitivity}</span>
+                  )}
+                </div>
+                <div className={styles.consentItem}>
+                  <span className={styles.consentLabel}>Traitement medical en cours</span>
+                  {isEditingConsent ? (
+                    <input type="text" className={styles.modalInput} value={consentData.medicalTreatment} onChange={(e) => setConsentData({ ...consentData, medicalTreatment: e.target.value })} />
+                  ) : (
+                    <span className={styles.consentValue}>{consentData.medicalTreatment}</span>
+                  )}
+                </div>
+                <div className={styles.consentItemFull}>
+                  <span className={styles.consentLabel}>Contre-indications / remarques sante</span>
+                  {isEditingConsent ? (
+                    <textarea className={styles.modalInput} value={consentData.contraindications} onChange={(e) => setConsentData({ ...consentData, contraindications: e.target.value })} rows={3} />
+                  ) : (
+                    <span className={styles.consentValue}>{consentData.contraindications || "Aucune"}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.tableCard}>
+              <div className={styles.tableHeader}>
+                <div className={styles.consentTitleBox}>
+                  <div className={styles.consentIconBoxRed}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                  </div>
+                  <div>
+                    <h3 className={styles.tableTitle}>Autorisations</h3>
+                    <span className={styles.consentSub}>Image, soins et conservation des donnees</span>
+                  </div>
+                </div>
+              </div>
+              <div className={styles.consentList}>
+                <label className={styles.consentRow} style={{ cursor: isEditingConsent ? "pointer" : "default" }}>
+                  <div className={styles.consentRowText}>
+                    <h4>Consentement aux soins</h4>
+                    <p>La cliente confirme avoir transmis les informations utiles et autorise la realisation de la prestation.</p>
+                  </div>
+                  <input type="checkbox" checked={consentData.careConsentAccepted} disabled={!isEditingConsent} onChange={(e) => setConsentData({ ...consentData, careConsentAccepted: e.target.checked })} />
+                </label>
+                <label className={styles.consentRow} style={{ cursor: isEditingConsent ? "pointer" : "default" }}>
+                  <div className={styles.consentRowText}>
+                    <h4>Conservation des donnees de suivi</h4>
+                    <p>Autorise Glowea a conserver cette fiche pour le suivi client et la tracabilite des soins.</p>
+                  </div>
+                  <input type="checkbox" checked={consentData.dataConsentAccepted} disabled={!isEditingConsent} onChange={(e) => setConsentData({ ...consentData, dataConsentAccepted: e.target.checked })} />
+                </label>
+                <div className={styles.consentRow}>
+                  <div className={styles.consentRowText}>
+                    <h4>Publication avant/apres</h4>
+                    <p>Autorise l&apos;utilisation de photos ou videos du resultat sur les reseaux sociaux.</p>
+                  </div>
+                  <div className={styles.toggleWrapper} onClick={() => isEditingConsent && setConsentData({ ...consentData, mediaConsent: !consentData.mediaConsent })} style={{ cursor: isEditingConsent ? 'pointer' : 'default' }}>
+                    <span className={consentData.mediaConsent ? styles.toggleTextOn : styles.toggleTextOff}>{consentData.mediaConsent ? "Autorise" : "Refuse"}</span>
+                    <div className={consentData.mediaConsent ? styles.toggleActive : styles.toggleInactive}>
+                      <div className={styles.toggleThumb}></div>
+                    </div>
+                  </div>
+                </div>
+                <div className={styles.consentRow}>
+                  <div className={styles.consentRowText}>
+                    <h4>Anonymat des contenus</h4>
+                    <p>Si publication autorisee, cadrage sans visage complet ni element identifiant.</p>
+                  </div>
+                  <div className={styles.toggleWrapper} onClick={() => isEditingConsent && setConsentData({ ...consentData, anonymizeMedia: !consentData.anonymizeMedia })} style={{ cursor: isEditingConsent ? 'pointer' : 'default' }}>
+                    <span className={consentData.anonymizeMedia ? styles.toggleTextOn : styles.toggleTextOff}>{consentData.anonymizeMedia ? "Oui" : "Non"}</span>
+                    <div className={consentData.anonymizeMedia ? styles.toggleActive : styles.toggleInactive}>
+                      <div className={styles.toggleThumb}></div>
+                    </div>
+                  </div>
+                </div>
+                <div className={styles.consentItemFull}>
+                  <span className={styles.consentLabel}>Nom de la signataire</span>
+                  {isEditingConsent ? (
+                    <input type="text" className={styles.modalInput} value={consentData.signedBy} onChange={(e) => setConsentData({ ...consentData, signedBy: e.target.value })} />
+                  ) : (
+                    <div className={styles.signatureBox}>
+                      <span className={styles.signatureText}>
+                        {consentSignedAt ? `Signe par ${consentData.signedBy} le ${new Date(consentSignedAt).toLocaleString("fr-FR")}` : "Non signe"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.tableCard}>
+              <div className={styles.tableHeader}>
+                <h3 className={styles.tableTitle}>Historique des consentements</h3>
+                {consentExpiresAt && <span className={styles.consentSub}>Expiration indicative : {new Date(consentExpiresAt).toLocaleDateString("fr-FR")}</span>}
+              </div>
+              <div className={styles.tableContainer}>
+                <table className={styles.customTable}>
+                  <thead>
+                    <tr>
+                      <th>DOCUMENT</th>
+                      <th>DATE</th>
+                      <th>SIGNATAIRE</th>
+                      <th>STATUT</th>
+                      <th>PDF</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {consentHistory.length > 0 ? (
+                      consentHistory.map((document) => {
+                        const snapshot = (document.snapshotJson || {}) as Partial<ConsentSnapshot>;
+                        const isExpired = document.expiresAt ? new Date(document.expiresAt) < new Date() : false;
+                        return (
+                          <tr key={document.id}>
+                            <td>
+                              <div className={styles.tdDoc}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                                Consentement soins & image
+                              </div>
+                            </td>
+                            <td>{document.signedAt ? new Date(document.signedAt).toLocaleString("fr-FR") : "-"}</td>
+                            <td>{snapshot.signedBy || "-"}</td>
+                            <td><span className={`${styles.statusBadge} ${isExpired ? styles.statusOrange : styles.statusGreen}`}>{isExpired ? "A renouveler" : "Signe"}</span></td>
+                            <td>{document.pdfUrl ? <a className={styles.voirTout} href={document.pdfUrl} target="_blank">Ouvrir</a> : <span style={{ color: "#888" }}>Non genere</span>}</td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign: "center", padding: "20px" }}>Aucun consentement signe</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {false && activeTab === 'consentement' && (
           <div className={styles.consentTabContent}>
             
             {/* Header Actions */}

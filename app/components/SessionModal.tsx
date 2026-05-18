@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/set-state-in-effect, react-hooks/immutability, @typescript-eslint/no-explicit-any, @next/next/no-img-element, @typescript-eslint/no-unused-vars, react/no-unescaped-entities */
+
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import styles from './SessionModal.module.css';
@@ -10,7 +12,8 @@ import {
   getNailSessionByAppointmentId,
   saveBrowliftSession,
   saveLashLiftSession,
-  saveNailSession
+  saveNailSession,
+  startSession
 } from '../actions/sessionActions';
 
 const TimerCard = ({ title, initialMinutes }: { title: string, initialMinutes: number }) => {
@@ -94,6 +97,34 @@ interface SessionModalProps {
 
 import { exportElementToPDF } from "../../lib/exportUtils";
 
+type SessionProduct = {
+  id: string;
+  name: string;
+  stock: string;
+  checked: boolean;
+};
+
+type SessionPhoto = {
+  label: string;
+  url: string;
+  mimeType?: string;
+};
+
+const getInitialSessionTab = (category?: string) => {
+  const value = (category || "").toLowerCase();
+  if (value.includes("brow")) return "Browlift";
+  if (value.includes("rehaussement") || value.includes("lash lift")) return "Rehaussement de cils";
+  if (value.includes("ongle") || value.includes("nail") || value.includes("gel") || value.includes("semi")) return "Ongles";
+  return "Cils";
+};
+
+const getSessionCategory = (tab: string): "LASHES" | "BROWLIFT" | "LASH_LIFT" | "NAILS" => {
+  if (tab === "Browlift") return "BROWLIFT";
+  if (tab === "Rehaussement de cils") return "LASH_LIFT";
+  if (tab === "Ongles") return "NAILS";
+  return "LASHES";
+};
+
 export default function SessionModal({ 
   isOpen, 
   onClose, 
@@ -107,7 +138,7 @@ export default function SessionModal({
   onPaymentRequest
 }: SessionModalProps) {
   
-  const [activeTab, setActiveTab] = useState("Cils");
+  const [activeTab, setActiveTab] = useState(() => getInitialSessionTab(category));
   const [technique, setTechnique] = useState("Cil à cil");
   const [typeCils, setTypeCils] = useState("Fait main");
 
@@ -125,14 +156,26 @@ export default function SessionModal({
   const [poseName, setPoseName] = useState("");
   const [remarks, setRemarks] = useState("");
 
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<SessionProduct[]>([]);
   const [clientDetails, setClientDetails] = useState<any>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [photos, setPhotos] = useState<SessionPhoto[]>([]);
 
   useEffect(() => {
     async function loadData() {
       if (isOpen) {
+        const initialTab = getInitialSessionTab(category);
+        setActiveTab(initialTab);
+        setPhotos([]);
         setIsLoadingData(true);
+        if (!isReadOnly && appointmentId && clientId) {
+          await startSession({
+            appointmentId,
+            clientId,
+            serviceId,
+            category: getSessionCategory(initialTab),
+          });
+        }
         const res = await getSessionModalData(clientId);
         if (res.success) {
           if (res.clientInfo) setClientDetails(res.clientInfo);
@@ -143,6 +186,7 @@ export default function SessionModal({
           // Fetch Cils
           const sessionRes = await getLashSessionByAppointmentId(appointmentId);
           if (sessionRes.success && sessionRes.lashSession) {
+            setActiveTab("Cils");
             const ls = sessionRes.lashSession;
             setTechnique(ls.prestationType || "Cil à cil");
             setCourbure(ls.generalCurl || "D");
@@ -165,11 +209,17 @@ export default function SessionModal({
               if (globalParams.longueurActivesOeilG) setLongueurActivesOeilG(globalParams.longueurActivesOeilG);
               if (globalParams.longueurActivesOeilD) setLongueurActivesOeilD(globalParams.longueurActivesOeilD);
             }
+            if (sessionRes.photos) setPhotos(sessionRes.photos);
+            if (sessionRes.productUsages && res.products) {
+              const usedIds = new Set(sessionRes.productUsages.map((usage: any) => usage.productId));
+              setProducts(res.products.map((product: SessionProduct) => ({ ...product, checked: usedIds.has(product.id) })));
+            }
           }
 
           // Fetch Browlift
           const browliftRes = await getBrowliftSessionByAppointmentId(appointmentId);
           if (browliftRes.success && browliftRes.browliftSession) {
+            setActiveTab("Browlift");
             const bs = browliftRes.browliftSession;
             setHasTeinture(bs.tintEnabled);
             setTintColorBrowlift(bs.tintColor || "Brun foncé");
@@ -178,11 +228,13 @@ export default function SessionModal({
               const gp = bs.globalParamsJson as any;
               if (gp.products) setBrowliftProducts(gp.products);
             }
+            if (browliftRes.photos) setPhotos(browliftRes.photos);
           }
 
           // Fetch LashLift (Rehaussement)
           const lashLiftRes = await getLashLiftSessionByAppointmentId(appointmentId);
           if (lashLiftRes.success && lashLiftRes.lashLiftSession) {
+            setActiveTab("Rehaussement de cils");
             const lls = lashLiftRes.lashLiftSession;
             setHasRehaussementTeinture(lls.tintEnabled);
             setTintColorRehaussement(lls.tintColor || "Brun foncé");
@@ -191,11 +243,13 @@ export default function SessionModal({
               const gp = lls.globalParamsJson as any;
               if (gp.products) setRehaussementProducts(gp.products);
             }
+            if (lashLiftRes.photos) setPhotos(lashLiftRes.photos);
           }
 
           // Fetch Ongles
           const nailRes = await getNailSessionByAppointmentId(appointmentId);
           if (nailRes.success && nailRes.nailSession) {
+            setActiveTab("Ongles");
             const ns = nailRes.nailSession;
             setPrestationOngles(ns.prestationType || "");
             setTypePoseOngles(ns.poseType || "Pose complète");
@@ -212,6 +266,7 @@ export default function SessionModal({
               if (gp.capsulesGauche) setCapsulesGauche(gp.capsulesGauche);
               if (gp.capsulesDroite) setCapsulesDroite(gp.capsulesDroite);
             }
+            if (nailRes.photos) setPhotos(nailRes.photos);
           }
         }
         
@@ -219,7 +274,7 @@ export default function SessionModal({
       }
     }
     loadData();
-  }, [isOpen, clientId, isReadOnly, appointmentId]);
+  }, [isOpen, clientId, serviceId, isReadOnly, appointmentId, category]);
 
   const [browliftProducts, setBrowliftProducts] = useState([
     { id: 101, name: "Lotion 1", stock: "Stock 1/1\nmultidose", checked: true, defaultTime: 5 },
@@ -261,6 +316,88 @@ export default function SessionModal({
 
   const [hasTeinture, setHasTeinture] = useState(false);
 
+  const normalizeProductName = (name: string) => name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+
+  const findStockProduct = (label: string) => {
+    const normalizedLabel = normalizeProductName(label);
+    return products.find((product) => {
+      const normalizedProduct = normalizeProductName(product.name);
+      return normalizedProduct.includes(normalizedLabel) || normalizedLabel.includes(normalizedProduct);
+    });
+  };
+
+  const getDisplayStock = (label: string, fallback: string) => findStockProduct(label)?.stock || fallback;
+
+  const getSelectedProductUsages = () => {
+    const selectedProducts = products
+      .filter((product) => product.checked)
+      .map((product) => ({
+        productId: product.id,
+        quantityUsed: 1,
+        usageRole: activeTab,
+      }));
+
+    const selectedTreatmentProducts = activeTab === "Browlift"
+      ? browliftProducts.filter((product) => product.checked)
+      : activeTab === "Rehaussement de cils"
+        ? rehaussementProducts.filter((product) => product.checked)
+        : [];
+
+    const matchedTreatmentProducts = selectedTreatmentProducts
+      .map((product) => findStockProduct(product.name))
+      .filter((product): product is SessionProduct => Boolean(product))
+      .map((product) => ({
+      productId: product.id,
+      quantityUsed: 1,
+      usageRole: activeTab,
+    }));
+
+    return [...selectedProducts, ...matchedTreatmentProducts]
+      .filter((usage, index, usages) => usages.findIndex((item) => item.productId === usage.productId) === index);
+  };
+
+  const handlePhotoChange = (label: string, file: File | null) => {
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = String(reader.result || "");
+      setPhotos((current) => [
+        ...current.filter((photo) => photo.label !== label),
+        { label, url, mimeType: file.type },
+      ]);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const getPhoto = (label: string) => photos.find((photo) => photo.label === label);
+
+  const renderPhotoSlot = (label: string) => {
+    const photo = getPhoto(label);
+
+    return (
+      <label className={styles.photoBox} style={{ cursor: isReadOnly ? 'default' : 'pointer', overflow: 'hidden' }}>
+        {photo ? (
+          <img src={photo.url} alt={label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        )}
+        {!isReadOnly && (
+          <input
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={(event) => handlePhotoChange(label, event.target.files?.[0] || null)}
+          />
+        )}
+      </label>
+    );
+  };
+
   const handleSave = async (isDraft: boolean) => {
     if (!appointmentId || !clientId) {
       onClose();
@@ -290,6 +427,8 @@ export default function SessionModal({
         },
         remarks: remarks,
         status: saveStatus,
+        productUsages: getSelectedProductUsages(),
+        photos,
       });
     } else if (activeTab === "Browlift") {
       res = await saveBrowliftSession({
@@ -301,6 +440,8 @@ export default function SessionModal({
         globalParamsJson: { products: browliftProducts },
         remarks: remarks,
         status: saveStatus,
+        productUsages: getSelectedProductUsages(),
+        photos,
       });
     } else if (activeTab === "Rehaussement de cils") {
       res = await saveLashLiftSession({
@@ -312,6 +453,8 @@ export default function SessionModal({
         globalParamsJson: { products: rehaussementProducts },
         remarks: remarks,
         status: saveStatus,
+        productUsages: getSelectedProductUsages(),
+        photos,
       });
     } else if (activeTab === "Ongles") {
       res = await saveNailSession({
@@ -329,6 +472,8 @@ export default function SessionModal({
         globalParamsJson: { mainOngles, capsulesGauche, capsulesDroite },
         remarks: remarks,
         status: saveStatus,
+        productUsages: getSelectedProductUsages(),
+        photos,
       });
     }
 
@@ -792,21 +937,15 @@ export default function SessionModal({
               <div className={styles.photoGrid}>
                 <div>
                   <span className={styles.photoLabel}>Avant</span>
-                  <div className={styles.photoBox}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                  </div>
+                  {renderPhotoSlot("Avant")}
                 </div>
                 <div>
-                  <span className={styles.photoLabel}>Après</span>
-                  <div className={styles.photoBox}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                  </div>
+                  <span className={styles.photoLabel}>Apres</span>
+                  {renderPhotoSlot("Apres")}
                 </div>
                 <div>
                   <span className={styles.photoLabel}>Autres</span>
-                  <div className={styles.photoBox}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                  </div>
+                  {renderPhotoSlot("Autres")}
                 </div>
               </div>
             </div>
@@ -832,7 +971,7 @@ export default function SessionModal({
                           <div style={{ position: 'absolute', top: '-4px', left: '3px', width: '6px', height: '4px', background: '#FF69B4' }}></div>
                         </div>
                         <span className={styles.productName}>{p.name}</span>
-                        <span className={styles.productStock} style={{ whiteSpace: 'pre-line' }}>{p.stock}</span>
+                        <span className={styles.productStock} style={{ whiteSpace: 'pre-line' }}>{getDisplayStock(p.name, p.stock)}</span>
                       </div>
                     ))}
                   </div>
@@ -880,23 +1019,17 @@ export default function SessionModal({
                   <h3 className={styles.cardTitle}>PHOTOS</h3>
                   <div className={styles.photoGrid}>
                     <div>
-                      <span className={styles.photoLabel}>Avant</span>
-                      <div className={styles.photoBox}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                      </div>
-                    </div>
-                    <div>
-                      <span className={styles.photoLabel}>Après</span>
-                      <div className={styles.photoBox}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                      </div>
-                    </div>
-                    <div>
-                      <span className={styles.photoLabel}>Autres</span>
-                      <div className={styles.photoBox}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                      </div>
-                    </div>
+                    <span className={styles.photoLabel}>Avant</span>
+                    {renderPhotoSlot("Avant")}
+                  </div>
+                  <div>
+                    <span className={styles.photoLabel}>Apres</span>
+                    {renderPhotoSlot("Apres")}
+                  </div>
+                  <div>
+                    <span className={styles.photoLabel}>Autres</span>
+                    {renderPhotoSlot("Autres")}
+                  </div>
                   </div>
                 </div>
               </div>
@@ -963,7 +1096,7 @@ export default function SessionModal({
                           <div style={{ position: 'absolute', top: '-4px', left: '3px', width: '6px', height: '4px', background: '#FF69B4' }}></div>
                         </div>
                         <span className={styles.productName}>{p.name}</span>
-                        <span className={styles.productStock} style={{ whiteSpace: 'pre-line' }}>{p.stock}</span>
+                        <span className={styles.productStock} style={{ whiteSpace: 'pre-line' }}>{getDisplayStock(p.name, p.stock)}</span>
                       </div>
                     ))}
                   </div>
@@ -1059,21 +1192,15 @@ export default function SessionModal({
                   <div className={styles.photoGrid}>
                     <div>
                       <span className={styles.photoLabel}>Avant</span>
-                      <div className={styles.photoBox}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                      </div>
+                      {renderPhotoSlot("Avant")}
                     </div>
                     <div>
-                      <span className={styles.photoLabel}>Après</span>
-                      <div className={styles.photoBox}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                      </div>
+                      <span className={styles.photoLabel}>Apres</span>
+                      {renderPhotoSlot("Apres")}
                     </div>
                     <div>
                       <span className={styles.photoLabel}>Autres</span>
-                      <div className={styles.photoBox}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                      </div>
+                      {renderPhotoSlot("Autres")}
                     </div>
                   </div>
                 </div>
@@ -1280,21 +1407,15 @@ export default function SessionModal({
                   <div className={styles.photoGrid}>
                     <div>
                       <span className={styles.photoLabel}>Avant</span>
-                      <div className={styles.photoBox}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                      </div>
+                      {renderPhotoSlot("Avant")}
                     </div>
                     <div>
-                      <span className={styles.photoLabel}>Après</span>
-                      <div className={styles.photoBox}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                      </div>
+                      <span className={styles.photoLabel}>Apres</span>
+                      {renderPhotoSlot("Apres")}
                     </div>
                     <div>
-                      <span className={styles.photoLabel}>Autre</span>
-                      <div className={styles.photoBox}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                      </div>
+                      <span className={styles.photoLabel}>Autres</span>
+                      {renderPhotoSlot("Autres")}
                     </div>
                   </div>
                 </div>
@@ -1340,6 +1461,24 @@ export default function SessionModal({
           </div>
         </div>
 
+        {/* <div className={styles.card} style={{ margin: '15px' }}>
+          <h3 className={styles.cardTitle}>PHOTOS SESSION</h3>
+          <div className={styles.photoGrid}>
+            <div>
+              <span className={styles.photoLabel}>Avant</span>
+              {renderPhotoSlot("Avant")}
+            </div>
+            <div>
+              <span className={styles.photoLabel}>Apres</span>
+              {renderPhotoSlot("Apres")}
+            </div>
+            <div>
+              <span className={styles.photoLabel}>Autres</span>
+              {renderPhotoSlot("Autres")}
+            </div>
+          </div>
+        </div> */}
+
         {/* End of Export Container */}
         </div>
 
@@ -1363,7 +1502,7 @@ export default function SessionModal({
           </div>
         ) : (
           <div className={styles.footer}>
-            <button className={styles.btnCancel} onClick={onClose}>Annuler le rendez-vous</button>
+            <button className={styles.btnCancel} onClick={onClose}>Fermer</button>
             <div className={styles.footerRight}>
               <button className={styles.btnDraft} onClick={() => handleSave(true)}>Enregistrer le brouillon</button>
               <button className={styles.btnEnd} onClick={() => handleSave(false)}>Terminer la session</button>

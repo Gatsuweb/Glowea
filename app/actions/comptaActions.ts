@@ -3,8 +3,65 @@
 import prisma from "../../lib/prisma";
 import { getTenantId } from "../../lib/tenant";
 
+type AmountLike = {
+  amount: number | { toString(): string };
+};
+
+type TransactionType = "INCOME" | "EXPENSE";
+
+type TransactionLike = AmountLike & {
+  id: string;
+  label?: string | null;
+  category?: string | null;
+  type: TransactionType;
+  transactionDate: Date | string;
+};
+
+type RecurringExpenseLike = AmountLike & {
+  id: string;
+  label: string;
+  category?: string | null;
+};
+
+type StockMovementLike = {
+  id: string;
+  quantity: number | { toString(): string };
+  createdAt: Date;
+  Product: {
+    name: string;
+    defaultUnitCost: number | { toString(): string } | null;
+  };
+};
+
+type NormalizedTransactionLike = {
+  id: string;
+  label?: string | null;
+  category?: string | null;
+  amount: number;
+  type: TransactionType;
+  transactionDate: Date | string;
+};
+
+type NormalizedRecurringExpenseLike = {
+  id: string;
+  label: string;
+  category?: string | null;
+  amount: number;
+};
+
+type NormalizedStockTransactionLike = {
+  id: string;
+  label: string;
+  category: string;
+  amount: number;
+  type: "EXPENSE";
+  sourceType: "STOCK";
+  transactionDate: Date;
+  isStock: true;
+};
 
 export async function getVueEnsembleData(monthString: string) {
+
   const TENANT_ID = await getTenantId();
   try {
     const startDate = new Date(`${monthString}-01T00:00:00Z`);
@@ -77,47 +134,57 @@ export async function getVueEnsembleData(monthString: string) {
     });
 
     // Parse decimals
-    const dbTransactions = rawTransactions.map((t: any) => ({
-      ...t,
-      amount: Number(t.amount)
+    const dbTransactions: NormalizedTransactionLike[] = rawTransactions.map((t: TransactionLike) => ({
+      id: t.id,
+      label: t.label,
+      category: t.category,
+      amount: Number(t.amount),
+      type: t.type,
+      transactionDate: t.transactionDate,
     }));
 
-    const stockTransactions = stockMovementsThisMonth.map((sm: any) => ({
+    const stockTransactions: NormalizedStockTransactionLike[] = stockMovementsThisMonth.map((sm: StockMovementLike) => ({
       id: sm.id,
       label: `Achat stock: ${sm.Product.name}`,
       category: 'Matériel',
       amount: Number(sm.quantity) * Number(sm.Product.defaultUnitCost || 0),
-      type: 'EXPENSE',
-      sourceType: 'STOCK',
+      type: "EXPENSE" as const,
+      sourceType: "STOCK" as const,
       transactionDate: sm.createdAt,
-      isStock: true
-    })).filter((st: any) => st.amount > 0);
+      isStock: true as const,
+    })).filter((st) => st.amount > 0);
 
     const transactions = [...dbTransactions, ...stockTransactions].sort((a, b) => 
       new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime()
     );
 
-    const dbPrevTransactions = rawPrevTransactions.map((t: any) => ({
-      ...t,
-      amount: Number(t.amount)
+    const dbPrevTransactions: NormalizedTransactionLike[] = rawPrevTransactions.map((t: TransactionLike) => ({
+      id: t.id,
+      label: t.label,
+      category: t.category,
+      amount: Number(t.amount),
+      type: t.type,
+      transactionDate: t.transactionDate,
     }));
 
-    const stockPrevTransactions = stockMovementsPrevMonth.map((sm: any) => ({
+    const stockPrevTransactions: NormalizedStockTransactionLike[] = stockMovementsPrevMonth.map((sm: StockMovementLike) => ({
       id: sm.id,
       label: `Achat stock: ${sm.Product.name}`,
       category: 'Matériel',
       amount: Number(sm.quantity) * Number(sm.Product.defaultUnitCost || 0),
-      type: 'EXPENSE',
-      sourceType: 'STOCK',
+      type: "EXPENSE" as const,
+      sourceType: "STOCK" as const,
       transactionDate: sm.createdAt,
-      isStock: true
-    })).filter((st: any) => st.amount > 0);
+      isStock: true as const,
+    })).filter((st) => st.amount > 0);
 
     const prevTransactions = [...dbPrevTransactions, ...stockPrevTransactions];
 
-    const recurringExpenses = rawRecurringExpenses.map((r: any) => ({
-      ...r,
-      amount: Number(r.amount)
+    const recurringExpenses: NormalizedRecurringExpenseLike[] = rawRecurringExpenses.map((r: RecurringExpenseLike) => ({
+      id: r.id,
+      label: r.label,
+      category: r.category,
+      amount: Number(r.amount),
     }));
 
     return { success: true, data: { transactions, prevTransactions, recurringExpenses } };

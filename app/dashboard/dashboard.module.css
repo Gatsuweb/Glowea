@@ -136,6 +136,10 @@
   font-weight: 600;
 }
 
+.negativeTrend {
+  color: #E53E3E;
+}
+
 .mainGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -236,6 +240,10 @@
 }
 
 .actionIcon {
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
   cursor: pointer;
   opacity: 0.8;
   transition: all 0.2s ease;
@@ -245,10 +253,26 @@
   box-sizing: content-box;
 }
 
-.actionIcon:hover {
+.actionIcon:hover,
+.actionIcon:focus-visible {
   opacity: 1;
   background-color: var(--secondary);
   transform: translateY(-2px);
+  outline: none;
+}
+
+.actionIcon:focus-visible {
+  box-shadow: 0 0 0 3px rgba(144, 87, 96, 0.18), var(--box-shadow);
+}
+
+.appointmentNotice {
+  border: 1px solid rgba(144, 87, 96, 0.18);
+  background: #FFF7F8;
+  color: var(--tertiary);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .playButton {
@@ -553,7 +577,15 @@
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--tertiary);
-  margin-bottom: 10px;
+  margin-bottom: 6px;
+}
+
+.insightHeadline {
+  font-family: var(--font-sans-serif);
+  font-size: 1.35rem;
+  line-height: 1.2;
+  color: #333;
+  margin: 0 0 8px 0;
 }
 
 .insightDesc {
@@ -572,6 +604,45 @@
   font-weight: 600;
   cursor: pointer;
   align-self: flex-start;
+}
+
+.suggestionList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.suggestionItem {
+  text-align: left;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(144, 87, 96, 0.16);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.suggestionItem span {
+  display: block;
+  color: #333;
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.suggestionItem small {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: #666;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.suggestionItem:hover {
+  border-color: var(--tertiary);
 }
 
 .insightImage {
@@ -626,10 +697,31 @@
     flex-direction: column;
     align-items: center;
   }
+  .insightHeadline {
+    font-size: 1.15rem;
+    text-align: center;
+  }
   .insightBtn {
     align-self: center;
   }
+  .suggestionList {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
   .insightImage {
     display: none;
+  }
+  .appointmentItem {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .appointmentDetails {
+    min-width: 130px;
+  }
+  .appointmentTags {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 8px;
   }
 }

@@ -4,6 +4,239 @@ import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
 import { getTenantId } from "../../lib/tenant";
 
+type SessionStatusInput = "DRAFT" | "COMPLETED" | "IN_PROGRESS";
+
+type ProductUsageInput = {
+  productId: string;
+  productLotId?: string | null;
+  quantityUsed?: number;
+  usageRole?: string;
+  notes?: string;
+};
+
+type PhotoInput = {
+  label: string;
+  url: string;
+  mimeType?: string;
+};
+
+function serializeSessionProductUsage(usage: {
+  id: string;
+  sessionId: string;
+  productId: string;
+  productLotId: string | null;
+  usageRole: string | null;
+  quantityUsed: unknown;
+  notes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: usage.id,
+    sessionId: usage.sessionId,
+    productId: usage.productId,
+    productLotId: usage.productLotId,
+    usageRole: usage.usageRole,
+    quantityUsed:
+      usage.quantityUsed && typeof usage.quantityUsed === "object" && "toNumber" in usage.quantityUsed
+        ? (usage.quantityUsed as { toNumber: () => number }).toNumber()
+        : usage.quantityUsed === null || usage.quantityUsed === undefined
+          ? null
+          : Number(usage.quantityUsed),
+    notes: usage.notes,
+    createdAt: usage.createdAt.toISOString(),
+    updatedAt: usage.updatedAt.toISOString(),
+  };
+}
+
+function serializeSessionSnapshot<T extends Record<string, unknown>>(value: T): T {
+  return JSON.parse(JSON.stringify(value));
+}
+
+type SaveSessionBase = {
+  appointmentId: string;
+  clientId: string;
+  serviceId?: string;
+  status?: SessionStatusInput;
+  productUsages?: ProductUsageInput[];
+  photos?: PhotoInput[];
+};
+
+type SessionGlobalParams = Record<string, unknown>;
+
+async function getTenantAppointment(tenantId: string, appointmentId: string, clientId?: string) {
+  const appointment = await prisma.appointment.findFirst({
+    where: {
+      id: appointmentId,
+      tenantId,
+      ...(clientId ? { clientId } : {}),
+    },
+    include: { Session: true },
+  });
+
+  if (!appointment) {
+    throw new Error("Rendez-vous introuvable");
+  }
+
+  return appointment;
+}
+
+async function upsertBaseSession(
+  tenantId: string,
+  data: SaveSessionBase,
+  category: "LASHES" | "BROWLIFT" | "LASH_LIFT" | "NAILS"
+) {
+  await getTenantAppointment(tenantId, data.appointmentId, data.clientId);
+
+  const now = new Date();
+  const sessionStatus = data.status || "COMPLETED";
+  const existingSession = await prisma.session.findFirst({
+    where: { appointmentId: data.appointmentId, tenantId },
+  });
+
+  return prisma.session.upsert({
+    where: { appointmentId: data.appointmentId },
+    update: {
+      clientId: data.clientId,
+      serviceId: data.serviceId,
+      category,
+      status: sessionStatus,
+      startedAt: existingSession?.startedAt || now,
+      endedAt: sessionStatus === "COMPLETED" ? now : null,
+      updatedAt: now,
+    },
+    create: {
+      id: `sess_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`,
+      appointmentId: data.appointmentId,
+      tenantId,
+      clientId: data.clientId,
+      serviceId: data.serviceId,
+      category,
+      status: sessionStatus,
+      startedAt: now,
+      endedAt: sessionStatus === "COMPLETED" ? now : null,
+      updatedAt: now,
+    }
+  });
+}
+
+async function syncSessionProductUsages(
+  tenantId: string,
+  sessionId: string,
+  productUsages: ProductUsageInput[] | undefined,
+  shouldConsumeStock: boolean
+) {
+  if (!productUsages) return;
+
+  const normalizedUsages = productUsages
+    .filter((usage) => usage.productId)
+    .map((usage) => ({
+      ...usage,
+      quantityUsed: Math.max(Number(usage.quantityUsed || 1), 0),
+    }));
+
+  const previousUsages = await prisma.sessionProductUsage.findMany({
+    where: { sessionId },
+  });
+
+  const previousQuantityByProduct = previousUsages.reduce<Record<string, number>>((acc, usage) => {
+    acc[usage.productId] = (acc[usage.productId] || 0) + Number(usage.quantityUsed || 0);
+    return acc;
+  }, {});
+
+  await prisma.sessionProductUsage.deleteMany({ where: { sessionId } });
+
+  for (const usage of normalizedUsages) {
+    const product = await prisma.product.findFirst({
+      where: { id: usage.productId, tenantId, isActive: true },
+      include: {
+        ProductLot: {
+          where: { status: "ACTIVE" },
+          orderBy: { createdAt: "asc" },
+          take: 1,
+        },
+      },
+    });
+
+    if (!product) continue;
+
+    const lot = usage.productLotId
+      ? await prisma.productLot.findFirst({ where: { id: usage.productLotId, productId: product.id } })
+      : product.ProductLot[0] || null;
+
+    await prisma.sessionProductUsage.create({
+      data: {
+        id: `spu_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`,
+        sessionId,
+        productId: product.id,
+        productLotId: lot?.id || null,
+        usageRole: usage.usageRole || null,
+        quantityUsed: usage.quantityUsed,
+        notes: usage.notes || null,
+        updatedAt: new Date(),
+      },
+    });
+
+    const previousQuantity = previousQuantityByProduct[product.id] || 0;
+    const delta = usage.quantityUsed - previousQuantity;
+
+    if (shouldConsumeStock && lot && delta > 0) {
+      const remaining = Math.max(Number(lot.quantityRemaining || 0) - delta, 0);
+
+      await prisma.productLot.update({
+        where: { id: lot.id },
+        data: {
+          quantityRemaining: remaining,
+          status: remaining <= 0 ? "DEPLETED" : lot.status,
+          updatedAt: new Date(),
+        },
+      });
+
+      await prisma.stockMovement.create({
+        data: {
+          id: `sm_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`,
+          tenantId,
+          productId: product.id,
+          productLotId: lot.id,
+          sessionId,
+          type: "OUT",
+          quantity: delta,
+          reason: "SESSION_USAGE",
+        },
+      });
+    }
+  }
+}
+
+async function syncSessionPhotos(tenantId: string, sessionId: string, photos: PhotoInput[] | undefined) {
+  if (!photos) return;
+
+  const validPhotos = photos.filter((photo) => photo.url && photo.label);
+
+  await prisma.sessionMedia.deleteMany({
+    where: { sessionId },
+  });
+
+  for (const photo of validPhotos) {
+    const media = await prisma.media.create({
+      data: {
+        id: `med_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`,
+        tenantId,
+        url: photo.url,
+        mimeType: photo.mimeType || null,
+      },
+    });
+
+    await prisma.sessionMedia.create({
+      data: {
+        id: `smed_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`,
+        sessionId,
+        mediaId: media.id,
+        label: photo.label,
+      },
+    });
+  }
+}
 
 export async function getSessionModalData(clientId: string | undefined) {
   const TENANT_ID = await getTenantId();
@@ -62,18 +295,54 @@ export async function getSessionModalData(clientId: string | undefined) {
   }
 }
 
+export async function startSession(data: {
+  appointmentId: string;
+  clientId: string;
+  serviceId?: string;
+  category: "LASHES" | "BROWLIFT" | "LASH_LIFT" | "NAILS";
+}) {
+  const TENANT_ID = await getTenantId();
+  try {
+    await upsertBaseSession(TENANT_ID, {
+      appointmentId: data.appointmentId,
+      clientId: data.clientId,
+      serviceId: data.serviceId,
+      status: "IN_PROGRESS",
+    }, data.category);
+
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/agenda");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error starting session:", error);
+    return { success: false, error: "Erreur lors du demarrage de la session" };
+  }
+}
+
 export async function getLashSessionByAppointmentId(appointmentId: string) {
   const TENANT_ID = await getTenantId();
   try {
-    const session = await prisma.session.findUnique({
-      where: { appointmentId },
+    const session = await prisma.session.findFirst({
+      where: { appointmentId, tenantId: TENANT_ID },
       include: {
-        LashSession: true
+        LashSession: true,
+        SessionMedia: { include: { Media: true } },
+        SessionProductUsage: true,
       }
     });
     
     if (session && session.LashSession) {
-      return { success: true, lashSession: session.LashSession };
+      return { 
+        success: true, 
+        lashSession: serializeSessionSnapshot(session.LashSession),
+        photos: session.SessionMedia.map((item) => ({
+          label: item.label || "Photo",
+          url: item.Media.url,
+          mimeType: item.Media.mimeType || undefined,
+        })),
+        productUsages: session.SessionProductUsage.map(serializeSessionProductUsage),
+      };
     }
     
     return { success: false, error: "Session non trouvée" };
@@ -86,15 +355,26 @@ export async function getLashSessionByAppointmentId(appointmentId: string) {
 export async function getBrowliftSessionByAppointmentId(appointmentId: string) {
   const TENANT_ID = await getTenantId();
   try {
-    const session = await prisma.session.findUnique({
-      where: { appointmentId },
+    const session = await prisma.session.findFirst({
+      where: { appointmentId, tenantId: TENANT_ID },
       include: {
-        BrowliftSession: true
+        BrowliftSession: true,
+        SessionMedia: { include: { Media: true } },
+        SessionProductUsage: true,
       }
     });
     
     if (session && session.BrowliftSession) {
-      return { success: true, browliftSession: session.BrowliftSession };
+      return { 
+        success: true, 
+        browliftSession: serializeSessionSnapshot(session.BrowliftSession),
+        photos: session.SessionMedia.map((item) => ({
+          label: item.label || "Photo",
+          url: item.Media.url,
+          mimeType: item.Media.mimeType || undefined,
+        })),
+        productUsages: session.SessionProductUsage.map(serializeSessionProductUsage),
+      };
     }
     
     return { success: false, error: "Session non trouvée" };
@@ -107,15 +387,26 @@ export async function getBrowliftSessionByAppointmentId(appointmentId: string) {
 export async function getLashLiftSessionByAppointmentId(appointmentId: string) {
   const TENANT_ID = await getTenantId();
   try {
-    const session = await prisma.session.findUnique({
-      where: { appointmentId },
+    const session = await prisma.session.findFirst({
+      where: { appointmentId, tenantId: TENANT_ID },
       include: {
-        LashLiftSession: true
+        LashLiftSession: true,
+        SessionMedia: { include: { Media: true } },
+        SessionProductUsage: true,
       }
     });
     
     if (session && session.LashLiftSession) {
-      return { success: true, lashLiftSession: session.LashLiftSession };
+      return { 
+        success: true, 
+        lashLiftSession: serializeSessionSnapshot(session.LashLiftSession),
+        photos: session.SessionMedia.map((item) => ({
+          label: item.label || "Photo",
+          url: item.Media.url,
+          mimeType: item.Media.mimeType || undefined,
+        })),
+        productUsages: session.SessionProductUsage.map(serializeSessionProductUsage),
+      };
     }
     
     return { success: false, error: "Session non trouvée" };
@@ -128,15 +419,26 @@ export async function getLashLiftSessionByAppointmentId(appointmentId: string) {
 export async function getNailSessionByAppointmentId(appointmentId: string) {
   const TENANT_ID = await getTenantId();
   try {
-    const session = await prisma.session.findUnique({
-      where: { appointmentId },
+    const session = await prisma.session.findFirst({
+      where: { appointmentId, tenantId: TENANT_ID },
       include: {
-        NailSession: true
+        NailSession: true,
+        SessionMedia: { include: { Media: true } },
+        SessionProductUsage: true,
       }
     });
     
     if (session && session.NailSession) {
-      return { success: true, nailSession: session.NailSession };
+      return { 
+        success: true, 
+        nailSession: serializeSessionSnapshot(session.NailSession),
+        photos: session.SessionMedia.map((item) => ({
+          label: item.label || "Photo",
+          url: item.Media.url,
+          mimeType: item.Media.mimeType || undefined,
+        })),
+        productUsages: session.SessionProductUsage.map(serializeSessionProductUsage),
+      };
     }
     
     return { success: false, error: "Session non trouvée" };
@@ -158,37 +460,18 @@ export async function saveLashSession(data: {
   generalCurl: string;
   generalThickness: string;
   generalLengthMapJson: string[];
-  globalParamsJson?: any;
+  globalParamsJson?: SessionGlobalParams;
   remarks?: string;
-  status?: "DRAFT" | "COMPLETED" | "IN_PROGRESS";
+  status?: SessionStatusInput;
+  productUsages?: ProductUsageInput[];
+  photos?: PhotoInput[];
 }) {
   const TENANT_ID = await getTenantId();
   try {
-    const sessionId = `sess_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const lashSessionId = `lash_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const sessionStatus = data.status || "COMPLETED";
 
-    // Create Session
-    const session = await prisma.session.upsert({
-      where: { appointmentId: data.appointmentId },
-      update: {
-        clientId: data.clientId,
-        serviceId: data.serviceId,
-        category: "LASHES",
-        status: sessionStatus,
-        updatedAt: new Date(),
-      },
-      create: {
-        id: sessionId,
-        appointmentId: data.appointmentId,
-        tenantId: TENANT_ID,
-        clientId: data.clientId,
-        serviceId: data.serviceId,
-        category: "LASHES",
-        status: sessionStatus,
-        updatedAt: new Date(),
-      }
-    });
+    const session = await upsertBaseSession(TENANT_ID, data, "LASHES");
 
     // Create LashSession
     await prisma.lashSession.upsert({
@@ -223,6 +506,9 @@ export async function saveLashSession(data: {
       }
     });
 
+    await syncSessionProductUsages(TENANT_ID, session.id, data.productUsages, sessionStatus === "COMPLETED");
+    await syncSessionPhotos(TENANT_ID, session.id, data.photos);
+
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/agenda");
     
@@ -239,36 +525,18 @@ export async function saveBrowliftSession(data: {
   serviceId?: string;
   tintEnabled: boolean;
   tintColor: string;
-  globalParamsJson?: any;
+  globalParamsJson?: SessionGlobalParams;
   remarks?: string;
-  status?: "DRAFT" | "COMPLETED" | "IN_PROGRESS";
+  status?: SessionStatusInput;
+  productUsages?: ProductUsageInput[];
+  photos?: PhotoInput[];
 }) {
   const TENANT_ID = await getTenantId();
   try {
-    const sessionId = `sess_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const browliftSessionId = `brow_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const sessionStatus = data.status || "COMPLETED";
 
-    const session = await prisma.session.upsert({
-      where: { appointmentId: data.appointmentId },
-      update: {
-        clientId: data.clientId,
-        serviceId: data.serviceId,
-        category: "BROWLIFT",
-        status: sessionStatus,
-        updatedAt: new Date(),
-      },
-      create: {
-        id: sessionId,
-        appointmentId: data.appointmentId,
-        tenantId: TENANT_ID,
-        clientId: data.clientId,
-        serviceId: data.serviceId,
-        category: "BROWLIFT",
-        status: sessionStatus,
-        updatedAt: new Date(),
-      }
-    });
+    const session = await upsertBaseSession(TENANT_ID, data, "BROWLIFT");
 
     await prisma.browliftSession.upsert({
       where: { sessionId: session.id },
@@ -290,6 +558,9 @@ export async function saveBrowliftSession(data: {
       }
     });
 
+    await syncSessionProductUsages(TENANT_ID, session.id, data.productUsages, sessionStatus === "COMPLETED");
+    await syncSessionPhotos(TENANT_ID, session.id, data.photos);
+
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/agenda");
     return { success: true };
@@ -305,36 +576,18 @@ export async function saveLashLiftSession(data: {
   serviceId?: string;
   tintEnabled: boolean;
   tintColor: string;
-  globalParamsJson?: any;
+  globalParamsJson?: SessionGlobalParams;
   remarks?: string;
-  status?: "DRAFT" | "COMPLETED" | "IN_PROGRESS";
+  status?: SessionStatusInput;
+  productUsages?: ProductUsageInput[];
+  photos?: PhotoInput[];
 }) {
   const TENANT_ID = await getTenantId();
   try {
-    const sessionId = `sess_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const lashLiftSessionId = `lashlift_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const sessionStatus = data.status || "COMPLETED";
 
-    const session = await prisma.session.upsert({
-      where: { appointmentId: data.appointmentId },
-      update: {
-        clientId: data.clientId,
-        serviceId: data.serviceId,
-        category: "LASHES",
-        status: sessionStatus,
-        updatedAt: new Date(),
-      },
-      create: {
-        id: sessionId,
-        appointmentId: data.appointmentId,
-        tenantId: TENANT_ID,
-        clientId: data.clientId,
-        serviceId: data.serviceId,
-        category: "LASHES",
-        status: sessionStatus,
-        updatedAt: new Date(),
-      }
-    });
+    const session = await upsertBaseSession(TENANT_ID, data, "LASH_LIFT");
 
     await prisma.lashLiftSession.upsert({
       where: { sessionId: session.id },
@@ -355,6 +608,9 @@ export async function saveLashLiftSession(data: {
         updatedAt: new Date(),
       }
     });
+
+    await syncSessionProductUsages(TENANT_ID, session.id, data.productUsages, sessionStatus === "COMPLETED");
+    await syncSessionPhotos(TENANT_ID, session.id, data.photos);
 
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/agenda");
@@ -377,36 +633,18 @@ export async function saveNailSession(data: {
   gelUsed: string;
   colorUsed: string;
   primerUsed: string;
-  globalParamsJson?: any;
+  globalParamsJson?: SessionGlobalParams;
   remarks?: string;
-  status?: "DRAFT" | "COMPLETED" | "IN_PROGRESS";
+  status?: SessionStatusInput;
+  productUsages?: ProductUsageInput[];
+  photos?: PhotoInput[];
 }) {
   const TENANT_ID = await getTenantId();
   try {
-    const sessionId = `sess_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const nailSessionId = `nail_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const sessionStatus = data.status || "COMPLETED";
 
-    const session = await prisma.session.upsert({
-      where: { appointmentId: data.appointmentId },
-      update: {
-        clientId: data.clientId,
-        serviceId: data.serviceId,
-        category: "NAILS",
-        status: sessionStatus,
-        updatedAt: new Date(),
-      },
-      create: {
-        id: sessionId,
-        appointmentId: data.appointmentId,
-        tenantId: TENANT_ID,
-        clientId: data.clientId,
-        serviceId: data.serviceId,
-        category: "NAILS",
-        status: sessionStatus,
-        updatedAt: new Date(),
-      }
-    });
+    const session = await upsertBaseSession(TENANT_ID, data, "NAILS");
 
     await prisma.nailSession.upsert({
       where: { sessionId: session.id },
@@ -439,6 +677,9 @@ export async function saveNailSession(data: {
         updatedAt: new Date(),
       }
     });
+
+    await syncSessionProductUsages(TENANT_ID, session.id, data.productUsages, sessionStatus === "COMPLETED");
+    await syncSessionPhotos(TENANT_ID, session.id, data.photos);
 
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/agenda");

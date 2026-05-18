@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { BarChart, Bar, AreaChart, Area, ResponsiveContainer } from 'recharts';
 import styles from "../dashboard/dashboard.module.css";
 import RevenueChart from "./RevenueChart";
@@ -14,16 +15,107 @@ import SendPromoModal from "./SendPromoModal";
 import WeeklyBriefModal from "./WeeklyBriefModal";
 import InstallAppModal from "./InstallAppModal";
 
+const currencyFormatter = new Intl.NumberFormat('fr-FR', {
+  style: 'currency',
+  currency: 'EUR',
+  maximumFractionDigits: 0,
+});
+
+type InsightAction = "promo" | "brief" | "stock" | "appointment";
+
+type SmartInsight = {
+  id: string;
+  title: string;
+  description: string;
+  actionLabel: string;
+  action: InsightAction;
+};
+
+type ClientOption = {
+  id: string;
+  name: string;
+};
+
+type ServiceOption = {
+  id: string;
+  name: string;
+  price: string | number;
+  durationMin: number;
+  color?: string | null;
+};
+
+type DashboardAppointment = {
+  id: string;
+  clientId: string;
+  serviceId?: string | null;
+  scheduledAt: string;
+  notes?: string | null;
+  time: string;
+  clientName: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  serviceName: string;
+  servicePrice?: number;
+  serviceDurationMin?: number;
+  documentUrl?: string;
+  hasDocument?: boolean;
+  status?: string;
+  isTomorrow?: boolean;
+  client: ClientOption;
+  service: ServiceOption;
+};
+
+type EditableAppointment = {
+  id: string;
+  scheduledAt: string;
+  notes?: string | null;
+  client?: ClientOption | null;
+  service?: ServiceOption | null;
+};
+
+type TopClient = {
+  id: string;
+  name: string;
+  visits: number;
+  totalAmount: number;
+};
+
+type DashboardProduct = {
+  id: string;
+  name: string;
+  currentQuantity: number;
+  idealQuantity: number;
+};
+
+type WeeklyBriefData = {
+  goal: {
+    lastWeekRevenue: number;
+    recommendedGoal: number;
+  };
+  birthdays: Array<{
+    id: string;
+    name: string;
+    date: string;
+  }>;
+  refills: Array<{
+    id: string;
+    name: string;
+    lastVisit: string;
+    serviceName: string;
+  }>;
+};
+
 export default function DashboardClientWrapper({ 
   firstName, 
   lastName,
-  stats = { appointmentsMonth: 0, revenuesMonth: 0, objectiveCurrent: 0, objectiveTotal: 34, apptTrend: [], revTrend: [] },
+  stats = { appointmentsMonth: 0, revenuesMonth: 0, objectiveCurrent: 0, objectiveTotal: 34, apptTrend: [], revTrend: [], revenueTrendPercent: null },
   appointments = [],
   topClients = [],
   clients = [],
   services = [],
   weeklyBriefData,
   products = [],
+  insights = [],
 }: { 
   firstName: string; 
   lastName: string;
@@ -34,19 +126,24 @@ export default function DashboardClientWrapper({
     objectiveTotal: number;
     apptTrend?: { name: string; val: number }[];
     revTrend?: { name: string; val: number }[];
+    revenueTrendPercent?: number | null;
   };
-  appointments?: any[];
-  topClients?: any[];
-  clients?: any[];
-  services?: any[];
-  weeklyBriefData?: any;
-  products?: any[];
+  appointments?: DashboardAppointment[];
+  topClients?: TopClient[];
+  clients?: ClientOption[];
+  services?: ServiceOption[];
+  weeklyBriefData?: WeeklyBriefData;
+  products?: DashboardProduct[];
+  insights?: SmartInsight[];
 }) {
+  const router = useRouter();
   const [isSessionModalOpen, setSessionModalOpen] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<DashboardAppointment | null>(null);
+  const [appointmentToEdit, setAppointmentToEdit] = useState<EditableAppointment | null>(null);
+  const [appointmentActionMessage, setAppointmentActionMessage] = useState<string | null>(null);
 
   const [isPaymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [paymentAppointmentData, setPaymentAppointmentData] = useState<any>(null);
+  const [paymentAppointmentData, setPaymentAppointmentData] = useState<DashboardAppointment | null>(null);
 
   const [isNewAppointmentModalOpen, setNewAppointmentModalOpen] = useState(false);
   const [isNewClientModalOpen, setNewClientModalOpen] = useState(false);
@@ -73,7 +170,7 @@ export default function DashboardClientWrapper({
   // Vérifier s'il faut afficher la modale d'installation (mobile/tablette, 1ère visite)
   React.useEffect(() => {
     const checkInstallModal = () => {
-      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      const userAgent = navigator.userAgent || navigator.vendor || (window as Window & { opera?: string }).opera || "";
       // RegEx simple pour détecter mobile/tablette
       const isMobileTablet = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
       const isSmallScreen = window.innerWidth <= 1024;
@@ -107,6 +204,84 @@ export default function DashboardClientWrapper({
   ];
 
   const objectivePercent = Math.min(100, Math.round((stats.objectiveCurrent / stats.objectiveTotal) * 100)) || 0;
+  const revenueTrendLabel = stats.revenueTrendPercent === null || stats.revenueTrendPercent === undefined
+    ? "Aucune donnee le mois dernier"
+    : `${stats.revenueTrendPercent > 0 ? '+' : ''}${stats.revenueTrendPercent}% sur le mois dernier`;
+  const revenueTrendClassName = stats.revenueTrendPercent !== null && stats.revenueTrendPercent !== undefined && stats.revenueTrendPercent < 0
+    ? `${styles.statCardTrend} ${styles.negativeTrend}`
+    : styles.statCardTrend;
+  const primaryInsight = insights[0] || {
+    id: "empty",
+    title: "Activite stable",
+    description: "Ton dashboard ne montre pas d'alerte prioritaire aujourd'hui.",
+    actionLabel: "Voir le brief",
+    action: "brief" as InsightAction,
+  };
+  const secondaryInsights = insights.slice(1, 4);
+  const handleInsightAction = (action: InsightAction) => {
+    if (action === "promo") {
+      setSendPromoModalOpen(true);
+      return;
+    }
+    if (action === "brief") {
+      setWeeklyBriefOpen(true);
+      return;
+    }
+    if (action === "appointment") {
+      setNewAppointmentModalOpen(true);
+      return;
+    }
+    router.push("/dashboard/stock");
+  };
+
+  const clearAppointmentActionMessage = () => {
+    if (appointmentActionMessage) setAppointmentActionMessage(null);
+  };
+
+  const handleContactClient = (appointment: DashboardAppointment) => {
+    clearAppointmentActionMessage();
+    const clientName = appointment.clientName || "votre cliente";
+    const subject = encodeURIComponent(`Rendez-vous Glowea - ${appointment.time}`);
+    const body = encodeURIComponent(
+      `Bonjour ${clientName},\n\nJe vous contacte au sujet de votre rendez-vous ${appointment.serviceName} prevu a ${appointment.time}.\n\nA bientot.`
+    );
+
+    if (appointment.clientEmail) {
+      window.open(`mailto:${appointment.clientEmail}?subject=${subject}&body=${body}`, "_self");
+      return;
+    }
+
+    if (appointment.clientPhone) {
+      window.open(`sms:${appointment.clientPhone}?body=${body}`, "_self");
+      return;
+    }
+
+    setAppointmentActionMessage(`Aucun email ni telephone renseigne pour ${clientName}.`);
+  };
+
+  const handleOpenDocument = (appointment: DashboardAppointment) => {
+    clearAppointmentActionMessage();
+
+    if (appointment.documentUrl) {
+      window.open(appointment.documentUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    setAppointmentActionMessage("Aucun document genere pour ce rendez-vous. Ouverture de la fiche cliente.");
+    router.push(`/dashboard/clients?clientId=${appointment.clientId}&tab=consentement`);
+  };
+
+  const handleEditAppointment = (appointment: DashboardAppointment) => {
+    clearAppointmentActionMessage();
+    setAppointmentToEdit({
+      id: appointment.id,
+      scheduledAt: appointment.scheduledAt,
+      notes: appointment.notes || "",
+      client: appointment.client,
+      service: appointment.service,
+    });
+    setNewAppointmentModalOpen(true);
+  };
 
   return (
     <main className={styles.layout}>
@@ -114,7 +289,7 @@ export default function DashboardClientWrapper({
       <section className={styles.welcomeSection}>
         <div className={styles.welcomeText}>
           <h1>Bienvenue {firstName} {lastName}</h1>
-          <p>AUJOURD'HUI - {appointments.length} RENDEZ-VOUS</p>
+          <p>AUJOURD&apos;HUI - {appointments.length} RENDEZ-VOUS</p>
         </div>
         <div className={styles.actionButtons}>
           <button className={styles.actionBtn} onClick={() => setWeeklyBriefOpen(true)} title="Point de la semaine">
@@ -159,7 +334,7 @@ export default function DashboardClientWrapper({
           </div>
           <div className={styles.statCardInfo}>
             <div className={styles.statCardTitle}>Revenus <span>du mois</span></div>
-            <div className={styles.statCardValue}>{stats.revenuesMonth}€</div>
+            <div className={styles.statCardValue}>{currencyFormatter.format(stats.revenuesMonth)}</div>
           </div>
           <div className={styles.statCardChart}>
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
@@ -174,7 +349,7 @@ export default function DashboardClientWrapper({
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <div className={styles.statCardTrend}>+5% sur le mois dernier</div>
+          <div className={revenueTrendClassName}>{revenueTrendLabel}</div>
         </div>
 
         {/* Card 3: Objectif */}
@@ -198,6 +373,11 @@ export default function DashboardClientWrapper({
         <div className={styles.card}>
           <h2 className={styles.cardTitle}>Prochains <span>Rendez-vous</span></h2>
           <div className={styles.appointmentList}>
+            {appointmentActionMessage && (
+              <div className={styles.appointmentNotice} role="status">
+                {appointmentActionMessage}
+              </div>
+            )}
             {appointments.length === 0 ? (
               <div className={styles.emptyState}>
                 <p>Aucun rendez-vous prévu</p>
@@ -216,23 +396,56 @@ export default function DashboardClientWrapper({
                     <div className={styles.appointmentType}>{app.serviceName}</div>
                   </div>
                   <div className={styles.appointmentTags}>
-                    {!app.isTomorrow && <span className={styles.tagDemain} style={{ background: 'var(--tertiary)' }}>AUJOURD'HUI</span>}
+                    {!app.isTomorrow && <span className={styles.tagDemain} style={{ background: 'var(--tertiary)' }}>AUJOURD&apos;HUI</span>}
                     <div className={styles.appointmentActions}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={styles.actionIcon} onClick={(e) => e.stopPropagation()}>
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                        <polyline points="22,6 12,13 2,6"></polyline>
-                      </svg>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={styles.actionIcon} onClick={(e) => e.stopPropagation()}>
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                        <polyline points="10 9 9 9 8 9"></polyline>
-                      </svg>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={styles.actionIcon} onClick={(e) => e.stopPropagation()}>
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                      </svg>
+                      <button
+                        type="button"
+                        className={styles.actionIcon}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleContactClient(app);
+                        }}
+                        title="Contacter la cliente"
+                        aria-label={`Contacter ${app.clientName}`}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                          <polyline points="22,6 12,13 2,6"></polyline>
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.actionIcon}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenDocument(app);
+                        }}
+                        title={app.hasDocument ? "Ouvrir le document" : "Voir la fiche cliente"}
+                        aria-label={app.hasDocument ? `Ouvrir le document de ${app.clientName}` : `Voir la fiche de ${app.clientName}`}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                          <polyline points="14 2 14 8 20 8"></polyline>
+                          <line x1="16" y1="13" x2="8" y2="13"></line>
+                          <line x1="16" y1="17" x2="8" y2="17"></line>
+                          <polyline points="10 9 9 9 8 9"></polyline>
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.actionIcon}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditAppointment(app);
+                        }}
+                        title="Modifier le rendez-vous"
+                        aria-label={`Modifier le rendez-vous de ${app.clientName}`}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </button>
                     </div>
                     <button 
                       className={styles.playButton}
@@ -257,7 +470,7 @@ export default function DashboardClientWrapper({
         <div className={styles.card}>
           <h2 className={styles.cardTitle}>Statistique <span>des Revenus</span></h2>
           <div style={{ height: '200px', width: '100%', minHeight: 0, minWidth: 0 }}>
-            <RevenueChart />
+            <RevenueChart data={mockRevTrend} />
           </div>
         </div>
 
@@ -335,8 +548,25 @@ export default function DashboardClientWrapper({
           </div>
           <div className={styles.insightText}>
             <div className={styles.insightTitle}>Insight du jour</div>
-            <p className={styles.insightDesc}>Tu n'as que 2 rendez-vous demain.<br/>Pense à envoyer une promo pour<br/>remplir ton planning !</p>
-            <button className={styles.insightBtn} onClick={() => setSendPromoModalOpen(true)}>Envoyer une promo</button>
+            <h3 className={styles.insightHeadline}>{primaryInsight.title}</h3>
+            <p className={styles.insightDesc}>{primaryInsight.description}</p>
+            <button className={styles.insightBtn} onClick={() => handleInsightAction(primaryInsight.action)}>
+              {primaryInsight.actionLabel}
+            </button>
+            {secondaryInsights.length > 0 && (
+              <div className={styles.suggestionList}>
+                {secondaryInsights.map((insight) => (
+                  <button
+                    key={insight.id}
+                    className={styles.suggestionItem}
+                    onClick={() => handleInsightAction(insight.action)}
+                  >
+                    <span>{insight.title}</span>
+                    <small>{insight.description}</small>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -349,7 +579,7 @@ export default function DashboardClientWrapper({
         category={selectedAppointment?.serviceName}
         appointmentId={selectedAppointment?.id}
         clientId={selectedAppointment?.clientId}
-        serviceId={selectedAppointment?.serviceId}
+        serviceId={selectedAppointment?.serviceId || undefined}
         onPaymentRequest={() => {
           setPaymentAppointmentData(selectedAppointment);
           setSessionModalOpen(false);
@@ -361,18 +591,22 @@ export default function DashboardClientWrapper({
       <PaymentModal
         isOpen={isPaymentModalOpen}
         onClose={() => { setPaymentModalOpen(false); setPaymentAppointmentData(null); }}
-        appointmentId={paymentAppointmentData?.id}
-        clientId={paymentAppointmentData?.clientId}
-        clientName={paymentAppointmentData?.clientName}
-        serviceName={paymentAppointmentData?.serviceName}
+        appointmentId={paymentAppointmentData?.id || ""}
+        clientId={paymentAppointmentData?.clientId || ""}
+        clientName={paymentAppointmentData?.clientName || ""}
+        serviceName={paymentAppointmentData?.serviceName || ""}
         defaultAmount={paymentAppointmentData?.servicePrice ? Number(paymentAppointmentData.servicePrice) : 0}
       />
 
       <NewAppointmentModal
         isOpen={isNewAppointmentModalOpen}
-        onClose={() => setNewAppointmentModalOpen(false)}
+        onClose={() => {
+          setNewAppointmentModalOpen(false);
+          setAppointmentToEdit(null);
+        }}
         clients={clients}
         services={services}
+        initialData={appointmentToEdit}
       />
 
       <NewClientModal

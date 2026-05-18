@@ -2,10 +2,18 @@
 
 import React, { useState, useEffect } from "react";
 import styles from "./profil.module.css";
-import { getServices, createService, deleteService, updateService } from "../../actions/serviceActions";
+import { getServices, createService, deleteService } from "../../actions/serviceActions";
+
+type ServiceItem = {
+  id: string;
+  name: string;
+  durationMin: number | null;
+  price: { toString(): string } | string | number | null;
+  color: string | null;
+};
 
 export default function PrestationsTab() {
-  const [services, setServices] = useState<any[]>([]);
+  const [services, setServices] = useState<ServiceItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [newService, setNewService] = useState({ name: "", durationMin: 60, price: "", color: "#FF69B4" });
@@ -20,7 +28,11 @@ export default function PrestationsTab() {
   };
 
   useEffect(() => {
-    loadServices();
+    const timer = window.setTimeout(() => {
+      void loadServices();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   const handleAdd = async () => {

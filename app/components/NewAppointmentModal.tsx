@@ -5,13 +5,37 @@ import styles from './NewAppointmentModal.module.css';
 import NewClientModal from './NewClientModal';
 import NewServiceModal from './NewServiceModal';
 import { createAppointment, updateAppointment } from '../actions/appointmentActions';
+import { useRouter } from 'next/navigation';
+
+type ClientOption = {
+  id: string;
+  name: string;
+  fullName?: string;
+  firstName?: string;
+};
+
+type ServiceOption = {
+  id: string;
+  name: string;
+  price: string | number;
+  durationMin: number;
+  color?: string | null;
+};
+
+type AppointmentInitialData = {
+  id: string;
+  scheduledAt: string | Date;
+  notes?: string | null;
+  client?: ClientOption | null;
+  service?: ServiceOption | null;
+};
 
 interface NewAppointmentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  clients?: any[];
-  services?: any[];
-  initialData?: any;
+  clients?: ClientOption[];
+  services?: ServiceOption[];
+  initialData?: AppointmentInitialData | null;
 }
 
 export default function NewAppointmentModal({ 
@@ -21,6 +45,7 @@ export default function NewAppointmentModal({
   services = [],
   initialData = null
 }: NewAppointmentModalProps) {
+  const router = useRouter();
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedPrestation, setSelectedPrestation] = useState<string | null>(null);
@@ -32,6 +57,7 @@ export default function NewAppointmentModal({
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localServices, setLocalServices] = useState(services);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalServices(services);
@@ -49,7 +75,8 @@ export default function NewAppointmentModal({
         setClientSearch(initialData.client?.name || '');
         setSelectedClientId(initialData.client?.id || null);
         setSelectedPrestation(initialData.service?.id || null);
-        // Notes aren't in initialData yet, but could be added later
+        setNotes(initialData.notes || '');
+        setError(null);
       } else {
         // Reset for new
         setSelectedTime(null);
@@ -58,6 +85,7 @@ export default function NewAppointmentModal({
         setClientSearch('');
         setSelectedClientId(null);
         setNotes('');
+        setError(null);
       }
     }
   }, [isOpen, initialData]);
@@ -79,33 +107,48 @@ export default function NewAppointmentModal({
 
   const handleSubmit = async () => {
     if (!selectedClientId || !selectedPrestation || !selectedTime || !selectedDate) {
-      alert("Veuillez remplir tous les champs obligatoires (Client, Date, Heure, Prestation)");
+      setError("Veuillez remplir tous les champs obligatoires (client, date, heure, prestation).");
       return;
     }
 
     setIsSubmitting(true);
+    setError(null);
 
     const [hours, minutes] = selectedTime.split(':');
     const scheduledAt = new Date(selectedDate);
     scheduledAt.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
 
+    const selectedService = currentPrestations.find((service) => service.id === selectedPrestation);
+    const endAt = new Date(scheduledAt.getTime() + (Number(selectedService?.durationMin) || 60) * 60000);
+
     const appointmentData = {
       clientId: selectedClientId,
       serviceId: selectedPrestation,
       scheduledAt,
+      endAt,
       notes,
     };
 
     try {
+      const response = initialData
+        ? await updateAppointment(initialData.id, appointmentData)
+        : await createAppointment(appointmentData);
+
+      if (!response.success) {
+        setError(response.error || "Impossible d'enregistrer ce rendez-vous.");
+        return;
+      }
+
+      router.refresh();
       if (initialData) {
-        await updateAppointment(initialData.id, appointmentData);
+        setError(null);
       } else {
-        await createAppointment(appointmentData);
+        setError(null);
       }
       onClose();
     } catch (error) {
       console.error(error);
-      alert("Une erreur est survenue");
+      setError("Une erreur inattendue est survenue.");
     } finally {
       setIsSubmitting(false);
     }
@@ -248,7 +291,7 @@ export default function NewAppointmentModal({
           ) : (
             <div style={{ textAlign: 'center', padding: '20px', color: '#666', fontStyle: 'italic', background: 'rgba(255,255,255,0.5)', borderRadius: '12px' }}>
               Aucune prestation disponible.<br />
-              <span style={{ fontSize: '0.85rem' }}>Cliquez sur "+ Nouvelle prestation" pour en ajouter une.</span>
+              <span style={{ fontSize: '0.85rem' }}>Cliquez sur &quot;+ Nouvelle prestation&quot; pour en ajouter une.</span>
             </div>
           )}
         </div>
@@ -265,6 +308,11 @@ export default function NewAppointmentModal({
         </div>
 
         {/* VALIDATION */}
+        {error && (
+          <div style={{ color: '#8B1E2D', background: '#FFF2F4', border: '1px solid #F0B8C0', padding: '10px 12px', borderRadius: '8px', marginBottom: '12px', fontSize: '0.9rem' }}>
+            {error}
+          </div>
+        )}
         <button 
           className={styles.submitBtn} 
           onClick={handleSubmit}

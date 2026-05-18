@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Image from "next/image";
 import styles from "./PaymentModal.module.css";
 import { processPayment } from "../actions/paymentActions";
 
@@ -29,10 +28,14 @@ export default function PaymentModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (isOpen) {
-      setAmount(defaultAmount.toString());
-      setPaymentMethod("CARD");
-    }
+    const timer = window.setTimeout(() => {
+      if (isOpen) {
+        setAmount(defaultAmount.toString());
+        setPaymentMethod("CARD");
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [isOpen, defaultAmount]);
 
   if (!isOpen) return null;

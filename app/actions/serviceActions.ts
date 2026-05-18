@@ -59,7 +59,12 @@ export async function getServices() {
   }
 }
 
-export async function updateService(id: string, data: any) {
+export async function updateService(id: string, data: {
+  name?: string;
+  price?: number;
+  durationMin?: number;
+  color?: string;
+}) {
   const TENANT_ID = await getTenantId();
   try {
     const service = await prisma.service.update({

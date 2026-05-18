@@ -5,10 +5,19 @@ import styles from './NewAppointmentModal.module.css'; // On réutilise le même
 import { createClient } from '../actions/clientActions';
 import { useRouter } from 'next/navigation';
 
+type CreatedClient = {
+  id: string;
+  firstName: string;
+  lastName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  instagram?: string | null;
+};
+
 interface NewClientModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave?: (client: any) => void;
+  onSave?: (client: CreatedClient) => void;
 }
 
 export default function NewClientModal({ isOpen, onClose, onSave }: NewClientModalProps) {
@@ -73,7 +82,7 @@ export default function NewClientModal({ isOpen, onClose, onSave }: NewClientMod
       } else {
         setError(response.error || 'Erreur lors de la création du client');
       }
-    } catch (err) {
+    } catch {
       setError('Une erreur inattendue est survenue');
     } finally {
       setIsLoading(false);

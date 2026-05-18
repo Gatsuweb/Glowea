@@ -208,6 +208,11 @@
   color: white;
 }
 
+.btnEdit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .btnSave {
   background: var(--tertiary);
   border: 1px solid var(--tertiary);
@@ -222,6 +227,36 @@
 
 .btnSave:hover {
   opacity: 0.9;
+}
+
+.btnSave:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.statusRow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.statusMessage {
+  padding: 12px 15px;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.statusError {
+  background: #FDECEC;
+  border: 1px solid #F3B9B9;
+  color: #B43A3A;
+}
+
+.statusSuccess {
+  background: #ECF8F0;
+  border: 1px solid #BDE2C7;
+  color: #2F6B40;
 }
 
 /* Grille de formulaires */
@@ -539,6 +574,68 @@
   line-height: 1.5;
 }
 
+.settingsTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.settingsTitleRow h4 {
+  margin-bottom: 0;
+}
+
+.badgePro {
+  background-color: #FAF4F4;
+  color: var(--tertiary);
+  border: 1px solid #E5C5C5;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.featureLockedText {
+  color: var(--tertiary) !important;
+  font-weight: 600;
+  margin-top: 8px !important;
+}
+
+.settingActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.toggleButton {
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.toggleButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.toggleButton:focus-visible {
+  outline: 3px solid rgba(139, 75, 84, 0.2);
+  outline-offset: 4px;
+  border-radius: 18px;
+}
+
+.savingText {
+  color: #888;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 /* Toggles */
 .toggleWrapper {
   display: flex;
@@ -699,5 +796,13 @@
   }
   .btnDisconnect {
     padding: 10px 20px;
+  }
+  .settingsRow {
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .settingActions {
+    align-items: flex-end;
+    flex-direction: column-reverse;
   }
 }

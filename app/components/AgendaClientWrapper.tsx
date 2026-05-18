@@ -6,30 +6,62 @@ import styles from "../dashboard/agenda/agenda.module.css";
 import SessionModal from "./SessionModal";
 import PaymentModal from "./PaymentModal";
 import NewAppointmentModal from "./NewAppointmentModal";
-import { deleteAppointment } from "../actions/appointmentActions";
+import { deleteAppointment, updateAppointmentStatus } from "../actions/appointmentActions";
 
 import { exportElementToPDF } from "../../lib/exportUtils";
 import { useRouter } from "next/navigation";
+
+type AppointmentStatusValue = "SCHEDULED" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELED" | "NO_SHOW";
+
+type AgendaClient = {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+};
+
+type AgendaService = {
+  id: string;
+  name: string;
+  durationMin: number;
+  price: number | string;
+  color?: string | null;
+};
+
+type AgendaAppointment = {
+  id: string;
+  scheduledAt: string;
+  endAt: string;
+  status: AppointmentStatusValue;
+  paymentStatus: string;
+  notes?: string;
+  clientId: string;
+  serviceId: string;
+  client: AgendaClient;
+  service: AgendaService;
+};
 
 export default function AgendaClientWrapper({ 
   appointments = [],
   clients = [],
   services = []
 }: { 
-  appointments?: any[];
-  clients?: any[];
-  services?: any[];
+  appointments?: AgendaAppointment[];
+  clients?: AgendaClient[];
+  services?: AgendaService[];
 }) {
   const router = useRouter();
  const [isSessionModalOpen, setSessionModalOpen] = useState(false);
-  const [selectedSessionAppointment, setSelectedSessionAppointment] = useState<any>(null);
+  const [selectedSessionAppointment, setSelectedSessionAppointment] = useState<AgendaAppointment | null>(null);
 
   const [isPaymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [paymentAppointmentData, setPaymentAppointmentData] = useState<any>(null);
+  const [paymentAppointmentData, setPaymentAppointmentData] = useState<AgendaAppointment | null>(null);
 
   const [isNewAppointmentModalOpen, setNewAppointmentModalOpen] = useState(false);
-  const [appointmentToEdit, setAppointmentToEdit] = useState<any>(null);
+  const [appointmentToEdit, setAppointmentToEdit] = useState<AgendaAppointment | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [actionAppointmentId, setActionAppointmentId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Mettre à jour l'heure toutes les minutes pour la ligne rouge
   useEffect(() => {
@@ -175,6 +207,53 @@ export default function AgendaClientWrapper({
     return `${dateStr} - ${todayCount} RENDEZ-VOUS AUJOURD'HUI`;
   };
 
+  const statusLabels: Record<string, string> = {
+    SCHEDULED: "Planifie",
+    CONFIRMED: "Confirme",
+    IN_PROGRESS: "En cours",
+    COMPLETED: "Termine",
+    CANCELED: "Annule",
+    NO_SHOW: "No-show",
+  };
+
+  const handleStatusChange = async (appointmentId: string, nextStatus: AppointmentStatusValue) => {
+    setActionAppointmentId(appointmentId);
+    setActionError(null);
+    try {
+      const res = await updateAppointmentStatus(appointmentId, nextStatus);
+      if (!res.success) {
+        setActionError(res.error || "Impossible de changer le statut.");
+        return;
+      }
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setActionError("Une erreur inattendue est survenue.");
+    } finally {
+      setActionAppointmentId(null);
+    }
+  };
+
+  const handleDeleteAppointment = async (appointmentId: string) => {
+    if (!confirm('Voulez-vous vraiment supprimer ce rendez-vous ?')) return;
+
+    setActionAppointmentId(appointmentId);
+    setActionError(null);
+    try {
+      const res = await deleteAppointment(appointmentId);
+      if (!res.success) {
+        setActionError(res.error || "Impossible de supprimer ce rendez-vous.");
+        return;
+      }
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setActionError("Une erreur inattendue est survenue.");
+    } finally {
+      setActionAppointmentId(null);
+    }
+  };
+
   return (
     <main className={styles.layout}>
       {/* Header Section */}
@@ -223,6 +302,11 @@ export default function AgendaClientWrapper({
 
       {/* Liste des rendez-vous */}
       <section className={styles.listCard}>
+        {actionError && (
+          <div style={{ color: '#8B1E2D', background: '#FFF2F4', border: '1px solid #F0B8C0', padding: '10px 12px', borderRadius: '8px', marginBottom: '12px', fontSize: '0.9rem' }}>
+            {actionError}
+          </div>
+        )}
         {filteredAppointments.length === 0 && (
           <div style={{ textAlign: 'center', padding: '40px', color: '#888' }}>
             Aucun rendez-vous {isHistoryView ? "dans l'historique" : "pour cette période"}
@@ -253,8 +337,24 @@ export default function AgendaClientWrapper({
                   </div>
                   <div className={styles.tags}>
                     <span className={styles.tag}>{app.service.name}</span>
+                    <select
+                      value={app.status}
+                      disabled={actionAppointmentId === app.id}
+                      onChange={(e) => handleStatusChange(app.id, e.target.value as AppointmentStatusValue)}
+                      style={{ border: '1px solid #E8D2D6', background: '#fff', borderRadius: '999px', padding: '4px 8px', color: '#8B4B54', fontSize: '0.8rem', fontWeight: 600 }}
+                      title="Changer le statut"
+                    >
+                      {Object.entries(statusLabels).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
                     <span className={styles.tag}>{app.paymentStatus === 'PAID' ? 'Payé' : 'Non-payé'}</span>
                   </div>
+                  {app.notes && (
+                    <div style={{ marginTop: '8px', color: '#777', fontSize: '0.85rem' }}>
+                      {app.notes}
+                    </div>
+                  )}
                 </div>
 
                 {/* Bloc Actions */}
@@ -292,10 +392,9 @@ export default function AgendaClientWrapper({
                     <button 
                       className={styles.iconBtn} 
                       onClick={async () => {
-                        if (confirm('Voulez-vous vraiment supprimer ce rendez-vous ?')) {
-                          await deleteAppointment(app.id);
-                        }
+                        await handleDeleteAppointment(app.id);
                       }}
+                      disabled={actionAppointmentId === app.id}
                       title="Supprimer"
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d32f2f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -449,10 +548,10 @@ export default function AgendaClientWrapper({
       <PaymentModal
         isOpen={isPaymentModalOpen}
         onClose={() => { setPaymentModalOpen(false); setPaymentAppointmentData(null); }}
-        appointmentId={paymentAppointmentData?.id}
-        clientId={paymentAppointmentData?.client?.id}
-        clientName={paymentAppointmentData?.client?.name}
-        serviceName={paymentAppointmentData?.service?.name}
+        appointmentId={paymentAppointmentData?.id || ""}
+        clientId={paymentAppointmentData?.client?.id || ""}
+        clientName={paymentAppointmentData?.client?.name || ""}
+        serviceName={paymentAppointmentData?.service?.name || ""}
         defaultAmount={paymentAppointmentData?.service?.price ? Number(paymentAppointmentData.service.price) : 0}
       />
 

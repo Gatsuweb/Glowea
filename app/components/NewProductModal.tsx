@@ -4,11 +4,26 @@ import React, { useState, useEffect } from 'react';
 import styles from './NewAppointmentModal.module.css'; // Reusing the same styles for consistency
 import { createProduct, updateProduct, createProductCategory } from '../actions/stockActions';
 
+type ProductCategory = {
+  id: string;
+  name: string;
+};
+
+type ProductFormData = {
+  id: string;
+  name?: string;
+  desc?: string;
+  rawPrice?: number;
+  count?: number;
+  categoryId?: string | null;
+  expireAt?: string | Date | null;
+};
+
 interface NewProductModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialData?: any;
-  categories?: any[];
+  initialData?: ProductFormData | null;
+  categories?: ProductCategory[];
 }
 
 export default function NewProductModal({ isOpen, onClose, initialData = null, categories = [] }: NewProductModalProps) {
@@ -196,7 +211,7 @@ export default function NewProductModal({ isOpen, onClose, initialData = null, c
           
           {!initialData && (
             <div>
-              <label style={{ display: 'block', fontSize: '12px', color: '#666', marginBottom: '4px' }}>Date d'expiration (optionnel)</label>
+              <label style={{ display: 'block', fontSize: '12px', color: '#666', marginBottom: '4px' }}>Date d&apos;expiration (optionnel)</label>
               <input 
                 type="date" 
                 className={styles.notesInput} 
