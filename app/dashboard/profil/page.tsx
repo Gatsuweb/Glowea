@@ -631,7 +631,7 @@ export default function ProfilPage() {
               </div>
               
               <p className={styles.legalText} style={{ marginBottom: '30px' }}>
-                Personnalisez les templates SMS et email utilises pour les campagnes. Ces modeles sont reutilisables dans l'ecran Envoyer une campagne.
+                Personnalisez les templates SMS et email utilises pour les campagnes. Ces modeles sont reutilisables dans l&apos;ecran Envoyer une campagne.
               </p>
 
               <div className={styles.templateList}>
