@@ -210,6 +210,7 @@ model Client {
   createdAt           DateTime              @default(now())
   updatedAt           DateTime
   Appointment         Appointment[]
+  CampaignRecipientLog CampaignRecipientLog[]
   Tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   ClientAllergy       ClientAllergy[]
   ClientMedia         ClientMedia[]
@@ -225,6 +226,52 @@ model Client {
   @@index([tenantId, firstName])
   @@index([tenantId])
   @@index([tenantId, lastName])
+}
+
+model Campaign {
+  id                   String                 @id
+  tenantId             String
+  templateId           String?
+  name                 String
+  targetSegment        CampaignTargetSegment
+  channel              CampaignChannel
+  customMessage        String?
+  status               CampaignStatus         @default(DRAFT)
+  recipientsCount      Int                    @default(0)
+  sentCount            Int                    @default(0)
+  failedCount          Int                    @default(0)
+  skippedCount         Int                    @default(0)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime
+  sentAt               DateTime?
+  CampaignRecipientLog CampaignRecipientLog[]
+  MessageTemplate      MessageTemplate?       @relation(fields: [templateId], references: [id])
+  Tenant               Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([templateId])
+}
+
+model CampaignRecipientLog {
+  id           String                  @id
+  campaignId   String
+  tenantId     String
+  clientId     String?
+  channel      CampaignChannel
+  status       CampaignRecipientStatus
+  errorMessage String?
+  sentAt       DateTime?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime
+  Campaign     Campaign                @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  Client       Client?                 @relation(fields: [clientId], references: [id])
+  Tenant       Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([clientId])
+  @@index([tenantId])
+  @@index([tenantId, status])
 }
 
 model ClientAllergy {
@@ -505,13 +552,16 @@ model MessageTemplate {
   id            String              @id
   tenantId      String
   type          MessageTemplateType
+  channel       MessageChannel      @default(SMS)
   name          String
   subject       String?
   body          String
   variablesJson Json?
   isActive      Boolean             @default(true)
+  isSystem      Boolean             @default(false)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime
+  Campaign      Campaign[]
   MessageLog    MessageLog[]
   Tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -874,6 +924,8 @@ model Tenant {
   FinancialSnapshot    FinancialSnapshot[]
   FinancialTransaction FinancialTransaction[]
   Media                Media[]
+  Campaign             Campaign[]
+  CampaignRecipientLog CampaignRecipientLog[]
   MessageLog           MessageLog[]
   MessageTemplate      MessageTemplate[]
   Notification         Notification[]
@@ -949,6 +1001,31 @@ enum AppointmentStatus {
 enum BillingProvider {
   STRIPE
   OTHER
+}
+
+enum CampaignChannel {
+  EMAIL
+  SMS
+  MOCK
+}
+
+enum CampaignRecipientStatus {
+  SENT
+  FAILED
+  SKIPPED
+}
+
+enum CampaignStatus {
+  DRAFT
+  SENT
+  FAILED
+  PARTIAL
+}
+
+enum CampaignTargetSegment {
+  ALL
+  TOP_CLIENTS
+  INACTIVE
 }
 
 enum ClientNoteType {

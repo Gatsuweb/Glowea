@@ -34,11 +34,6 @@ export default async function DashboardPage() {
     }
   }
 
-  // Fallback intelligently to email if no name is provided
-  const emailName = user?.emailAddresses?.[0]?.emailAddress?.split('@')[0] || "Utilisateur";
-  const firstName = user?.firstName || emailName;
-  const lastName = user?.lastName || "";
-
   // Get start of today and end of today
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -58,6 +53,33 @@ export default async function DashboardPage() {
   // Use the current user's tenant ID
   const { getTenantId } = await import("../../lib/tenant");
   const tenantId = await getTenantId();
+
+  const [profileUser, profileTenant] = await Promise.all([
+    prisma.user.findUnique({ where: { id: tenantId } }),
+    prisma.tenant.findUnique({
+      where: { id: tenantId },
+      include: { BusinessSettings: true },
+    }),
+  ]);
+
+  const clerkEmailName = user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] || "";
+  const tenantDisplayName =
+    profileTenant?.BusinessSettings?.displayName?.trim() ||
+    profileTenant?.name?.replace(/^Espace de\s+/i, "").trim() ||
+    "";
+  const profileFullName = profileUser?.fullName?.trim() || "";
+  const firstName =
+    profileUser?.firstName?.trim() ||
+    profileFullName.split(" ")[0] ||
+    user?.firstName?.trim() ||
+    tenantDisplayName ||
+    clerkEmailName ||
+    "Utilisateur";
+  const lastName =
+    profileUser?.lastName?.trim() ||
+    profileFullName.split(" ").slice(1).join(" ") ||
+    user?.lastName?.trim() ||
+    "";
 
   // Fetch today's appointments
   const todaysAppointments = await prisma.appointment.findMany({

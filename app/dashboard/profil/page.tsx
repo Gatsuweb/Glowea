@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import styles from "./profil.module.css";
-import PromoModal from "../../components/PromoModal";
+import PromoModal, { type EditableMessageTemplate } from "../../components/PromoModal";
 import PrestationsTab from "./PrestationsTab";
 import { getProfileData, updateProfileData, type ProfileData } from "../../actions/profileActions";
 
@@ -10,6 +10,10 @@ export default function ProfilPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState("compte");
   const [isPromoModalOpen, setPromoModalOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<EditableMessageTemplate | null>(null);
+  const [templates, setTemplates] = useState<EditableMessageTemplate[]>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [templatesError, setTemplatesError] = useState<string | null>(null);
 
   const [profileData, setProfileData] = useState<ProfileData>({
     firstName: "",
@@ -59,6 +63,42 @@ export default function ProfilPage() {
       isMounted = false;
     };
   }, []);
+
+  const loadTemplates = async () => {
+    setIsLoadingTemplates(true);
+    setTemplatesError(null);
+
+    try {
+      const response = await fetch("/api/campaigns/templates");
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Impossible de charger les templates");
+      }
+
+      setTemplates(data.templates || []);
+    } catch (err) {
+      setTemplatesError(err instanceof Error ? err.message : "Impossible de charger les templates");
+    } finally {
+      setIsLoadingTemplates(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "templates") {
+      void loadTemplates();
+    }
+  }, [activeTab]);
+
+  const openCreateTemplateModal = () => {
+    setEditingTemplate(null);
+    setPromoModalOpen(true);
+  };
+
+  const openEditTemplateModal = (template: EditableMessageTemplate) => {
+    setEditingTemplate(template);
+    setPromoModalOpen(true);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -591,56 +631,62 @@ export default function ProfilPage() {
               </div>
               
               <p className={styles.legalText} style={{ marginBottom: '30px' }}>
-                Personnalisez les e-mails automatiques envoyés à vos clientes. Ces modèles vous feront gagner un temps précieux tout en gardant une image très professionnelle.
+                Personnalisez les templates SMS et email utilises pour les campagnes. Ces modeles sont reutilisables dans l'ecran Envoyer une campagne.
               </p>
 
               <div className={styles.templateList}>
-                {/* Bouton pour créer un nouveau template */}
-                <div className={styles.newTemplateBox} onClick={() => setPromoModalOpen(true)}>
+                <div className={styles.newTemplateBox} onClick={openCreateTemplateModal}>
                   <div className={styles.newTemplateIcon}>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                   </div>
-                  <h4 className={styles.newTemplateText}>Créer un nouveau template</h4>
+                  <h4 className={styles.newTemplateText}>Creer un nouveau template</h4>
                 </div>
 
-                <div className={styles.templateItem}>
-                  <div className={styles.templateLeft}>
-                    <div className={styles.templateIcon}>
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                    </div>
+                {isLoadingTemplates && (
+                  <div className={styles.templateItem}>
                     <div className={styles.settingsInfo}>
-                      <h4>Confirmation de Rendez-vous</h4>
-                      <p>Envoyé immédiatement après une réservation (Date, Heure, Adresse).</p>
+                      <p>Chargement des templates...</p>
                     </div>
                   </div>
-                  <button className={styles.btnEdit}>Éditer</button>
-                </div>
+                )}
 
-                <div className={styles.templateItem}>
-                  <div className={styles.templateLeft}>
-                    <div className={styles.templateIcon}>
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                    </div>
+                {templatesError && (
+                  <div className={styles.templateItem}>
                     <div className={styles.settingsInfo}>
-                      <h4>Rappel 24h Avant</h4>
-                      <p>Pour éviter les no-shows. Rappel des conditions d&apos;annulation.</p>
+                      <p>{templatesError}</p>
                     </div>
                   </div>
-                  <button className={styles.btnEdit}>Éditer</button>
-                </div>
+                )}
 
-                <div className={styles.templateItem}>
-                  <div className={styles.templateLeft}>
-                    <div className={styles.templateIcon}>
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                {!isLoadingTemplates && !templatesError && templates.map((template) => (
+                  <div className={styles.templateItem} key={template.id}>
+                    <div className={styles.templateLeft}>
+                      <div className={styles.templateIcon}>
+                        {template.channel === "EMAIL" ? (
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                        ) : (
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                        )}
+                      </div>
+                      <div className={styles.settingsInfo}>
+                        <h4>{template.name}</h4>
+                        <p>
+                          {template.channel} {template.isSystem ? "systeme" : "personnalise"} - {template.body.slice(0, 120)}
+                          {template.body.length > 120 ? "..." : ""}
+                        </p>
+                      </div>
                     </div>
+                    <button className={styles.btnEdit} onClick={() => openEditTemplateModal(template)} type="button">Editer</button>
+                  </div>
+                ))}
+
+                {!isLoadingTemplates && !templatesError && templates.length === 0 && (
+                  <div className={styles.templateItem}>
                     <div className={styles.settingsInfo}>
-                      <h4>Demande d&apos;Avis (Google/Insta)</h4>
-                      <p>Envoyé 2h après la prestation pour booster votre réputation en ligne.</p>
+                      <p>Aucun template pour le moment.</p>
                     </div>
                   </div>
-                  <button className={styles.btnEdit}>Éditer</button>
-                </div>
+                )}
               </div>
             </section>
           )}
@@ -651,7 +697,9 @@ export default function ProfilPage() {
       {/* Modale de Création de Template */}
       <PromoModal 
         isOpen={isPromoModalOpen} 
-        onClose={() => setPromoModalOpen(false)} 
+        onClose={() => setPromoModalOpen(false)}
+        template={editingTemplate}
+        onSaved={loadTemplates}
       />
     </main>
   );
