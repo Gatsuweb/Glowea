@@ -1,12 +1,19 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import styles from './NewAppointmentModal.module.css'; // Reusing the same styles for consistency
-import { createProduct, updateProduct, createProductCategory } from '../actions/stockActions';
+import Image from "next/image";
+import React, { useEffect, useState } from "react";
+import styles from "./NewAppointmentModal.module.css";
+import { createProduct, updateProduct } from "../actions/stockActions";
+import { PRODUCT_FAMILIES, type ProductFamily } from "../../src/constants/productCategories";
 
 type ProductCategory = {
   id: string;
   name: string;
+  slug?: string | null;
+  label?: string | null;
+  family?: ProductFamily | null;
+  image?: string | null;
+  description?: string | null;
 };
 
 type ProductFormData = {
@@ -26,76 +33,172 @@ interface NewProductModalProps {
   categories?: ProductCategory[];
 }
 
-export default function NewProductModal({ isOpen, onClose, initialData = null, categories = [] }: NewProductModalProps) {
-  const [name, setName] = useState('');
-  const [desc, setDesc] = useState('');
-  const [price, setPrice] = useState('');
-  const [initialStock, setInitialStock] = useState('1');
-  const [expireAt, setExpireAt] = useState('');
-  const [categoryId, setCategoryId] = useState('');
+type ProductTemplate = {
+  id: string;
+  label: string;
+  categorySlug: string;
+  name: string;
+  desc: string;
+  price: string;
+  initialStock: string;
+};
+
+const PRODUCT_TEMPLATES: ProductTemplate[] = [
+  {
+    id: "glue",
+    label: "+ Ajouter une colle",
+    categorySlug: "lashes-glues",
+    name: "Colle ",
+    desc: "Temps de sechage : \nViscosite : \nCouleur : noire\nHumidite ideale : ",
+    price: "",
+    initialStock: "1",
+  },
+  {
+    id: "gel",
+    label: "+ Ajouter un gel",
+    categorySlug: "nails-construction",
+    name: "Gel ",
+    desc: "Type : construction\nViscosite : \nTeinte : \nFinition : ",
+    price: "",
+    initialStock: "1",
+  },
+  {
+    id: "lash-tray",
+    label: "+ Ajouter un lash tray",
+    categorySlug: "lashes-extensions",
+    name: "Lash tray ",
+    desc: "Courbure : \nEpaisseur : \nLongueurs : \nEffet : ",
+    price: "",
+    initialStock: "1",
+  },
+];
+
+const CATEGORY_SUGGESTIONS: Record<string, string[]> = {
+  "lashes-glues": [
+    "Temps de sechage : 0.5-1s",
+    "Viscosite : fluide / moyenne",
+    "Couleur : noire / transparente",
+    "Humidite ideale : 45-65%",
+  ],
+  "lashes-extensions": [
+    "Courbure : C / CC / D",
+    "Epaisseur : 0.05 / 0.07 / 0.10",
+    "Longueurs : mix ou taille unique",
+    "Effet : naturel / wispy / volume",
+  ],
+  "lashes-lash-lift": [
+    "Etape : lotion 1 / lotion 2 / soin",
+    "Temps de pose : ",
+    "Format : sachet / flacon",
+  ],
+  "lashes-brow-lift": [
+    "Etape : lift / fixation / soin",
+    "Temps de pose : ",
+    "Zone : sourcils",
+  ],
+  "nails-colors": [
+    "Couleur : ",
+    "Finition : glossy / mat / paillete",
+    "Marque : ",
+    "Reference teinte : ",
+  ],
+  "nails-construction": [
+    "Type : gel / acrygel",
+    "Viscosite : fluide / moyenne / epaisse",
+    "Teinte : clear / cover / pink",
+    "Usage : gainage / rallongement",
+  ],
+  "nails-bases": [
+    "Type : base / rubber base",
+    "Teinte : clear / cover",
+    "Finition : soak off / renfort",
+  ],
+  "nails-finish": [
+    "Finition : glossy / mat",
+    "Sans residu : oui / non",
+    "Usage : couleur / nail art",
+  ],
+};
+
+export default function NewProductModal({
+  isOpen,
+  onClose,
+  initialData = null,
+  categories = [],
+}: NewProductModalProps) {
+  const [name, setName] = useState("");
+  const [desc, setDesc] = useState("");
+  const [price, setPrice] = useState("");
+  const [initialStock, setInitialStock] = useState("1");
+  const [expireAt, setExpireAt] = useState("");
+  const [family, setFamily] = useState<ProductFamily>("NAILS");
+  const [categoryId, setCategoryId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState('');
+
+  const visibleCategories = categories.filter((category) => category.family === family);
+  const selectedCategory = categories.find((category) => category.id === categoryId);
+  const selectedCategorySlug = selectedCategory?.slug || null;
+  const suggestions = selectedCategorySlug ? CATEGORY_SUGGESTIONS[selectedCategorySlug] || [] : [];
 
   useEffect(() => {
-    if (isOpen) {
-      if (initialData) {
-        setName(initialData.name || '');
-        setDesc(initialData.desc || '');
-        setPrice(initialData.rawPrice?.toString() || '');
-        setInitialStock(initialData.count?.toString() || '0');
-        setCategoryId(initialData.categoryId || '');
-        
-        if (initialData.expireAt) {
-          const date = new Date(initialData.expireAt);
-          setExpireAt(date.toISOString().split('T')[0]);
-        } else {
-          setExpireAt('');
-        }
+    if (!isOpen) return;
+
+    if (initialData) {
+      const selectedCategory = categories.find((category) => category.id === initialData.categoryId);
+
+      setName(initialData.name || "");
+      setDesc(initialData.desc || "");
+      setPrice(initialData.rawPrice?.toString() || "");
+      setInitialStock(initialData.count?.toString() || "0");
+      setCategoryId(initialData.categoryId || "");
+      setFamily(selectedCategory?.family || "NAILS");
+
+      if (initialData.expireAt) {
+        const date = new Date(initialData.expireAt);
+        setExpireAt(date.toISOString().split("T")[0]);
       } else {
-        setName('');
-        setDesc('');
-        setPrice('');
-        setInitialStock('1');
-        setExpireAt('');
-        setCategoryId('');
+        setExpireAt("");
       }
+    } else {
+      setName("");
+      setDesc("");
+      setPrice("");
+      setInitialStock("1");
+      setExpireAt("");
+      setFamily("NAILS");
+      setCategoryId("");
     }
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData, categories]);
 
   if (!isOpen) return null;
 
-  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
-    if (value === "NEW_CATEGORY") {
-      setIsCreatingCategory(true);
-    } else {
-      setCategoryId(value);
+  const handleFamilyChange = (nextFamily: ProductFamily) => {
+    setFamily(nextFamily);
+
+    const nextCategories = categories.filter((category) => category.family === nextFamily);
+    if (!nextCategories.some((category) => category.id === categoryId)) {
+      setCategoryId("");
     }
   };
 
-  const handleCreateCategory = async () => {
-    if (!newCategoryName.trim()) {
-      alert("Veuillez entrer un nom pour la catégorie");
-      return;
+  const applyTemplate = (template: ProductTemplate) => {
+    const templateCategory = categories.find((category) => category.slug === template.categorySlug);
+    if (templateCategory?.family) {
+      setFamily(templateCategory.family);
     }
-    
-    setIsSubmitting(true);
-    try {
-      const res = await createProductCategory(newCategoryName);
-      if (res.success && res.category) {
-        setCategoryId(res.category.id);
-        setIsCreatingCategory(false);
-        setNewCategoryName('');
-      } else {
-        alert(res.error || "Erreur lors de la création de la catégorie");
-      }
-    } catch (error) {
-      console.error(error);
-      alert("Une erreur est survenue");
-    } finally {
-      setIsSubmitting(false);
-    }
+    setCategoryId(templateCategory?.id || "");
+    setName(template.name);
+    setDesc(template.desc);
+    setPrice(template.price);
+    setInitialStock(template.initialStock);
+  };
+
+  const appendSuggestion = (suggestion: string) => {
+    setDesc((currentDesc) => {
+      const trimmedDesc = currentDesc.trim();
+      if (trimmedDesc.includes(suggestion)) return currentDesc;
+      return trimmedDesc ? `${trimmedDesc}\n${suggestion}` : suggestion;
+    });
   };
 
   const handleSubmit = async () => {
@@ -108,14 +211,19 @@ export default function NewProductModal({ isOpen, onClose, initialData = null, c
 
     try {
       if (initialData) {
-        await updateProduct(initialData.id, {
+        const res = await updateProduct(initialData.id, {
           name,
           desc,
           price: parseFloat(price) || 0,
           categoryId: categoryId || null,
         });
+
+        if (!res.success) {
+          alert(res.error || "Erreur lors de la mise a jour du produit");
+          return;
+        }
       } else {
-        await createProduct({
+        const res = await createProduct({
           name,
           desc,
           price: parseFloat(price) || 0,
@@ -123,7 +231,13 @@ export default function NewProductModal({ isOpen, onClose, initialData = null, c
           expireAt: expireAt ? new Date(expireAt) : null,
           categoryId: categoryId || null,
         });
+
+        if (!res.success) {
+          alert(res.error || "Erreur lors de la creation du produit");
+          return;
+        }
       }
+
       onClose();
     } catch (error) {
       console.error(error);
@@ -135,86 +249,163 @@ export default function NewProductModal({ isOpen, onClose, initialData = null, c
 
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
-      <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-        
-        {/* HEADER */}
+      <div className={`${styles.modalContent} ${styles.productModalContent}`} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
           <button className={styles.backBtn} onClick={onClose}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 12H5M12 19l-7-7 7-7"/>
+              <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
           </button>
-          <h1 className={styles.title}>{initialData ? 'Modifier le Produit' : 'Nouveau Produit'}</h1>
+          <h1 className={styles.title}>{initialData ? "Modifier le Produit" : "Nouveau Produit"}</h1>
         </div>
 
-        {/* DETAILS */}
-        <div className={styles.sectionPink}>
-          <div className={styles.sectionTitle}>DÉTAILS DU PRODUIT</div>
-          
-          <select 
-            className={styles.notesInput} 
-            style={{ marginBottom: '10px', height: '40px', cursor: 'pointer' }}
-            value={categoryId}
-            onChange={handleCategoryChange}
-          >
-            <option value="">Sélectionner une catégorie...</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
-            ))}
-            <option value="NEW_CATEGORY" style={{ fontWeight: 'bold', color: '#8B4B54' }}>+ Créer une nouvelle catégorie</option>
-          </select>
+        <div className={styles.productProgress} aria-label="Progression du formulaire produit">
+          <div className={styles.productProgressStep}>
+            <span>1</span>
+            <strong>Produit</strong>
+          </div>
+          <div className={styles.productProgressLine} />
+          <div className={styles.productProgressStep}>
+            <span>2</span>
+            <strong>Stock</strong>
+          </div>
+          <div className={styles.productProgressLine} />
+          <div className={styles.productProgressStep}>
+            <span>3</span>
+            <strong>Validation</strong>
+          </div>
+        </div>
 
-          <input 
-            type="text" 
-            className={styles.notesInput} 
-            placeholder="Nom du produit (ex: Primer, Colle...)" 
+        {!initialData && (
+          <div className={`${styles.productSection} ${styles.productSectionSoft}`}>
+            <div className={styles.productSectionHeader}>
+              <div>
+                <div className={styles.sectionTitle}>TEMPLATES RAPIDES</div>
+                <p>Demarre avec une fiche deja structuree pour les produits les plus courants.</p>
+              </div>
+            </div>
+            <div className={styles.quickTemplateGrid}>
+              {PRODUCT_TEMPLATES.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  className={styles.quickTemplateBtn}
+                  onClick={() => applyTemplate(template)}
+                >
+                  {template.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className={`${styles.sectionPink} ${styles.productSection}`}>
+          <div className={styles.sectionTitle}>DETAILS DU PRODUIT</div>
+
+          <div className={styles.productFamilyGrid}>
+            {PRODUCT_FAMILIES.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`${styles.productFamilyBtn} ${family === item.id ? styles.active : ""}`}
+                onClick={() => handleFamilyChange(item.id)}
+              >
+                <span>{item.label}</span>
+                <small>{item.description}</small>
+              </button>
+            ))}
+          </div>
+
+          <div className={styles.productCategoryGrid}>
+            {visibleCategories.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                className={`${styles.productCategoryCard} ${categoryId === cat.id ? styles.active : ""}`}
+                onClick={() => setCategoryId(cat.id)}
+              >
+                {cat.image ? (
+                  <Image src={cat.image} alt="" width={54} height={54} className={styles.productCategoryImage} />
+                ) : (
+                  <span className={styles.productCategoryFallback} />
+                )}
+                <span>{cat.label || cat.name}</span>
+                {cat.description ? <small>{cat.description}</small> : null}
+              </button>
+            ))}
+          </div>
+
+          <input
+            type="text"
+            className={styles.notesInput}
+            placeholder="Nom du produit (ex: Primer, Colle...)"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            style={{ marginBottom: '10px' }}
+            style={{ marginBottom: "10px" }}
           />
-          <textarea 
-            className={styles.notesInput} 
-            placeholder="Description ou tags (ex: Adhérence pour cils)"
+          <textarea
+            className={styles.notesInput}
+            placeholder="Description ou tags (ex: Adherence pour cils)"
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
-          ></textarea>
+          />
+
+          {suggestions.length > 0 && (
+            <div className={styles.smartSuggestions}>
+              <div className={styles.smartSuggestionsHeader}>
+                <span>Suggestions intelligentes</span>
+                <small>{selectedCategory?.label || selectedCategory?.name}</small>
+              </div>
+              <div className={styles.smartSuggestionList}>
+                {suggestions.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    className={styles.smartSuggestionChip}
+                    onClick={() => appendSuggestion(suggestion)}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* PRICING & STOCK */}
-        <div className={styles.sectionWhite}>
+        <div className={`${styles.sectionWhite} ${styles.productSection}`}>
           <div className={styles.sectionTitle}>PRIX & STOCK</div>
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', fontSize: '12px', color: '#666', marginBottom: '4px' }}>Prix Unitaire (€)</label>
-              <input 
-                type="number" 
+          <div className={styles.productFieldGrid}>
+            <div className={styles.productField}>
+              <label>Prix Unitaire (EUR)</label>
+              <input
+                type="number"
                 step="0.01"
-                className={styles.notesInput} 
-                placeholder="Ex: 3.60" 
+                className={styles.notesInput}
+                placeholder="Ex: 3.60"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
               />
             </div>
             {!initialData && (
-              <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', fontSize: '12px', color: '#666', marginBottom: '4px' }}>Stock Initial</label>
-                <input 
-                  type="number" 
-                  className={styles.notesInput} 
-                  placeholder="Ex: 12" 
+              <div className={styles.productField}>
+                <label>Stock Initial</label>
+                <input
+                  type="number"
+                  className={styles.notesInput}
+                  placeholder="Ex: 12"
                   value={initialStock}
                   onChange={(e) => setInitialStock(e.target.value)}
                 />
               </div>
             )}
           </div>
-          
+
           {!initialData && (
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', color: '#666', marginBottom: '4px' }}>Date d&apos;expiration (optionnel)</label>
-              <input 
-                type="date" 
-                className={styles.notesInput} 
+            <div className={styles.productField}>
+              <label>Date d&apos;expiration (optionnel)</label>
+              <input
+                type="date"
+                className={styles.notesInput}
                 value={expireAt}
                 onChange={(e) => setExpireAt(e.target.value)}
               />
@@ -222,52 +413,10 @@ export default function NewProductModal({ isOpen, onClose, initialData = null, c
           )}
         </div>
 
-        {/* VALIDATION */}
-        <button 
-          className={styles.submitBtn} 
-          onClick={handleSubmit}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? 'Enregistrement...' : 'Enregistrer'}
+        <button className={styles.submitBtn} onClick={handleSubmit} disabled={isSubmitting}>
+          {isSubmitting ? "Enregistrement..." : "Enregistrer"}
         </button>
-
       </div>
-
-      {/* Modal Nouvelle Catégorie par dessus */}
-      {isCreatingCategory && (
-        <div className={styles.modalOverlay} style={{ zIndex: 1001 }} onClick={() => setIsCreatingCategory(false)}>
-          <div className={styles.modalContent} style={{ maxWidth: '400px', minHeight: 'auto' }} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.header}>
-              <button className={styles.backBtn} onClick={() => setIsCreatingCategory(false)}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M19 12H5M12 19l-7-7 7-7"/>
-                </svg>
-              </button>
-              <h1 className={styles.title}>Nouvelle Catégorie</h1>
-            </div>
-            
-            <div className={styles.sectionPink}>
-              <label style={{ display: 'block', fontSize: '12px', color: '#666', marginBottom: '4px' }}>Nom de la catégorie</label>
-              <input 
-                type="text" 
-                className={styles.notesInput} 
-                placeholder="Ex: Cils, Ongles, Consommables..." 
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                autoFocus
-              />
-            </div>
-
-            <button 
-              className={styles.submitBtn} 
-              onClick={handleCreateCategory}
-              disabled={isSubmitting || !newCategoryName.trim()}
-            >
-              {isSubmitting ? 'Création...' : 'Créer la catégorie'}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

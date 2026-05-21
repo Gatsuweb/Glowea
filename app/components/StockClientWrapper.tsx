@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import React, { useState } from "react";
 import styles from "../dashboard/stock/stock.module.css";
 import { adjustStock, deleteProduct } from "../actions/stockActions";
@@ -17,6 +18,10 @@ type StockProduct = {
   price: string;
   expire: string;
   categoryId?: string | null;
+  categorySlug?: string | null;
+  categoryImage?: string | null;
+  categoryLabel?: string | null;
+  categoryFamily?: string | null;
   expireAt?: string | Date | null;
 };
 
@@ -31,6 +36,11 @@ type StockMovement = {
 type StockCategory = {
   id: string;
   name: string;
+  slug?: string | null;
+  label?: string | null;
+  family?: "NAILS" | "LASHES" | null;
+  image?: string | null;
+  description?: string | null;
 };
 
 export default function StockClientWrapper({ 
@@ -148,10 +158,20 @@ export default function StockClientWrapper({
           <div key={prod.id} className={styles.productCard}>
             <div className={styles.prodHeader}>
               <div className={styles.prodIconBox}>
-                <svg width="24" height="32" viewBox="0 0 24 32" fill="none" stroke="var(--tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M7 8h10M9 8V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4M6 8h12a2 2 0 0 1 2 2v18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"/>
-                  <rect x="8" y="14" width="8" height="10" rx="1" fill="#FCD7D1" stroke="none"/>
-                </svg>
+                {prod.categoryImage ? (
+                  <Image
+                    src={prod.categoryImage}
+                    alt={prod.categoryLabel || "Categorie produit"}
+                    width={70}
+                    height={70}
+                    className={styles.prodCategoryImage}
+                  />
+                ) : (
+                  <svg width="24" height="32" viewBox="0 0 24 32" fill="none" stroke="var(--tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M7 8h10M9 8V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4M6 8h12a2 2 0 0 1 2 2v18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"/>
+                    <rect x="8" y="14" width="8" height="10" rx="1" fill="#FCD7D1" stroke="none"/>
+                  </svg>
+                )}
               </div>
               <div className={styles.prodInfo} style={{ flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

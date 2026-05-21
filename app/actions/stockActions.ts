@@ -4,6 +4,20 @@ import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
 import { getTenantId } from "../../lib/tenant";
 
+async function getTenantCategoryId(tenantId: string, categoryId?: string | null) {
+  if (!categoryId) return null;
+
+  const category = await prisma.productCategory.findFirst({
+    where: {
+      id: categoryId,
+      tenantId,
+      isActive: true,
+    },
+    select: { id: true },
+  });
+
+  return category?.id || null;
+}
 
 export async function createProduct(data: {
   name: string;
@@ -15,6 +29,12 @@ export async function createProduct(data: {
 }) {
   const TENANT_ID = await getTenantId();
   try {
+    const categoryId = await getTenantCategoryId(TENANT_ID, data.categoryId);
+
+    if (data.categoryId && !categoryId) {
+      return { success: false, error: "Categorie invalide pour cet espace" };
+    }
+
     const productId = `prod_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const lotId = `lot_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
 
@@ -26,7 +46,7 @@ export async function createProduct(data: {
         name: data.name,
         notes: data.desc,
         defaultUnitCost: data.price,
-        productCategoryId: data.categoryId || null,
+        productCategoryId: categoryId,
         unitType: "UNIT",
         trackingType: "UNIDOSE",
         updatedAt: new Date(),
@@ -34,7 +54,7 @@ export async function createProduct(data: {
     });
 
     // Create the initial lot
-    const lot = await prisma.productLot.create({
+    await prisma.productLot.create({
       data: {
         id: lotId,
         productId,
@@ -77,13 +97,19 @@ export async function updateProduct(id: string, data: {
 }) {
   const TENANT_ID = await getTenantId();
   try {
+    const categoryId = await getTenantCategoryId(TENANT_ID, data.categoryId);
+
+    if (data.categoryId && !categoryId) {
+      return { success: false, error: "Categorie invalide pour cet espace" };
+    }
+
     const product = await prisma.product.update({
       where: { id, tenantId: TENANT_ID },
       data: {
         name: data.name,
         notes: data.desc,
         defaultUnitCost: data.price,
-        productCategoryId: data.categoryId || null,
+        productCategoryId: categoryId,
         updatedAt: new Date(),
       },
     });
@@ -114,9 +140,22 @@ export async function deleteProduct(id: string) {
 export async function adjustStock(productId: string, delta: number) {
   const TENANT_ID = await getTenantId();
   try {
+    const product = await prisma.product.findFirst({
+      where: {
+        id: productId,
+        tenantId: TENANT_ID,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+
+    if (!product) {
+      return { success: false, error: "Produit introuvable" };
+    }
+
     // Get active lot
     const lot = await prisma.productLot.findFirst({
-      where: { productId, status: "ACTIVE" },
+      where: { productId: product.id, status: "ACTIVE" },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -142,7 +181,7 @@ export async function adjustStock(productId: string, delta: number) {
       data: {
         id: `mov_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`,
         tenantId: TENANT_ID,
-        productId,
+        productId: product.id,
         productLotId: lot.id,
         type: delta > 0 ? "IN" : "OUT",
         quantity: Math.abs(delta),
