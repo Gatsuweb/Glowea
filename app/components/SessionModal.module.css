@@ -196,6 +196,35 @@
   background: white;
 }
 
+.techOption > div:first-child {
+  width: 100%;
+  height: 42px !important;
+  justify-content: center;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+
+.techOption > div:first-child svg {
+  display: none;
+}
+
+.techniqueGrid .techOption:nth-child(1) > div:first-child {
+  background-image: url("/cil-a-cil.png");
+}
+
+.techniqueGrid .techOption:nth-child(2) > div:first-child {
+  background-image: url("/mixte.png");
+}
+
+.techniqueGrid .techOption:nth-child(3) > div:first-child {
+  background-image: url("/volume-russe.png");
+}
+
+.techniqueGrid .techOption:nth-child(4) > div:first-child {
+  background-image: url("/mega-volume.png");
+}
+
 .techOption.active {
   border-color: var(--tertiary);
   background-color: #FAF4F4;

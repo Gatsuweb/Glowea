@@ -259,6 +259,36 @@ export default function Home() {
         </div>
       </section>
 
+      <section className={styles.sessionSection}>
+        <div className={styles.sessionContent}>
+          <span className={styles.eyebrow}>Sessions techniques</span>
+          <h2>Gardez le detail de chaque prestation.</h2>
+          <p>
+            Pendant un rendez-vous, Glowea vous aide a noter la technique, les
+            produits utilises, les parametres importants, les remarques et les
+            photos. Vous retrouvez tout au prochain passage de la cliente.
+          </p>
+          <ul>
+            <li>Notes techniques propres et faciles a relire</li>
+            <li>Produits utilises relies au suivi du stock</li>
+            <li>Historique clair pour personnaliser chaque rendez-vous</li>
+          </ul>
+          <Link href="/sign-up" className={styles.secondaryButton}>
+            Tester les sessions
+          </Link>
+        </div>
+
+        <div className={styles.sessionVisual}>
+          <Image
+            src="/session.png"
+            alt="Capture de la session modale Glowea"
+            width={980}
+            height={760}
+            className={styles.sessionImage}
+          />
+        </div>
+      </section>
+
       <section className={styles.specialtySection} id="specialites">
         <div className={styles.sectionIntro}>
           <span className={styles.eyebrow}>Vos prestations</span>

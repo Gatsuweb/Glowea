@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import styles from './SessionModal.module.css';
-import { 
-  saveLashSession, 
+import {
+  saveLashSession,
   getSessionModalData, 
   getLashSessionByAppointmentId,
   getBrowliftSessionByAppointmentId,
