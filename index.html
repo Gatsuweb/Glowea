@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+
+<html class="light" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Glowéa - L'interface qui fait grandir votre activité</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&amp;family=Hanken+Grotesk:ital,wght@0,100..900;1,100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface": "#fcf9f4",
+                        "surface-dim": "#dcdad5",
+                        "primary-fixed-dim": "#f4b7bc",
+                        "on-secondary-fixed": "#2b1616",
+                        "on-surface-variant": "#514444",
+                        "inverse-primary": "#f4b7bc",
+                        "secondary": "#745757",
+                        "secondary-container": "#fed6d6",
+                        "surface-container-high": "#ebe8e3",
+                        "surface-container": "#f0ede9",
+                        "on-tertiary-container": "#9d9592",
+                        "inverse-on-surface": "#f3f0eb",
+                        "error": "#ba1a1a",
+                        "on-primary-fixed-variant": "#663a3f",
+                        "error-container": "#ffdad6",
+                        "on-background": "#1c1c19",
+                        "surface-container-low": "#f6f3ee",
+                        "surface-bright": "#fcf9f4",
+                        "on-secondary": "#ffffff",
+                        "tertiary": "#1e1917",
+                        "surface-variant": "#e5e2dd",
+                        "on-tertiary": "#ffffff",
+                        "primary": "#310f14",
+                        "secondary-fixed-dim": "#e3bebd",
+                        "on-primary-fixed": "#331015",
+                        "on-surface": "#1c1c19",
+                        "on-tertiary-fixed-variant": "#4b4643",
+                        "primary-container": "#4a2328",
+                        "on-primary": "#ffffff",
+                        "tertiary-fixed-dim": "#cec5c1",
+                        "on-primary-container": "#bf888d",
+                        "background": "#fcf9f4",
+                        "inverse-surface": "#31302d",
+                        "surface-container-highest": "#e5e2dd",
+                        "tertiary-container": "#332e2c",
+                        "primary-fixed": "#ffd9dc",
+                        "secondary-fixed": "#ffdada",
+                        "on-tertiary-fixed": "#1f1b18",
+                        "surface-tint": "#815156",
+                        "outline-variant": "#d5c2c3",
+                        "tertiary-fixed": "#eae0dd",
+                        "on-secondary-container": "#795b5b",
+                        "outline": "#837374",
+                        "on-error": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed-variant": "#5b4040"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "section-gap": "120px",
+                        "unit": "8px",
+                        "margin-safe": "64px",
+                        "gutter": "32px"
+                    },
+                    "fontFamily": {
+                        "body-md": [
+                            "Hanken Grotesk"
+                        ],
+                        "headline-md": [
+                            "Bodoni Moda"
+                        ],
+                        "label-caps": [
+                            "Hanken Grotesk"
+                        ],
+                        "display-hero": [
+                            "Bodoni Moda"
+                        ],
+                        "headline-lg-mobile": [
+                            "Bodoni Moda"
+                        ],
+                        "body-lg": [
+                            "Hanken Grotesk"
+                        ],
+                        "headline-lg": [
+                            "Bodoni Moda"
+                        ]
+                    },
+                    "fontSize": {
+                        "body-md": [
+                            "16px",
+                            {
+                                "lineHeight": "160%",
+                                "fontWeight": "400"
+                            }
+                        ],
+                        "headline-md": [
+                            "32px",
+                            {
+                                "lineHeight": "120%",
+                                "fontWeight": "400"
+                            }
+                        ],
+                        "label-caps": [
+                            "12px",
+                            {
+                                "lineHeight": "100%",
+                                "letterSpacing": "0.1em",
+                                "fontWeight": "600"
+                            }
+                        ],
+                        "display-hero": [
+                            "84px",
+                            {
+                                "lineHeight": "90%",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "400"
+                            }
+                        ],
+                        "headline-lg-mobile": [
+                            "36px",
+                            {
+                                "lineHeight": "110%",
+                                "fontWeight": "400"
+                            }
+                        ],
+                        "body-lg": [
+                            "18px",
+                            {
+                                "lineHeight": "160%",
+                                "fontWeight": "300"
+                            }
+                        ],
+                        "headline-lg": [
+                            "48px",
+                            {
+                                "lineHeight": "110%",
+                                "fontWeight": "400"
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        /* Paper Texture Overlay */
+ 
+
+        /* Atmospheric Background Text */
+        .bg-text {
+            position: absolute;
+            font-family: 'Bodoni Moda', serif;
+            font-size: 15vw;
+            line-height: 0.8;
+            color: var(--color-surface-dim);
+            opacity: 0.15;
+            white-space: nowrap;
+            z-index: 0;
+            user-select: none;
+            pointer-events: none;
+        }
+
+        .bg-text-right { right: -5%; top: 10%; }
+        .bg-text-left { left: -5%; top: 20%; }
+        .bg-text-center { left: 50%; transform: translateX(-50%); top: 5%; }
+
+        /* Smooth Scrolling */
+        html { scroll-behavior: smooth; }
+
+        /* Hide scrollbar for clean look but keep functionality */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--color-surface); }
+        ::-webkit-scrollbar-thumb { background: var(--color-surface-dim); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--color-outline-variant); }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body-md overflow-x-hidden relative min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<nav class="bg-surface/90 dark:bg-surface-container/90 backdrop-blur-md full-width top-0 z-50 sticky transition-all duration-300">
+<div class="flex justify-between items-center w-full px-margin-safe py-6 max-w-full">
+<div class="font-headline-md text-headline-md text-primary dark:text-inverse-primary tracking-tight">
+                Glowéa
+            </div>
+<div class="hidden md:flex items-center gap-gutter">
+<a class="text-on-surface-variant dark:text-on-surface-variant font-body-md hover:text-primary dark:hover:text-inverse-primary transition-colors duration-300" href="#services">services</a>
+<a class="text-on-surface-variant dark:text-on-surface-variant font-body-md hover:text-primary dark:hover:text-inverse-primary transition-colors duration-300" href="#fonctionnalités">fonctionnalités</a>
+<a class="text-on-surface-variant dark:text-on-surface-variant font-body-md hover:text-primary dark:hover:text-inverse-primary transition-colors duration-300" href="#prix">prix</a>
+<a class="text-on-surface-variant dark:text-on-surface-variant font-body-md hover:text-primary dark:hover:text-inverse-primary transition-colors duration-300" href="#à_propos">à propos</a>
+<a class="text-on-surface-variant dark:text-on-surface-variant font-body-md hover:text-primary dark:hover:text-inverse-primary transition-colors duration-300" href="#ressources">ressources</a>
+</div>
+<div class="flex items-center gap-4">
+<button class="hidden md:block text-on-surface-variant hover:text-primary transition-colors font-body-md">Se connecter</button>
+<button class="bg-primary text-on-primary px-6 py-3 rounded-full font-body-md hover:opacity-90 transition-opacity">S'inscrire</button>
+</div>
+</div>
+</nav>
+<main class="flex-grow">
+
+
+<!-- 2. Tout votre institut -->
+<section class="relative py-section-gap px-margin-safe overflow-hidden">
+<div class="bg-text bg-text-right">ORGANISATION</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-section-gap items-center w-full max-w-[1440px] mx-auto relative z-10">
+<div class="space-y-8 pr-0 lg:pr-12">
+<h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">Tout votre institut<br/>dans une seule interface</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant">
+                        Oubliez les multiples carnets et applications. Glowéa rassemble votre agenda, vos fiches clientes, votre inventaire et votre comptabilité dans un espace de travail épuré et intuitif.
+                    </p>
+<ul class="space-y-4 font-body-md text-on-surface-variant">
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary-fixed-dim" style="font-variation-settings: 'FILL' 1;">done</span>
+                            Synchronisation en temps réel
+                        </li>
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary-fixed-dim" style="font-variation-settings: 'FILL' 1;">done</span>
+                            Vue d'ensemble personnalisable
+                        </li>
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary-fixed-dim" style="font-variation-settings: 'FILL' 1;">done</span>
+                            Accès sécurisé depuis tout appareil
+                        </li>
+</ul>
+</div>
+<div class="relative group">
+<div class="absolute inset-0 bg-surface-container rounded-3xl transform translate-x-4 translate-y-4 group-hover:translate-x-2 group-hover:translate-y-2 transition-transform duration-500"></div>
+<img alt="Glowea Dashboard Interface Detail" class="relative rounded-2xl w-full object-cover z-10 shadow-sm border border-surface-dim/30" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBeX-8msS6C-q7YBrmdeBWl-mVg1hq9AENxXeBor49ZQV3Y7hYwKtW5EBQBE4EHy4xl_GzKaWL_7iWC9-2FexExw-kAQUJzJ1-4kua2CPfM4-CkEstJRV-U3ou4OpogrGGSDTgBV4KKyyLkYLy4lzpNOz_l23dUvd9P9lODQBWe1uoVVknD3d17FCUQVJNLjKpKnYgTByThdKE9d_31sLhqba_2LtVrH8LK-LjshH9xos9YzNe7cWRZEUMxSAQTEGxl5GBFNYOYpdM"/>
+</div>
+</div>
+</section>
+<!-- 3. Chaque prestation -->
+<section class="relative py-section-gap px-margin-safe bg-surface-container-low overflow-hidden">
+<div class="bg-text bg-text-left">PRÉCISION</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-section-gap items-center w-full max-w-[1440px] mx-auto relative z-10">
+<div class="order-2 lg:order-1 relative group">
+<div class="absolute inset-0 bg-surface rounded-3xl transform -translate-x-4 translate-y-4 group-hover:-translate-x-2 group-hover:translate-y-2 transition-transform duration-500"></div>
+<img alt="Glowea Editorial Tool Setup" class="relative rounded-2xl w-full object-cover z-10 shadow-sm border border-surface-dim/30" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAibXYZNDIl-Fm2tmqjzgn11p17HGYchLT24sbQNg3w1Vz3hDAf_QY9pieOiw-GjAH4Aw2iDIV9xl-o5FTMALwTdtIg53-Nc2WAi_Jv1o3iQVK-RK8fkjo5wadIpjig4POc8P285iw61aHGqHPZ6tZXGNjB6JxgGkhyfjDLOw4mCNqLXW06B_0Ntx0yGyw1pKD0oXcCumVB4G4zht15XnBLxgMYs3aUfFONZvlVsnKDi8J-iHMGobdWhrxQffIuAjkJ5yeQAulF2j4"/>
+</div>
+<div class="order-1 lg:order-2 space-y-8 pl-0 lg:pl-12">
+<h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">Chaque prestation<br/>garde sa mémoire</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant">
+                        Historique détaillé, formules personnalisées, préférences et photos avant/après. Conservez l'essence de chaque rendez-vous pour offrir une expérience sur-mesure à chaque visite.
+                    </p>
+<a class="inline-flex items-center gap-2 text-primary font-label-caps text-label-caps uppercase tracking-wider hover:text-surface-tint transition-colors" href="#">
+                        Découvrir les fiches clientes
+                        <span class="material-symbols-outlined">arrow_forward</span>
+</a>
+</div>
+</div>
+</section>
+<!-- 4. Ne perdez plus une vente -->
+<section class="relative py-section-gap px-margin-safe overflow-hidden">
+<div class="bg-text bg-text-right" style="top: 30%;">FIDÉLISATION</div>
+<div class="max-w-[1440px] mx-auto relative z-10">
+<div class="text-center max-w-2xl mx-auto mb-16 space-y-6">
+<h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">Ne perdez plus une vente</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant">
+                        Sécurisez vos revenus grâce à des outils conçus pour éliminer les frictions et responsabiliser votre clientèle.
+                    </p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+<!-- Feature Card 1 -->
+<div class="bg-surface-container rounded-2xl p-8 hover:bg-surface-container-high transition-colors duration-300 flex flex-col items-start gap-6 border border-transparent hover:border-surface-dim/50">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">notifications_active</span>
+</div>
+<h3 class="font-headline-md text-2xl text-primary">Rappels Automatiques</h3>
+<p class="font-body-md text-on-surface-variant">SMS et emails envoyés automatiquement pour réduire drastiquement les oublis de rendez-vous.</p>
+</div>
+<!-- Feature Card 2 -->
+<div class="bg-surface-container rounded-2xl p-8 hover:bg-surface-container-high transition-colors duration-300 flex flex-col items-start gap-6 border border-transparent hover:border-surface-dim/50 transform md:-translate-y-8">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">credit_card</span>
+</div>
+<h3 class="font-headline-md text-2xl text-primary">Paiements Intégrés</h3>
+<p class="font-body-md text-on-surface-variant">Acceptez les acomptes en ligne lors de la réservation pour sécuriser votre planning.</p>
+</div>
+<!-- Feature Card 3 -->
+<div class="bg-surface-container rounded-2xl p-8 hover:bg-surface-container-high transition-colors duration-300 flex flex-col items-start gap-6 border border-transparent hover:border-surface-dim/50">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">block</span>
+</div>
+<h3 class="font-headline-md text-2xl text-primary">Protection No-Shows</h3>
+<p class="font-body-md text-on-surface-variant">Politique d'annulation stricte gérée par le système pour protéger votre temps et vos revenus.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- 5. Le stock sous contrôle -->
+<section class="relative py-section-gap px-margin-safe bg-surface-container-low overflow-hidden">
+<div class="bg-text bg-text-left">MAÎTRISE</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-section-gap items-center w-full max-w-[1440px] mx-auto relative z-10">
+<div class="space-y-8 pr-0 lg:pr-12">
+<h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">Le stock sous contrôle</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant">
+                        Anticipez vos ruptures de stock. Suivez l'utilisation de vos produits cabine et gérez vos ventes retail avec une précision chirurgicale.
+                    </p>
+<div class="space-y-6 pt-4">
+<div class="border-b border-surface-dim pb-4">
+<h4 class="font-label-caps text-label-caps text-primary tracking-widest mb-2">ALERTES NIVEAU BAS</h4>
+<p class="font-body-md text-on-surface-variant text-sm">Soyez notifié avant de manquer de vos produits essentiels.</p>
+</div>
+<div class="border-b border-surface-dim pb-4">
+<h4 class="font-label-caps text-label-caps text-primary tracking-widest mb-2">INVENTAIRE VALORISÉ</h4>
+<p class="font-body-md text-on-surface-variant text-sm">Connaissez la valeur exacte de votre stock à tout instant pour votre comptabilité.</p>
+</div>
+</div>
+</div>
+<div class="relative h-[500px] rounded-2xl overflow-hidden bg-surface flex items-center justify-center border border-surface-dim/30">
+<!-- Abstract representation of stock/inventory instead of a specific image placeholder to avoid repeating the dashboard -->
+<img alt="Organized aesthetic inventory" class="w-full h-full object-cover opacity-80" data-alt="A meticulously organized minimalist shelf displaying high-end, neutral-toned cosmetic bottles and jars in a bright, airy setting. Soft, natural light cascades across the smooth, matte surfaces, highlighting the elegant packaging. The color palette is strictly limited to cream, warm beige, powder pink, and subtle taupe. The mood is serene, professional, and luxurious, evoking the essence of a premium beauty clinic's inventory." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAXvWxYDXQZQlyTuikP01pGlAo4dL5XR2cGEDB7lVZm63lrMxrlC74lydEgb63OCdl6vDIlr8ceT4m80pNQiC7B9OfIxnMP3YYK5LnGuR-kD6fz_KFxQsVjFAP1WjZnKRBxHPz6upyYOaWsBUOrikI4-BgAvnIaB9p09iLKCzpqXhzWQegCevwgF-X8flDMs8uEdgTwP-87yfMe2QwP7Tho7qwillzm4VFpW5F1iPEQKNZHHgK1dvcXxQx9CDZkoPni2_azNBkiIo0"/>
+</div>
+</div>
+</section>
+<!-- 6. Pensé pour les techniciennes -->
+<section class="relative py-section-gap px-margin-safe overflow-hidden">
+<div class="bg-text bg-text-center" style="top: 40%;">EXPERTISE</div>
+<div class="max-w-[1440px] mx-auto relative z-10">
+<div class="text-center mb-16">
+<h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary">Pensé pour votre spécialité</h2>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<!-- Lash -->
+<div class="group relative overflow-hidden rounded-2xl aspect-[3/4] bg-surface-container">
+<img alt="Lash extensions" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 mix-blend-luminosity group-hover:mix-blend-normal" data-alt="Close-up profile of a woman's eye with perfectly applied, voluminous eyelash extensions. The lighting is soft, diffuse, and flattering, emphasizing the delicate curl and separation of the lashes. The skin tone is warm and natural, set against a soft beige background. The aesthetic is clean, precise, and high-end editorial beauty." src="https://lh3.googleusercontent.com/aida-public/AB6AXuByXNr--xY_iKIkwtTaborO6Hsy2Em-3DQL4C5xStCDsCr-hTjQxsX8dTj3N11tZEnDywPmyv3dgvU5b7WNQiySIvFpuQRxMJbQ7QH0jyhpZfnglGqC8D06X26H8KpZwSsXcAbWfV6UChH9ToceFwAnwGdELvYu-r-P94lQIEnwGwbM2k4pfeT_PN9BOxye5IMl_Vt5w-ykS76VJzQ9lO0cLKMjkzHH8TzVXUhT-FU6_IpVMQKBtoJt5hp-W7JhU1PoRNvZZz1NlXs"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent opacity-90"></div>
+<div class="absolute bottom-0 left-0 p-8 w-full">
+<h3 class="font-headline-md text-2xl text-primary mb-2">Cils</h3>
+<p class="font-body-md text-on-surface-variant text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-4 group-hover:translate-y-0">Mapping, temps de pose, suivi des allergies et gestion des remplissages.</p>
+</div>
+</div>
+<!-- Brow -->
+<div class="group relative overflow-hidden rounded-2xl aspect-[3/4] bg-surface-container transform md:translate-y-12">
+<img alt="Brow styling" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 mix-blend-luminosity group-hover:mix-blend-normal" data-alt="A close-up shot focusing on flawlessly styled, laminated eyebrows of a model with glowing, dewy skin. The background is a soft, warm cream color. The lighting highlights the texture of the brow hairs, conveying a sense of meticulous grooming and modern beauty trends. The overall tone is refined, neutral, and minimalist." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB2FmDVKaFzpV_LNur57RV9R1A-jxCnHb0m0w2UsjncXUwlsVkYfZ5YHMSB8YeTKyhu9UOc2SK0pmErTY6goV78HC1BFivZ3-zYSa0HXxfa_YWrz90TXYhaYjy8Jytjc_qTBZig64QtCn2-JY8ViDVaSHdcI7ptVx5_JJSV6hEO1f12fk2f3v-0Nog141YzT4eh7nEzAnVZoWs9hQ5pHYcYRvo81wW9SaQvCXpzBHOApJKKed9v832WWP2PTB8CTVDOr97pG8gr_pw"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent opacity-90"></div>
+<div class="absolute bottom-0 left-0 p-8 w-full">
+<h3 class="font-headline-md text-2xl text-primary mb-2">Sourcils</h3>
+<p class="font-body-md text-on-surface-variant text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-4 group-hover:translate-y-0">Restructuration, brow lift, teintes utilisées et conseils d'entretien post-soin.</p>
+</div>
+</div>
+<!-- Nails -->
+<div class="group relative overflow-hidden rounded-2xl aspect-[3/4] bg-surface-container">
+<img alt="Nail art" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 mix-blend-luminosity group-hover:mix-blend-normal" data-alt="Elegant hands with a minimalist, nude gel manicure resting delicately on a textured linen surface. The composition is asymmetrical, focusing on the refined shape of the nails. The color palette is restricted to soft pinks, warm beige, and crisp white. The mood is calm, sophisticated, and evocative of a high-end nail studio." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAmQQAmIEwWxTotBSHa44QfUSi1x8iRRaPPqJr5HISB0uGMtXnzI8oQyFK2-x-r9Wqlp_GwL_w9_HI6pbvc8ul3aBwkdGUQlpbTXV0WH6gUxMrQgjGR22z1l3OmAqwWcWaNN-d4w9DNL0M1OCIa3bHlW5JpzAASgscGX_mpceC2Cxe0v6HKLjKsFfc9pdHnAcp8wvtTcR11eAMj2fI5TExz7_HcxT-0Mko6n0XmY0iza1orGLKNmrtuaG_1LfHtSYJJaZnGJP3z_YE"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent opacity-90"></div>
+<div class="absolute bottom-0 left-0 p-8 w-full">
+<h3 class="font-headline-md text-2xl text-primary mb-2">Ongles</h3>
+<p class="font-body-md text-on-surface-variant text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-4 group-hover:translate-y-0">Couleurs, nail art, techniques spécifiques et suivi de la tenue des poses.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 7. Testimonials (Editorial Layout) -->
+<section class="py-section-gap px-margin-safe bg-surface-container-low border-t border-surface-dim/20">
+<div class="max-w-[1440px] mx-auto">
+<div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+<div class="md:col-span-4 sticky top-32">
+<h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-4">La voix<br/>de l'excellence</h2>
+<p class="font-body-md text-on-surface-variant">Celles qui ont choisi de structurer leur talent avec Glowéa.</p>
+</div>
+<div class="md:col-span-8 space-y-16 mt-12 md:mt-0">
+<!-- Testimonial 1 -->
+<div class="flex flex-col md:flex-row gap-8 items-start">
+<div class="w-24 h-24 rounded-full overflow-hidden flex-shrink-0 bg-surface-dim">
+<img alt="Portrait of Sophie" class="w-full h-full object-cover grayscale opacity-80" data-alt="A refined, natural portrait of a female beauty professional. She looks directly at the camera with quiet confidence. The lighting is soft and studio-quality, casting gentle shadows. The background is a plain, neutral beige. Her styling is minimalist and elegant, reflecting the high-end aesthetic of the brand." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAy6NnaDPifeki06sQcj0dYWa2zXH6XSWpa6qvYHFwaDPaLSET44AVQ7c4J8AkKlsNP_1kfFcamGiETqrNr6hP6cqLIcmO1nMRIAPerItjt0Z7YURIM4UqqlVKHKEvqeZKRyjQKHQTfD5qO168ZaxWImGRnPwSiz3dZbOT6jjHZ2YAw0lHaXzPJPIrDDjuB7UzxWdXywpMQ0F4VwMEjauG_wIPhVoPdrq0bxMFtmtt6peWlW47vOrqTIXgZeH6kef_c_kHRVy8uA2c"/>
+</div>
+<div>
+<p class="font-headline-md text-2xl text-on-surface italic mb-4 leading-relaxed">"Glowéa a littéralement sauvé mon organisation. Avant, je passais mes soirées à répondre aux messages pour des rendez-vous. Aujourd'hui, mon agenda se remplit tout seul pendant que je travaille."</p>
+<p class="font-label-caps text-label-caps text-primary tracking-widest">SOPHIE L. — LASH ARTIST</p>
+</div>
+</div>
+<!-- Testimonial 2 -->
+<div class="flex flex-col md:flex-row gap-8 items-start">
+<div class="w-24 h-24 rounded-full overflow-hidden flex-shrink-0 bg-surface-dim">
+<img alt="Portrait of Clara" class="w-full h-full object-cover grayscale opacity-80" data-alt="A portrait of an elegant woman, presumably a salon owner, with warm, glowing skin and minimal makeup. The photograph is shot against a soft cream backdrop. The lighting is diffused, creating a serene and professional mood. The overall color palette matches the luxurious, neutral tone of the website." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC-BQz1E8m-mYa1i55AbCF_v9zHg8rvqFNDxIz0nZsGcYfWyPARmOxacsnCJSWo0ZyxeNJCVBk1SzsQqaIbM3EzU9WZtIkZgoSXghJVeZUziuk2t4CRXr2wCxhWDQERZrhrtMnc8skIlY0JBGMnd7aBno_VVdlrijnpPb9LvXF58GAo-68PWpPzzniihdYpjwgVpO_o46Z7L0OSO00C-Vm65LYDK-V2jxS_xqIbBwt0hUE8RXPNq41xg8JzhHkqlzOWlyFXjCA7cog"/>
+</div>
+<div>
+<p class="font-headline-md text-2xl text-on-surface italic mb-4 leading-relaxed">"Le suivi des fiches clientes est incroyable. Je sais exactement quelle formule j'ai utilisé il y a 3 mois pour ma cliente. Ça fait toute la différence en termes de professionnalisme."</p>
+<p class="font-label-caps text-label-caps text-primary tracking-widest">CLARA M. — EXPERTE SOURCILS</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 8. FAQ -->
+<section class="py-section-gap px-margin-safe max-w-4xl mx-auto">
+<h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary text-center mb-16">Questions Fréquentes</h2>
+<div class="space-y-2">
+<!-- FAQ Item 1 -->
+<details class="group bg-transparent border-b border-surface-dim pb-6 pt-4 [&amp;_summary::-webkit-details-marker]:hidden cursor-pointer">
+<summary class="flex justify-between items-center font-body-lg text-lg text-primary outline-none">
+                        Est-ce que Glowéa est adapté si je travaille seule ?
+                        <span class="material-symbols-outlined transition-transform duration-300 group-open:-rotate-180">expand_more</span>
+</summary>
+<div class="pt-4 font-body-md text-on-surface-variant pr-8">
+                        Absolument. Glowéa a été conçu spécifiquement pour les indépendantes et les petites structures. Il agit comme votre assistant personnel, vous libérant du temps pour vous concentrer sur vos prestations.
+                    </div>
+</details>
+<!-- FAQ Item 2 -->
+<details class="group bg-transparent border-b border-surface-dim pb-6 pt-4 [&amp;_summary::-webkit-details-marker]:hidden cursor-pointer">
+<summary class="flex justify-between items-center font-body-lg text-lg text-primary outline-none">
+                        Puis-je importer ma liste de clientes actuelle ?
+                        <span class="material-symbols-outlined transition-transform duration-300 group-open:-rotate-180">expand_more</span>
+</summary>
+<div class="pt-4 font-body-md text-on-surface-variant pr-8">
+                        Oui, l'importation de votre base de données clientes (depuis Excel ou un autre logiciel) est très simple. Notre équipe support est également disponible pour vous accompagner dans cette transition.
+                    </div>
+</details>
+<!-- FAQ Item 3 -->
+<details class="group bg-transparent border-b border-surface-dim pb-6 pt-4 [&amp;_summary::-webkit-details-marker]:hidden cursor-pointer">
+<summary class="flex justify-between items-center font-body-lg text-lg text-primary outline-none">
+                        Comment fonctionnent les acomptes en ligne ?
+                        <span class="material-symbols-outlined transition-transform duration-300 group-open:-rotate-180">expand_more</span>
+</summary>
+<div class="pt-4 font-body-md text-on-surface-variant pr-8">
+                        Lorsqu'une cliente réserve en ligne, elle est invitée à régler un acompte (dont vous fixez le montant ou le pourcentage) via notre plateforme de paiement sécurisée. Le rendez-vous n'est confirmé qu'une fois l'acompte validé, réduisant ainsi les no-shows à presque zéro.
+                    </div>
+</details>
+</div>
+</section>
+<!-- 9. Final CTA -->
+<section class="relative py-32 px-margin-safe bg-primary text-on-primary overflow-hidden text-center flex flex-col items-center justify-center min-h-[60vh]">
+<div class="absolute inset-0 opacity-10 pointer-events-none">
+<span class="font-headline-md text-[20vw] leading-none whitespace-nowrap absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">GLOWEA</span>
+</div>
+<div class="relative z-10 max-w-3xl space-y-8">
+<h2 class="font-display-hero text-headline-lg-mobile md:text-display-hero leading-tight">
+                    L'expérience qui fait<br/>grandir votre activité
+                </h2>
+<p class="font-body-lg text-body-lg text-on-primary-container max-w-xl mx-auto">
+                    Rejoignez les professionnelles de la beauté qui ont choisi l'excellence pour leur gestion quotidienne.
+                </p>
+<div class="pt-8">
+<button class="bg-surface text-primary px-10 py-5 rounded-full font-label-caps text-label-caps uppercase tracking-widest hover:bg-surface-container transition-colors shadow-lg shadow-black/10">
+                        Commencer gratuitement
+                    </button>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container dark:bg-tertiary-container full-width bottom-0 z-40 relative">
+<div class="flex flex-col md:flex-row justify-between items-center w-full px-margin-safe py-section-gap max-w-full gap-8">
+<div class="font-headline-md text-headline-md text-primary dark:text-inverse-primary text-center md:text-left">
+                Glowéa
+                <div class="font-body-md text-sm text-on-surface-variant mt-2">© 2024 Glowéa. L’excellence au service de la beauté.</div>
+</div>
+<div class="flex flex-wrap justify-center md:justify-end gap-6 font-label-caps text-label-caps">
+<a class="text-on-surface-variant dark:text-on-tertiary-container hover:opacity-70 transition-opacity" href="#">Confidentialité</a>
+<a class="text-on-surface-variant dark:text-on-tertiary-container hover:opacity-70 transition-opacity" href="#">Mentions Légales</a>
+<a class="text-on-surface-variant dark:text-on-tertiary-container hover:opacity-70 transition-opacity" href="#">CGU</a>
+<a class="text-on-surface-variant dark:text-on-tertiary-container hover:opacity-70 transition-opacity" href="#">Contact</a>
+</div>
+</div>
+</footer>
+</body></html>

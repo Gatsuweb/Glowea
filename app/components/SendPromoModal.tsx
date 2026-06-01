@@ -279,12 +279,12 @@ export default function SendPromoModal({ isOpen, onClose }: SendPromoModalProps)
               <div style={previewBoxStyle}>{preview.renderedPreview || "Aucun message a afficher."}</div>
               {preview.skippedCount > 0 && (
                 <div style={mutedStyle}>
-                  {preview.skippedCount} cliente(s) seront ignorees car le telephone ou l'email manque pour ce canal.
+                  {preview.skippedCount} cliente(s) seront ignorees car le telephone ou l&apos;email manque pour ce canal.
                 </div>
               )}
             </>
           )}
-          {!isLoadingPreview && !preview && <div style={mutedStyle}>Selectionnez un template pour voir l'apercu.</div>}
+          {!isLoadingPreview && !preview && <div style={mutedStyle}>Selectionnez un template pour voir l&apos;apercu.</div>}
         </div>
 
         {error && <div style={errorStyle}>{error}</div>}

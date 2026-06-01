@@ -614,7 +614,6 @@ export default function SessionModal({
             </div>
             <div className={styles.subtitleRow}>
               <span>{clientName} • {time} • {category}</span>
-              <span className={styles.badgePink}>Cliente fidèle</span>
               <span className={styles.badgeWhite}>Aucune allergie</span>
             </div>
           </div>
