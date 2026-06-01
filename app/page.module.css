@@ -308,12 +308,15 @@
 .metricsSection article:nth-child(2),
 .featureGrid article:nth-child(2),
 .priceCardFeatured {
-  background:
-    linear-gradient(180deg, rgba(255, 250, 247, 0.3), rgba(252, 235, 232, 0.4)),
-    url("/texture-bg.png");
-  background-size: 40vw;
-  background-position: center center;
+  position: relative;
+  overflow: hidden;
+  background-color: #fff9f9;
   background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  background-image:
+    linear-gradient(180deg, rgba(255, 250, 247, 0.18), rgba(252, 235, 232, 0.22)),
+    url("/bg-texturé.svg");
 }
 
 .previewStats article {
@@ -590,13 +593,6 @@
 
 .priceCardFeatured {
   border-color: rgba(139, 75, 84, 0.22);
-  background:
-    linear-gradient(155deg, rgba(255, 255, 255, 0.92), rgba(252, 215, 209, 0.44)),
-    url("/texture-bg.png");
-    background-size: 40vw;
-
-  background-position: center center;
-  background-repeat: no-repeat;
   transform: translateY(-0.75rem);
 }
 
@@ -935,6 +931,12 @@
   .painGrid,
   .featureGrid {
     grid-template-columns: 1fr;
+  }
+
+  .metricsSection article:nth-child(2),
+  .featureGrid article:nth-child(2),
+  .priceCardFeatured {
+    background-size: 100% 100%, cover;
   }
 
   .appPreview {
