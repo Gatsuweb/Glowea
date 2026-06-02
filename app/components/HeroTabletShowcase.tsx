@@ -8,7 +8,7 @@ import {
   useSpring,
   useTransform,
 } from "motion/react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import styles from "../page.module.css";
 
@@ -50,8 +50,16 @@ const clamp = (value: number, min: number, max: number) => {
   return Math.min(Math.max(value, min), max);
 };
 
+type DeviceOrientationWithPermission = typeof DeviceOrientationEvent & {
+  requestPermission?: () => Promise<"granted" | "denied">;
+};
+
 export default function HeroTabletShowcase() {
   const shouldReduceMotion = useReducedMotion();
+  const [isCompactViewport, setIsCompactViewport] = useState(false);
+  const [needsPermission, setNeedsPermission] = useState(false);
+  const [orientationEnabled, setOrientationEnabled] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const parallaxX = useMotionValue(0);
   const parallaxY = useMotionValue(0);
   const smoothX = useSpring(parallaxX, {
@@ -78,20 +86,53 @@ export default function HeroTabletShowcase() {
       return;
     }
 
-    let isMounted = true;
+    const updateViewportState = () => {
+      const compact = window.innerWidth <= 1024;
+      const deviceOrientation = window.DeviceOrientationEvent as
+        | DeviceOrientationWithPermission
+        | undefined;
+      const requiresPermission =
+        compact &&
+        typeof deviceOrientation !== "undefined" &&
+        typeof deviceOrientation.requestPermission === "function";
 
-    const updateDesktopState = () => {
-      if (window.innerWidth > 1024) {
+      setIsCompactViewport(compact);
+      setNeedsPermission(requiresPermission);
+      setPermissionDenied(false);
+
+      if (!compact) {
+        setOrientationEnabled(false);
         parallaxX.set(0);
         parallaxY.set(0);
-      }
-    };
-
-    const handleOrientation = (event: DeviceOrientationEvent) => {
-      if (!isMounted || window.innerWidth > 1024) {
         return;
       }
 
+      setOrientationEnabled(!requiresPermission);
+    };
+
+    updateViewportState();
+    window.addEventListener("resize", updateViewportState);
+
+    return () => {
+      window.removeEventListener("resize", updateViewportState);
+      parallaxX.set(0);
+      parallaxY.set(0);
+    };
+  }, [parallaxX, parallaxY, shouldReduceMotion]);
+
+  useEffect(() => {
+    if (
+      shouldReduceMotion ||
+      !isCompactViewport ||
+      !orientationEnabled ||
+      typeof window.DeviceOrientationEvent === "undefined"
+    ) {
+      parallaxX.set(0);
+      parallaxY.set(0);
+      return;
+    }
+
+    const handleOrientation = (event: DeviceOrientationEvent) => {
       const beta = typeof event.beta === "number" ? event.beta : 0;
       const gamma = typeof event.gamma === "number" ? event.gamma : 0;
       const normalizedX = clamp(gamma / 28, -1, 1);
@@ -101,21 +142,50 @@ export default function HeroTabletShowcase() {
       parallaxY.set(normalizedY * -20);
     };
 
-    updateDesktopState();
-    window.addEventListener("resize", updateDesktopState);
-
-    if (typeof window.DeviceOrientationEvent !== "undefined") {
-      window.addEventListener("deviceorientation", handleOrientation, true);
-    }
+    window.addEventListener("deviceorientation", handleOrientation, true);
 
     return () => {
-      isMounted = false;
-      window.removeEventListener("resize", updateDesktopState);
       window.removeEventListener("deviceorientation", handleOrientation, true);
       parallaxX.set(0);
       parallaxY.set(0);
     };
-  }, [parallaxX, parallaxY, shouldReduceMotion]);
+  }, [
+    isCompactViewport,
+    orientationEnabled,
+    parallaxX,
+    parallaxY,
+    shouldReduceMotion,
+  ]);
+
+  const handleEnableGyroscope = async () => {
+    const deviceOrientation = window.DeviceOrientationEvent as
+      | DeviceOrientationWithPermission
+      | undefined;
+
+    if (
+      typeof deviceOrientation === "undefined" ||
+      typeof deviceOrientation.requestPermission !== "function"
+    ) {
+      setOrientationEnabled(true);
+      return;
+    }
+
+    try {
+      const permission = await deviceOrientation.requestPermission();
+
+      if (permission === "granted") {
+        setOrientationEnabled(true);
+        setPermissionDenied(false);
+        return;
+      }
+
+      setOrientationEnabled(false);
+      setPermissionDenied(true);
+    } catch {
+      setOrientationEnabled(false);
+      setPermissionDenied(true);
+    }
+  };
 
   return (
     <div className={styles.heroVisual}>
@@ -192,6 +262,31 @@ export default function HeroTabletShowcase() {
             </motion.div>
           </motion.div>
         ))}
+
+        {!shouldReduceMotion &&
+        isCompactViewport &&
+        needsPermission &&
+        !orientationEnabled ? (
+          <motion.div
+            className={styles.heroGyroPrompt}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: "easeOut", delay: 0.35 }}
+          >
+            <button
+              type="button"
+              className={styles.heroGyroButton}
+              onClick={handleEnableGyroscope}
+            >
+              Activer l'effet immersif
+            </button>
+            <p className={styles.heroGyroText}>
+              {permissionDenied
+                ? "Autorisation refusée. Vous pouvez la réactiver dans Safari."
+                : "Activez le gyroscope pour un parallax plus immersif."}
+            </p>
+          </motion.div>
+        ) : null}
       </motion.div>
     </div>
   );
