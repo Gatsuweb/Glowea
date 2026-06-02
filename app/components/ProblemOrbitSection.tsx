@@ -358,7 +358,6 @@ export default function ProblemOrbitSection() {
           <h2>
             Quand tout est éparpillé,
             <br />
-            vos journées deviennent vite lourdes.
           </h2>
           <p>
             Entre les rendez-vous, les clientes,

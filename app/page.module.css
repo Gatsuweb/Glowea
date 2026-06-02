@@ -3553,8 +3553,13 @@
 }
 
 @media (max-width: 420px) {
-  .hero h1 {
-    font-size: 1rem;
+  .hero h1,
+  .sectionIntro h2,
+  .solutionIntro h2,
+  .modulesIntro h2,
+  .sessionContent h2,
+  .finalCta h2 {
+    font-size: 2.4rem;
     line-height: 0.96;
   }
 
@@ -3586,10 +3591,6 @@
 
   .metricsSection {
     grid-template-columns: 1fr;
-  }
-
-  .hero h1 {
-    font-size: 2.4rem;
   }
 
   .footer nav {
