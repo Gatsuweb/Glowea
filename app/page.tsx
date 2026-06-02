@@ -1,46 +1,18 @@
 import Image from "next/image";
 import Link from "next/link";
+import HeroTabletShowcase from "./components/HeroTabletShowcase";
+import LandingNavbar from "./components/LandingNavbar";
+import LandingLenis from "./components/LandingLenis";
+import ModulesPreviewSection from "./components/ModulesPreviewSection";
+import ProblemOrbitSection from "./components/ProblemOrbitSection";
+import SolutionConvergenceSection from "./components/SolutionConvergenceSection";
 import styles from "./page.module.css";
 
 const metrics = [
-  { value: "6", label: "RDV aujourd'hui" },
-  { value: "80 EUR", label: "Acompte encaissé" },
-  { value: "SMS", label: "Rappel envoyé" },
-  { value: "42", label: "Produits suivis" },
-];
-
-const pains = [
-  "Rendez-vous oubliés et messages dispersés",
-  "No-shows qui cassent votre planning",
-  "Fiches clientes éparpillées entre notes et photos",
-  "Stock difficile à suivre au quotidien",
-];
-
-const features = [
-  {
-    title: "Agenda clair",
-    text: "Visualisez vos journées, prestations et disponibilités sans friction.",
-  },
-  {
-    title: "Fiches clientes",
-    text: "Historique, préférences, allergies, photos et notes techniques au même endroit.",
-  },
-  {
-    title: "Rappels automatiques",
-    text: "SMS et emails pour limiter les oublis et responsabiliser vos clientes.",
-  },
-  {
-    title: "Paiements et acomptes",
-    text: "Sécurisez les réservations importantes et réduisez les no-shows.",
-  },
-  {
-    title: "Stock produits",
-    text: "Suivez vos indispensables cabine, vos seuils bas et la valeur du stock.",
-  },
-  {
-    title: "Statistiques",
-    text: "Gardez une lecture simple de vos revenus, prestations et clientes fidèles.",
-  },
+  { value: "6", label: "RDV aujourd'hui", type: "appointments" },
+  { value: "80 EUR", label: "Acompte encaissé", type: "payment" },
+  { value: "SMS", label: "Rappel envoyé", type: "message" },
+  { value: "42", label: "Produits suivis", type: "products" },
 ];
 
 const specialties = [
@@ -95,81 +67,11 @@ const faqs = [
   },
 ];
 
-function AppPreview() {
-  return (
-    <div className={styles.appPreview} aria-label="Aperçu Glowea">
-      <div className={styles.previewTop}>
-        <span>Glowea Studio</span>
-        <div>
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
-      </div>
-      <div className={styles.previewBody}>
-        <aside className={styles.previewNav}>
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
-        </aside>
-        <div className={styles.previewMain}>
-          <div className={styles.previewHeader}>
-            <span>Tableau de bord</span>
-            <strong>Bonjour, Camille</strong>
-          </div>
-          <div className={styles.previewStats}>
-            <article>
-              <span>CA jour</span>
-              <strong>320 EUR</strong>
-            </article>
-            <article>
-              <span>RDV</span>
-              <strong>6</strong>
-            </article>
-            <article>
-              <span>No-show</span>
-              <strong>-42%</strong>
-            </article>
-          </div>
-          <div className={styles.previewGrid}>
-            <div className={styles.previewCalendar}>
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
-            <div className={styles.previewClient}>
-              <span>Cliente</span>
-              <strong>Emma L.</strong>
-              <p>Lash lift + teinture</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function Home() {
   return (
     <main className={styles.page}>
-      <header className={styles.navbar}>
-        <Link href="/" className={styles.logo} aria-label="Glowea accueil">
-          <Image src="/logo.svg" alt="Glowea" width={170} height={60} priority />
-        </Link>
-        <nav aria-label="Navigation principale">
-          <Link href="#fonctionnalites">Fonctionnalités</Link>
-          <Link href="#specialites">Spécialités</Link>
-          <Link href="#prix">Tarifs</Link>
-          <Link href="#faq">FAQ</Link>
-        </nav>
-        <div className={styles.navActions}>
-          <Link href="/sign-in">Connexion</Link>
-          <Link href="/sign-up" className={styles.navButton}>
-            Essayer
-          </Link>
-        </div>
-      </header>
+      <LandingLenis />
+      <LandingNavbar />
 
       <section className={styles.hero}>
         <div className={styles.heroContent}>
@@ -189,75 +91,83 @@ export default function Home() {
             </Link>
           </div>
         </div>
-        <div className={styles.heroVisual}>
-          <AppPreview />
-          <div className={`${styles.floatCard} ${styles.floatOne}`}>
-            <span>RDV aujourd&apos;hui</span>
-            <strong>6</strong>
-          </div>
-          <div className={`${styles.floatCard} ${styles.floatTwo}`}>
-            <span>Acompte</span>
-            <strong>80 EUR</strong>
-          </div>
-          <div className={`${styles.floatCard} ${styles.floatThree}`}>
-            <span>Rappel SMS</span>
-            <strong>envoyé</strong>
-          </div>
-        </div>
+        <HeroTabletShowcase />
       </section>
 
       <section className={styles.metricsSection} aria-label="Indicateurs Glowea">
         {metrics.map((metric) => (
-          <article key={metric.label}>
+          <article
+            key={metric.label}
+            className={`${styles.metricsCard} ${
+              metric.type === "appointments"
+                ? styles.metricsAppointments
+                : metric.type === "payment"
+                  ? styles.metricsPayment
+                  : metric.type === "message"
+                    ? styles.metricsMessage
+                    : styles.metricsProducts
+            }`}
+          >
+            <div className={styles.metricsCardIcon}>
+              <span></span>
+            </div>
             <strong>{metric.value}</strong>
             <span>{metric.label}</span>
+
+            {metric.type === "appointments" ? (
+              <div className={styles.metricsMiniAgenda} aria-hidden="true">
+                <div>
+                  <small>09:00</small>
+                  <i></i>
+                </div>
+                <div>
+                  <small>11:00</small>
+                  <i></i>
+                </div>
+                <div>
+                  <small>14:00</small>
+                  <i></i>
+                </div>
+              </div>
+            ) : null}
+
+            {metric.type === "payment" ? (
+              <>
+                <div className={styles.metricsPaymentGlow} aria-hidden="true"></div>
+                <div className={styles.metricsConfirmBadge} aria-hidden="true">
+                  <i></i>
+                  <small>Confirmé</small>
+                </div>
+              </>
+            ) : null}
+
+            {metric.type === "message" ? (
+              <div className={styles.metricsSmsBubble} aria-hidden="true">
+                <p>Bonjour Emma,</p>
+                <p>Petit rappel pour votre rendez-vous demain à 14h. ✨</p>
+                <small>10:30</small>
+              </div>
+            ) : null}
+
+            {metric.type === "products" ? (
+              <div className={styles.metricsMiniChart} aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <small>+12%</small>
+              </div>
+            ) : null}
           </article>
         ))}
       </section>
 
-      <section className={styles.problemSection}>
-        <div className={styles.sectionIntro}>
-          <span className={styles.eyebrow}>Ce qui prend du temps</span>
-          <h2>Quand tout est éparpillé, vos journées deviennent vite lourdes.</h2>
-        </div>
-        <div className={styles.painGrid}>
-          {pains.map((pain, index) => (
-            <article key={pain}>
-              <span>0{index + 1}</span>
-              <p>{pain}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+      <ProblemOrbitSection />
 
-      <section className={styles.solutionSection}>
-        <div>
-          <span className={styles.eyebrow}>Avec Glowea</span>
-          <h2>Vous retrouvez tout au même endroit.</h2>
-          <p>
-            Glowea rassemble l&apos;essentiel de votre activité pour vous aider à
-            gagner du temps, protéger vos revenus et offrir un suivi plus
-            professionnel.
-          </p>
-        </div>
-        <AppPreview />
-      </section>
+      <SolutionConvergenceSection />
 
-      <section className={styles.featuresSection} id="fonctionnalites">
-        <div className={styles.sectionIntro}>
-          <span className={styles.eyebrow}>Ce que vous pouvez faire</span>
-          <h2>Les outils essentiels pour gérer votre activité.</h2>
-        </div>
-        <div className={styles.featureGrid}>
-          {features.map((feature) => (
-            <article key={feature.title}>
-              <span></span>
-              <h3>{feature.title}</h3>
-              <p>{feature.text}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+      <ModulesPreviewSection />
 
       <section className={styles.sessionSection}>
         <div className={styles.sessionContent}>
