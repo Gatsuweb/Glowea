@@ -1,24 +1,24 @@
 .bottomNav {
   position: fixed;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 850px;
-  height: 90px;
-  background: rgba(255, 255, 255, 0.5); /* Effet Glassmorphism */
-  backdrop-filter: blur(35px);
-  -webkit-backdrop-filter: blur(35px);
-  border-top: 1.5px solid rgba(255, 255, 255, 0.8);
-  border-left: 1px solid rgba(255, 255, 255, 0.5);
-  border-right: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 25px 25px 0 0;
+  left: 8px;
+  right: 8px;
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  width: auto;
+  max-width: none;
+  height: 84px;
+  background: rgba(255, 255, 255, 0.58);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 24px;
   display: flex;
   justify-content: space-evenly;
   align-items: center;
-  box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 10px 30px rgba(62, 28, 35, 0.12);
   z-index: 900;
   padding: 0 20px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 @media (min-width: 1025px) {
@@ -26,6 +26,7 @@
     top: 50%;
     bottom: auto;
     left: 0;
+    right: auto;
     transform: translateY(-50%);
     width: 90px;
     height: 400px;
@@ -58,6 +59,7 @@
   transition: transform 0.2s ease-in-out;
   padding: 10px;
   flex: 1;
+  min-height: 56px;
 }
 
 @media (min-width: 1025px) {
@@ -74,8 +76,8 @@
 .navIcon {
   object-fit: contain;
   opacity: 1 !important;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
 }
 
 @media (min-width: 1025px) {
@@ -121,8 +123,8 @@
 
 .centerIcon {
   object-fit: contain;
-  width: 55px;
-  height: 55px;
+  width: 50px;
+  height: 50px;
 }
 
 @media (min-width: 1025px) {

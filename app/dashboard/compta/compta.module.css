@@ -1,10 +1,13 @@
 .layout {
   min-height: 100vh;
   padding: 20px 20px 100px 20px;
+  width: 100%;
   max-width: 1600px;
   margin: 0 auto;
   font-family: var(--font-tertiary);
   color: #4A4A4A;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 /* Header */
@@ -15,6 +18,7 @@
   font-weight: 400;
   margin-bottom: 25px;
   line-height: 1.1;
+  word-break: break-word;
 }
 
 /* Bilan Card */
@@ -50,6 +54,7 @@
   cursor: pointer;
   box-shadow: 0 2px 5px rgba(91, 179, 57, 0.3);
   font-weight: 600;
+  min-height: 44px;
 }
 
 .btnPink {
@@ -71,6 +76,7 @@
   font-size: 0.85rem;
   cursor: pointer;
   font-weight: 600;
+  min-height: 44px;
 }
 
 /* Tabs */
@@ -78,6 +84,14 @@
   display: flex;
   gap: 15px;
   margin-bottom: 30px;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tab {
@@ -89,6 +103,8 @@
   border: none;
   box-shadow: var(--box-shadow);
   transition: all 0.2s;
+  flex: 0 0 auto;
+  min-height: 44px;
 }
 
 .tabActive {
@@ -111,12 +127,18 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 30px;
+  gap: 20px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .filterLeft {
   display: flex;
   align-items: center;
   gap: 20px;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .filterIcon {
@@ -135,6 +157,8 @@
   font-size: 0.9rem;
   color: #333;
   cursor: pointer;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .typeFilter {
@@ -147,11 +171,14 @@
   color: #333;
   cursor: pointer;
   min-width: 150px;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .filterActions {
   display: flex;
   gap: 15px;
+  flex-wrap: wrap;
 }
 
 .btnDarkRed {
@@ -163,6 +190,7 @@
   cursor: pointer;
   box-shadow: 0 2px 5px rgba(139, 75, 84, 0.3);
   font-weight: 600;
+  min-height: 44px;
 }
 
 /* Stats Grid */
@@ -183,6 +211,8 @@
   min-height: 160px;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 /* Spécial CA */
@@ -224,17 +254,20 @@
   margin-bottom: 15px;
   position: relative;
   z-index: 2;
+  gap: 12px;
 }
 
 .statTitleBlock {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .statTitle {
   font-size: 1rem;
   font-weight: 700;
   color: #000;
+  line-height: 1.25;
 }
 
 .statTitle span {
@@ -256,6 +289,8 @@
   margin-top: auto;
   position: relative;
   z-index: 2;
+  line-height: 1.1;
+  word-break: break-word;
 }
 
 .statTopValue {
@@ -263,6 +298,8 @@
   font-weight: 400;
   color: #000;
   font-family: var(--font-serif);
+  line-height: 1.1;
+  word-break: break-word;
 }
 
 .statTrend {
@@ -286,11 +323,14 @@
   align-items: center;
   font-size: 0.75rem;
   color: #333;
+  gap: 8px;
 }
 
 .statListLabel {
   width: 90px;
   font-weight: 600;
+  flex-shrink: 0;
+  word-break: break-word;
 }
 
 .statListBar {
@@ -312,6 +352,7 @@
   width: 40px;
   text-align: right;
   font-weight: 600;
+  flex-shrink: 0;
 }
 
 /* Simple text list */
@@ -367,6 +408,7 @@
   display: flex;
   flex-direction: column;
   gap: 15px;
+  box-sizing: border-box;
 }
 
 .transactionItem {
@@ -374,12 +416,14 @@
   justify-content: space-between;
   align-items: center;
   padding: 10px 15px;
+  gap: 16px;
 }
 
 .transLeft {
   display: flex;
   align-items: center;
   gap: 20px;
+  min-width: 0;
 }
 
 .transIcon {
@@ -418,17 +462,20 @@
 .transDetails {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .transName {
   font-weight: 700;
   font-size: 1rem;
   color: #000;
+  word-break: break-word;
 }
 
 .transSub {
   font-size: 0.8rem;
   color: #666;
+  word-break: break-word;
 }
 
 .transAmount {
@@ -466,6 +513,8 @@
   box-shadow: var(--box-shadow);
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .statBigText {
@@ -474,11 +523,22 @@
   color: #000;
   margin-top: auto;
   font-weight: 400;
+  line-height: 1.05;
+  word-break: break-word;
 }
 
 .statBigText span {
   font-size: 2rem;
   color: #555;
+  font-family: var(--font-tertiary);
+}
+
+.statBigText .statTrend {
+  display: block;
+  margin-top: 10px;
+  margin-left: 0;
+  font-size: 0.8rem;
+  line-height: 1.25;
   font-family: var(--font-tertiary);
 }
 
@@ -489,12 +549,22 @@
   margin-top: 30px;
 }
 
+.dayColumn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .dayBlock {
   flex: 1;
   aspect-ratio: 1;
   border-radius: 15px;
   background-color: var(--background);
   transition: transform 0.2s ease;
+  width: 100%;
 }
 
 .dayBlock:hover {
@@ -543,6 +613,12 @@
 .legendBox.medium { background-color: #F4B8B2; }
 .legendBox.high { background-color: var(--tertiary); }
 
+.dayLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: #666;
+}
+
 /* =========================================
    SIMULATEUR
    ========================================= */
@@ -551,6 +627,7 @@
   display: flex;
   flex-direction: column;
   gap: 25px;
+  min-width: 0;
 }
 
 .simBlockCard {
@@ -561,6 +638,7 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+  box-sizing: border-box;
 }
 
 .simDecorBg {
@@ -583,6 +661,7 @@
   flex-direction: column;
   gap: 8px;
   max-width: 600px;
+  width: 100%;
 }
 
 .simLabel {
@@ -598,6 +677,8 @@
   border-radius: 8px;
   padding: 0 15px;
   background: white;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .simInput {
@@ -609,6 +690,7 @@
   font-weight: 500;
   color: #333;
   background: transparent;
+  min-width: 0;
 }
 
 .simInputSuffix {
@@ -642,6 +724,7 @@
   display: flex;
   align-items: center;
   gap: 20px;
+  min-width: 0;
 }
 
 .simSlider {
@@ -681,6 +764,7 @@
   padding: 40px;
   box-shadow: var(--box-shadow);
   margin-top: 10px;
+  box-sizing: border-box;
 }
 
 .simResultTitle {
@@ -703,6 +787,7 @@
   border-bottom: 1px solid #F0F0F0;
   font-size: 1.1rem;
   color: #555;
+  gap: 16px;
 }
 
 .simResultRow:last-child {
@@ -743,6 +828,7 @@
   text-align: center;
   box-shadow: var(--box-shadow);
   margin-bottom: 50px;
+  box-sizing: border-box;
 }
 
 .alertText {
@@ -781,6 +867,14 @@
   .dateInput {
     flex: 1;
   }
+
+  .statsGridStats3 {
+    grid-template-columns: 1fr;
+  }
+
+  .statsGridStats2 {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* =========================================
@@ -812,6 +906,7 @@
   box-shadow: 0 10px 40px rgba(0,0,0,0.2);
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
 }
 
 .modalHeader {
@@ -858,6 +953,22 @@
   display: flex;
   flex-direction: column;
   gap: 30px;
+}
+
+.checkboxGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.checkboxLabel {
+  margin: 0;
+  cursor: pointer;
+}
+
+.recurringGroup {
+  margin-top: 15px;
 }
 
 .modalSection {
@@ -974,8 +1085,8 @@
   align-items: center;
   padding: 24px 30px;
   cursor: pointer;
-
   transition: background 0.2s ease;
+  gap: 20px;
 }
 
 .bilanDynamicHeader:hover {
@@ -986,6 +1097,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .bilanSubtitle {
@@ -996,19 +1108,43 @@
 }
 
 .btnExpand {
-  background: var(--tertiary);
-  color: white;
+  background: #FCD7D1;
+  color: var(--tertiary);
   border: none;
   padding: 10px 20px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   font-family: var(--font-primary);
+  min-height: 44px;
+  border-radius: 0;
+}
+
+.bilanHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.btnDownload {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  background: var(--tertiary);
+  color: white;
 }
 
 .btnExpand:hover {
-  background: #8A2B32;
+  background: #F4B8B2;
   transform: translateY(-2px);
+}
+
+.btnDownload:hover {
+  background: #8A2B32;
 }
 
 .bilanDynamicContent {
@@ -1042,6 +1178,7 @@
   font-size: 1.1rem;
   color: #666;
   font-weight: 600;
+  line-height: 1.5;
 }
 
 .heroMain h3 {
@@ -1050,6 +1187,13 @@
   margin: 10px 0 0 0;
   font-weight: 700;
   font-family: var(--font-secondary);
+}
+
+.heroInlineIcon {
+  display: inline-block;
+  vertical-align: text-top;
+  margin-left: 4px;
+  color: var(--tertiary);
 }
 
 .heroSecondary {
@@ -1073,6 +1217,17 @@
 .heroStat span {
   color: #666;
   font-weight: 500;
+}
+
+.heroStatLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.heroStatIcon {
+  color: var(--tertiary);
+  flex-shrink: 0;
 }
 
 .heroStat strong {
@@ -1106,6 +1261,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .dynValue {
@@ -1161,6 +1317,13 @@
   align-items: center;
   font-size: 1rem;
   color: #444;
+  gap: 20px;
+}
+
+.dynRowResult {
+  margin-top: auto;
+  border-top: 1px solid #eee;
+  padding-top: 10px;
 }
 
 .dynRow .negative {
@@ -1196,5 +1359,340 @@
   }
   .bilanActions {
     flex-wrap: wrap;
+  }
+}
+
+.bestWeekChart {
+  height: 100px;
+  margin-top: 20px;
+}
+
+.emptyHint {
+  color: #888;
+  font-size: 0.8rem;
+  margin-top: 10px;
+}
+
+.emptyTransactions {
+  text-align: center;
+  color: #888;
+  padding: 20px;
+}
+
+@media (max-width: 768px) {
+  .layout {
+    padding: 20px;
+    padding-bottom: calc(120px + env(safe-area-inset-bottom));
+  }
+
+  .title {
+    font-size: clamp(2.5rem, 12vw, 4rem);
+    margin-bottom: 20px;
+  }
+
+  .bilanDynamicSection,
+  .filterBar,
+  .transactionsWrapper,
+  .simBlockCard,
+  .simResultCard,
+  .alertBanner,
+  .statCard,
+  .statCardLarge {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .bilanDynamicHeader {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 20px;
+  }
+
+  .bilanTitle {
+    font-size: 1.9rem;
+    line-height: 1.1;
+  }
+
+  .bilanHeaderActions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .btnExpand,
+  .btnDownload {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .bilanDynamicContent {
+    padding: 20px;
+    gap: 20px;
+  }
+
+  .heroMain,
+  .heroStat,
+  .bilanDynamicDetails {
+    padding: 20px;
+  }
+
+  .heroMain h3 {
+    font-size: clamp(2.3rem, 11vw, 3.2rem);
+  }
+
+  .heroStat strong {
+    font-size: 1.5rem;
+  }
+
+  .bilanDynamicGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .dynRow {
+    font-size: 0.95rem;
+  }
+
+  .tabs {
+    gap: 10px;
+    margin-bottom: 20px;
+    padding-bottom: 2px;
+  }
+
+  .tab {
+    padding: 10px 18px;
+  }
+
+  .filterBar {
+    padding: 18px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .filterLeft {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .filterIcon {
+    display: none;
+  }
+
+  .dateInput,
+  .typeFilter {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .filterActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .btnGreen,
+  .btnDarkRed {
+    width: 100%;
+  }
+
+  .statsGrid,
+  .statsGridStats3,
+  .statsGridStats2,
+  .statsGridWide {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .statCard,
+  .statCardLarge {
+    padding: 18px;
+    min-height: 0;
+  }
+
+  .statBigValue,
+  .statBigText {
+    font-size: 2.3rem;
+  }
+
+  .statTopValue {
+    font-size: 1.8rem;
+  }
+
+  .statTrend {
+    display: block;
+    margin-left: 0;
+    margin-top: 8px;
+  }
+
+  .statListItem {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .statListLabel {
+    width: 100%;
+  }
+
+  .statListBar {
+    margin: 0;
+    width: 100%;
+    order: 3;
+  }
+
+  .statListValue {
+    width: auto;
+    margin-left: auto;
+  }
+
+  .dayBlocksContainer {
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+
+  .dayColumn {
+    min-width: 52px;
+  }
+
+  .heatmapLegend {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .alertBanner {
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  .alertText {
+    font-size: 1rem;
+  }
+
+  .simBlockCard,
+  .simResultCard {
+    padding: 20px;
+  }
+
+  .simMessageBanner {
+    padding: 20px;
+    font-size: 1rem;
+  }
+
+  .simSliderWrapper {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .simSliderValue {
+    min-width: 0;
+    text-align: left;
+  }
+
+  .simResultTitle {
+    font-size: 1.9rem;
+    margin-bottom: 20px;
+  }
+
+  .simResultRow,
+  .simResultRowNet {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .transactionItem {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 14px 0;
+  }
+
+  .transLeft {
+    width: 100%;
+  }
+
+  .transAmount,
+  .transAmountRed {
+    font-size: 1.25rem;
+    margin-left: 60px;
+  }
+
+  .modalHeader,
+  .modalBody,
+  .modalFooter {
+    padding: 20px;
+  }
+
+  .modalFooter {
+    flex-direction: column;
+  }
+
+  .modalFooter .btnWhite,
+  .modalFooter .btnGreen,
+  .modalFooter .btnDarkRed {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .layout {
+    padding: 18px;
+    padding-bottom: calc(126px + env(safe-area-inset-bottom));
+  }
+
+  .title {
+    font-size: clamp(2.2rem, 13vw, 3.2rem);
+  }
+
+  .bilanDynamicHeader,
+  .bilanDynamicContent,
+  .filterBar,
+  .statCard,
+  .statCardLarge,
+  .transactionsWrapper,
+  .simBlockCard,
+  .simResultCard,
+  .alertBanner {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .filterActions {
+    grid-template-columns: 1fr;
+  }
+
+  .bilanTitle {
+    font-size: 1.55rem;
+  }
+
+  .bilanSubtitle,
+  .statSubtitle,
+  .dayLabel,
+  .transSub {
+    font-size: 0.75rem;
+  }
+
+  .statBigValue,
+  .statBigText {
+    font-size: 2rem;
+  }
+
+  .heroMain h3 {
+    font-size: 2.1rem;
+  }
+
+  .heroMain p,
+  .alertText,
+  .simMessageBanner {
+    font-size: 0.95rem;
+  }
+
+  .transLeft {
+    gap: 14px;
+  }
+
+  .transAmount,
+  .transAmountRed {
+    margin-left: 54px;
   }
 }

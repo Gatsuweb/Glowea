@@ -75,10 +75,10 @@ export default function PrestationsTab() {
       </div>
 
       {isAdding && (
-        <div style={{ marginBottom: "20px", padding: "15px", border: "1px solid #eee", borderRadius: "8px", backgroundColor: "#fafafa" }}>
-          <h3 style={{ fontSize: "1rem", marginBottom: "10px", color: "#333" }}>Nouvelle prestation</h3>
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div style={{ flex: "1", minWidth: "200px" }}>
+        <div className={styles.serviceCreateBox}>
+          <h3 className={styles.serviceCreateTitle}>Nouvelle prestation</h3>
+          <div className={styles.serviceCreateForm}>
+            <div className={styles.serviceCreateField}>
               <label className={styles.label}>Nom de la prestation</label>
               <input 
                 type="text" 
@@ -88,7 +88,7 @@ export default function PrestationsTab() {
                 placeholder="Ex: Pose Complète Cils"
               />
             </div>
-            <div style={{ width: "100px" }}>
+            <div className={styles.serviceCreateFieldSmall}>
               <label className={styles.label}>Durée (min)</label>
               <input 
                 type="number" 
@@ -97,7 +97,7 @@ export default function PrestationsTab() {
                 onChange={(e) => setNewService({...newService, durationMin: Number(e.target.value)})} 
               />
             </div>
-            <div style={{ width: "100px" }}>
+            <div className={styles.serviceCreateFieldSmall}>
               <label className={styles.label}>Prix (€)</label>
               <input 
                 type="number" 
@@ -107,38 +107,38 @@ export default function PrestationsTab() {
                 placeholder="Ex: 50"
               />
             </div>
-            <div style={{ width: "80px" }}>
+            <div className={styles.serviceColorField}>
               <label className={styles.label}>Couleur</label>
               <input 
                 type="color" 
-                style={{ width: "100%", height: "38px", padding: "2px", border: "1px solid #ddd", borderRadius: "4px" }} 
+                className={styles.serviceColorInput}
                 value={newService.color} 
                 onChange={(e) => setNewService({...newService, color: e.target.value})} 
               />
             </div>
-            <button className={styles.btnSave} onClick={handleAdd} style={{ height: "38px" }}>Sauvegarder</button>
+            <button className={`${styles.btnSave} ${styles.serviceSaveButton}`} onClick={handleAdd}>Sauvegarder</button>
           </div>
         </div>
       )}
 
       {isLoading ? (
-        <p style={{ color: "#888" }}>Chargement des prestations...</p>
+        <p className={styles.emptyStateText}>Chargement des prestations...</p>
       ) : services.length === 0 ? (
-        <p style={{ color: "#888" }}>Aucune prestation enregistrée. Ajoutez-en une pour commencer.</p>
+        <p className={styles.emptyStateText}>Aucune prestation enregistrée. Ajoutez-en une pour commencer.</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        <div className={styles.serviceList}>
           {services.map(service => (
-            <div key={service.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 15px", border: "1px solid #eee", borderRadius: "8px", backgroundColor: "#fff" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: service.color || "#FF69B4" }}></div>
-                <div>
-                  <div style={{ fontWeight: "600", color: "#333" }}>{service.name}</div>
-                  <div style={{ fontSize: "0.85rem", color: "#777" }}>{service.durationMin} min • {service.price ? `${service.price} €` : "Prix non défini"}</div>
+            <div key={service.id} className={styles.serviceItem}>
+              <div className={styles.serviceItemMain}>
+                <div className={styles.serviceColorDot} style={{ backgroundColor: service.color || "#FF69B4" }}></div>
+                <div className={styles.serviceInfo}>
+                  <div className={styles.serviceName}>{service.name}</div>
+                  <div className={styles.serviceMeta}>{service.durationMin} min • {service.price ? `${service.price} €` : "Prix non défini"}</div>
                 </div>
               </div>
               <button 
+                className={styles.serviceDeleteButton}
                 onClick={() => handleDelete(service.id)}
-                style={{ background: "none", border: "none", color: "#ff4d4f", cursor: "pointer", padding: "5px" }}
                 title="Supprimer"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -1,10 +1,13 @@
 .layout {
   padding: 20px 40px;
+  width: 100%;
   max-width: 1600px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 30px;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .pageTitle {
@@ -13,12 +16,14 @@
   color: var(--tertiary);
   margin: 0;
   font-weight: 400;
+  word-break: break-word;
 }
 
 .contentWrapper {
   display: flex;
   gap: 40px;
   align-items: flex-start;
+  min-width: 0;
 }
 
 /* =========================================
@@ -39,6 +44,7 @@
   min-height: calc(100vh - 150px);
   position: sticky;
   top: 40px;
+  box-sizing: border-box;
 }
 
 .avatarContainer {
@@ -47,6 +53,7 @@
   align-items: center;
   gap: 15px;
   margin-bottom: 40px;
+  width: 100%;
 }
 
 .avatar {
@@ -66,6 +73,8 @@
   color: #333;
   font-weight: 500;
   margin: 0;
+  text-align: center;
+  word-break: break-word;
 }
 
 .navMenu {
@@ -74,13 +83,14 @@
   flex-direction: column;
   gap: 5px;
   margin-bottom: 50px;
+  min-width: 0;
 }
 
 .navItem {
   background: transparent;
   border: none;
   width: 100%;
-  text-align: center;
+  text-align: left;
   padding: 12px 15px;
   border-radius: 10px;
   font-size: 0.85rem;
@@ -92,6 +102,8 @@
   transition: all 0.2s;
   display: flex;
   gap: 10px;
+  align-items: center;
+  min-height: 44px;
 }
 
 .navItem:hover {
@@ -131,6 +143,7 @@
   letter-spacing: 1px;
   cursor: pointer;
   transition: opacity 0.2s;
+  min-height: 44px;
 }
 
 .btnDisconnect:hover {
@@ -162,9 +175,11 @@
    ========================================= */
 .mainContent {
   flex: 1;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 30px;
+  min-width: 0;
 }
 
 .card {
@@ -172,6 +187,9 @@
   border-radius: 20px;
   padding: 40px;
   box-shadow: var(--box-shadow);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
 }
 
 .cardHeader {
@@ -181,6 +199,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
 }
 
 .cardTitle {
@@ -189,6 +208,7 @@
   color: #333;
   margin: 0;
   font-weight: 400;
+  line-height: 1.1;
 }
 
 .btnEdit {
@@ -201,6 +221,8 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  min-height: 44px;
+  flex-shrink: 0;
 }
 
 .btnEdit:hover {
@@ -223,6 +245,8 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  min-height: 44px;
+  flex-shrink: 0;
 }
 
 .btnSave:hover {
@@ -264,6 +288,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 25px;
+  min-width: 0;
 }
 
 .formGroup {
@@ -294,6 +319,8 @@
   background-color: #FAFAFA;
   transition: all 0.2s;
   outline: none;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .input:focus {
@@ -315,6 +342,7 @@
   align-items: center;
   padding: 15px 0;
   border-bottom: 1px solid #F0F0F0;
+  gap: 18px;
 }
 
 .docRow:last-child {
@@ -325,12 +353,15 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+  flex: 1;
 }
 
 .docName {
   font-size: 1.05rem;
   color: #333;
   font-weight: 600;
+  word-break: break-word;
 }
 
 .docStatus {
@@ -356,6 +387,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 44px;
+  flex-shrink: 0;
 }
 
 .btnDownload:hover {
@@ -373,6 +406,10 @@
   color: #666;
   line-height: 1.6;
   margin-bottom: 20px;
+}
+
+.legalCardHeader {
+  border-bottom-color: #E5C5C5;
 }
 
 .legalList {
@@ -415,12 +452,14 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+  box-sizing: border-box;
 }
 
 .planHeader {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 16px;
 }
 
 .planTitle {
@@ -445,6 +484,7 @@
   font-weight: 700;
   color: var(--tertiary);
   line-height: 1;
+  white-space: nowrap;
 }
 
 .planPrice span {
@@ -463,6 +503,7 @@
   display: flex;
   gap: 15px;
   margin-top: 15px;
+  flex-wrap: wrap;
 }
 
 .btnOutlineRed {
@@ -475,6 +516,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  min-height: 44px;
 }
 
 .btnOutlineRed:hover {
@@ -489,12 +531,14 @@
   border: 1px solid #F0F0F0;
   border-radius: 15px;
   padding: 25px;
+  gap: 16px;
 }
 
 .paymentLeft {
   display: flex;
   align-items: center;
   gap: 20px;
+  min-width: 0;
 }
 
 .paymentIcon {
@@ -529,6 +573,7 @@
   width: 100%;
   border-collapse: collapse;
   text-align: left;
+  min-width: 560px;
 }
 
 .customTable th {
@@ -554,6 +599,7 @@
   align-items: center;
   padding: 25px 0;
   border-bottom: 1px solid #F0F0F0;
+  gap: 18px;
 }
 
 .settingsRow:last-child {
@@ -693,6 +739,7 @@
   cursor: pointer;
   transition: all 0.2s;
   background-color: transparent;
+  box-sizing: border-box;
 }
 
 .newTemplateBox:hover {
@@ -727,6 +774,8 @@
   justify-content: space-between;
   align-items: center;
   transition: border-color 0.2s;
+  gap: 16px;
+  box-sizing: border-box;
 }
 
 .templateItem:hover {
@@ -737,6 +786,7 @@
   display: flex;
   align-items: center;
   gap: 20px;
+  min-width: 0;
 }
 
 .templateIcon {
@@ -750,6 +800,134 @@
   align-items: center;
 }
 
+.emptyFeatureCard {
+  text-align: center;
+  padding: 80px 20px;
+}
+
+.emptyFeatureIcon {
+  margin-bottom: 20px;
+  opacity: 0.8;
+}
+
+.emptyFeatureText {
+  color: #888;
+  margin-top: 15px;
+  font-size: 1.1rem;
+}
+
+.templatesIntro {
+  margin-bottom: 30px;
+}
+
+.serviceCreateBox {
+  margin-bottom: 20px;
+  padding: 15px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  background-color: #fafafa;
+}
+
+.serviceCreateTitle {
+  font-size: 1rem;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.serviceCreateForm {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.serviceCreateField {
+  flex: 1;
+  min-width: 200px;
+}
+
+.serviceCreateFieldSmall {
+  width: 100px;
+}
+
+.serviceColorField {
+  width: 80px;
+}
+
+.serviceColorInput {
+  width: 100%;
+  height: 38px;
+  padding: 2px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.serviceSaveButton {
+  height: 38px;
+  min-height: 38px;
+}
+
+.emptyStateText {
+  color: #888;
+}
+
+.serviceList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.serviceItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 15px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  background-color: #fff;
+  gap: 16px;
+}
+
+.serviceItemMain {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.serviceColorDot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.serviceInfo {
+  min-width: 0;
+}
+
+.serviceName {
+  font-weight: 600;
+  color: #333;
+  word-break: break-word;
+}
+
+.serviceMeta {
+  font-size: 0.85rem;
+  color: #777;
+  word-break: break-word;
+}
+
+.serviceDeleteButton {
+  background: none;
+  border: none;
+  color: #ff4d4f;
+  cursor: pointer;
+  padding: 5px;
+  flex-shrink: 0;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .contentWrapper {
@@ -760,49 +938,262 @@
     width: 250px; /* On réduit un peu sa largeur */
     padding: 30px 20px;
   }
+
+  .card {
+    padding: 30px;
+  }
 }
 
 @media (max-width: 768px) {
+  .layout {
+    padding: 20px;
+    padding-bottom: calc(120px + env(safe-area-inset-bottom));
+    gap: 20px;
+  }
+
+  .pageTitle {
+    font-size: clamp(2.4rem, 12vw, 3.6rem);
+  }
+
   .contentWrapper {
     flex-direction: column; /* Seulement sur mobile on passe en colonne */
+    gap: 20px;
   }
+
   .formGrid {
     grid-template-columns: 1fr;
+    gap: 18px;
   }
+
   .sidebar {
     width: 100%;
-    flex-direction: row;
-    justify-content: space-between;
-    padding: 20px 30px;
-    align-items: center;
+    min-height: auto;
+    position: static;
+    top: auto;
+    padding: 20px;
+    align-items: stretch;
+    gap: 18px;
   }
+
   .avatarContainer {
     margin-bottom: 0;
     flex-direction: row;
+    justify-content: flex-start;
+    gap: 14px;
   }
+
   .avatar {
     width: 60px;
     height: 60px;
   }
+
+  .userName {
+    text-align: left;
+    font-size: 1rem;
+  }
+
   .navMenu {
-    display: none; /* On cache le menu latéral sur mobile pour le moment */
-  }
-  .sidebarFooter {
-    width: auto;
+    display: flex;
     flex-direction: row;
+    overflow-x: auto;
+    white-space: nowrap;
+    gap: 10px;
+    margin-bottom: 0;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
-  .footerLinks {
+
+  .navMenu::-webkit-scrollbar {
     display: none;
   }
-  .btnDisconnect {
-    padding: 10px 20px;
+
+  .navItem {
+    width: auto;
+    flex: 0 0 auto;
+    border-radius: 999px;
+    padding: 10px 14px;
+    font-size: 0.8rem;
   }
+
+  .sidebarFooter {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .footerLinks {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+  }
+
+  .btnDisconnect {
+    padding: 12px 16px;
+  }
+
+  .card {
+    padding: 20px;
+  }
+
+  .cardHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+  }
+
+  .cardTitle {
+    font-size: 1.8rem;
+  }
+
+  .btnEdit,
+  .btnSave {
+    width: 100%;
+  }
+
+  .docRow,
+  .paymentMethodRow,
+  .settingsRow,
+  .templateItem,
+  .planHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .docRow,
+  .settingsRow {
+    padding: 18px 0;
+  }
+
+  .btnDownload {
+    align-self: flex-start;
+  }
+
+  .planPrice {
+    white-space: normal;
+    font-size: 2.2rem;
+  }
+
+  .planActions {
+    flex-direction: column;
+  }
+
+  .planActions .btnEdit,
+  .planActions .btnOutlineRed {
+    width: 100%;
+  }
+
+  .paymentMethodRow {
+    padding: 20px;
+  }
+
+  .paymentLeft {
+    width: 100%;
+  }
+
+  .customTable {
+    min-width: 520px;
+  }
+
+  .settingActions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .toggleButton,
+  .toggleWrapper {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .newTemplateBox,
+  .templateItem {
+    padding: 18px;
+  }
+
+  .templateLeft {
+    width: 100%;
+  }
+
+  .templateItem .btnEdit {
+    width: 100%;
+  }
+
+  .emptyFeatureCard {
+    padding: 48px 20px;
+  }
+
+  .serviceCreateForm {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .serviceCreateField,
+  .serviceCreateFieldSmall,
+  .serviceColorField {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .serviceSaveButton {
+    width: 100%;
+    height: auto;
+    min-height: 44px;
+  }
+
+  .serviceItem {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .serviceDeleteButton {
+    align-self: flex-end;
+  }
+
   .settingsRow {
     align-items: flex-start;
     gap: 16px;
   }
-  .settingActions {
-    align-items: flex-end;
-    flex-direction: column-reverse;
+}
+
+@media (max-width: 480px) {
+  .layout {
+    padding: 18px;
+    padding-bottom: calc(126px + env(safe-area-inset-bottom));
+  }
+
+  .sidebar,
+  .card {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .pageTitle {
+    font-size: clamp(2.1rem, 13vw, 3rem);
+  }
+
+  .cardTitle {
+    font-size: 1.55rem;
+  }
+
+  .footerLinks {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .customTable {
+    min-width: 460px;
+  }
+
+  .emptyFeatureText,
+  .legalText,
+  .settingsInfo p,
+  .paymentDetails p,
+  .serviceMeta {
+    font-size: 0.85rem;
   }
 }

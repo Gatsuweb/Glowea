@@ -1,10 +1,17 @@
 .layout {
   padding: 40px;
+  width: 100%;
   max-width: 1600px;
   margin: 0 auto;
   display: flex;
   gap: 50px;
   align-items: flex-start;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+.mobileDirectoryToggle {
+  display: none;
 }
 
 /* =========================================
@@ -21,6 +28,8 @@
   padding: 30px;
   box-shadow: var(--box-shadow);
   min-height: calc(100vh - 80px);
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .sidebarHeader {
@@ -85,6 +94,7 @@
   flex-direction: column;
   gap: 10px;
   margin-top: 10px;
+  min-width: 0;
 }
 
 .clientItem {
@@ -97,6 +107,7 @@
   transition: all 0.2s ease;
   position: relative;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .clientItem:hover {
@@ -138,12 +149,14 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .clientName {
   font-weight: 700;
   color: #333;
   font-size: 1.05rem;
+  word-break: break-word;
 }
 
 .clientSub {
@@ -159,9 +172,11 @@
    ========================================= */
 .mainContent {
   flex: 1;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 25px;
+  min-width: 0;
 }
 
 /* Header Card */
@@ -173,12 +188,14 @@
   display: flex;
   flex-direction: column;
   gap: 25px;
+  box-sizing: border-box;
 }
 
 .headerTop {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 20px;
 }
 
 .headerTitle {
@@ -193,12 +210,15 @@
   font-size: 0.95rem;
   color: #666;
   font-weight: 500;
+  line-height: 1.5;
 }
 
 .headerActions {
   display: flex;
   align-items: center;
   gap: 15px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .btnNewRdv {
@@ -211,6 +231,7 @@
   font-weight: 500;
   cursor: pointer;
   transition: opacity 0.2s;
+  min-height: 44px;
 }
 
 .btnNewRdv:hover {
@@ -229,6 +250,7 @@
   cursor: pointer;
   color: var(--tertiary);
   transition: all 0.2s;
+  flex-shrink: 0;
 }
 
 .iconBtn:hover {
@@ -239,6 +261,7 @@
 .headerContact {
   display: flex;
   gap: 80px;
+  flex-wrap: wrap;
 }
 
 .contactBlock {
@@ -262,6 +285,15 @@
 .tabs {
   display: flex;
   gap: 15px;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding-bottom: 2px;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tab {
@@ -272,6 +304,8 @@
   cursor: pointer;
   border: none;
   transition: all 0.2s;
+  flex: 0 0 auto;
+  min-height: 44px;
 }
 
 .tabActive {
@@ -299,12 +333,14 @@
   display: flex;
   flex-direction: column;
   gap: 25px;
+  box-sizing: border-box;
 }
 
 .cardHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
 }
 
 .cardTitle {
@@ -380,6 +416,7 @@
   background: #FFF;
   font: inherit;
   outline: none;
+  box-sizing: border-box;
 }
 
 .formTextarea {
@@ -478,6 +515,8 @@
   box-shadow: var(--box-shadow);
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .tableHeader {
@@ -485,6 +524,7 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 25px;
+  gap: 16px;
 }
 
 .tableTitle {
@@ -508,12 +548,15 @@
 
 .tableContainer {
   overflow-x: auto;
+  max-width: 100%;
+  scrollbar-width: thin;
 }
 
 .customTable {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
+  min-width: 720px;
 }
 
 .customTable th {
@@ -533,6 +576,15 @@
   color: #333;
   font-weight: 500;
   vertical-align: middle;
+}
+
+.tableActionCell {
+  text-align: right;
+}
+
+.emptyRowCell {
+  text-align: center;
+  padding: 20px;
 }
 
 .customTable tr:last-child td {
@@ -662,18 +714,53 @@
   padding: 20px 30px;
   border-radius: 15px;
   box-shadow: var(--box-shadow);
+  gap: 16px;
 }
 
 .consentDesc {
   color: #666;
   font-size: 0.95rem;
   margin: 0;
+  line-height: 1.6;
+  max-width: 70ch;
+}
+
+.consentActionButtons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.feedbackStack {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feedbackError,
+.feedbackSuccess {
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+.feedbackError {
+  color: #8B1E2D;
+  background: #FFF2F4;
+  border: 1px solid #F0B8C0;
+}
+
+.feedbackSuccess {
+  color: #286B3B;
+  background: #F1FBF4;
+  border: 1px solid #BFE7C9;
 }
 
 .consentTitleBox {
   display: flex;
   align-items: center;
   gap: 15px;
+  min-width: 0;
 }
 
 .consentIconBoxPink {
@@ -744,6 +831,8 @@
   font-size: 1rem;
   color: #333;
   font-weight: 600;
+  line-height: 1.5;
+  word-break: break-word;
 }
 
 .signatureBox {
@@ -754,6 +843,7 @@
   padding: 15px 20px;
   border-radius: 8px;
   border: 1px dashed #E5E5E5;
+  gap: 12px;
 }
 
 .signatureText {
@@ -761,6 +851,7 @@
   font-style: italic;
   color: var(--tertiary);
   font-size: 1.1rem;
+  line-height: 1.5;
 }
 
 .btnOutline {
@@ -773,6 +864,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  min-height: 44px;
 }
 
 .btnOutline:hover {
@@ -794,10 +886,15 @@
   align-items: center;
   padding: 15px 0;
   border-bottom: 1px solid #F0F0F0;
+  gap: 16px;
 }
 
 .consentRow:last-child {
   border-bottom: none;
+}
+
+.consentRowEditable {
+  cursor: pointer;
 }
 
 .consentRowText h4 {
@@ -810,12 +907,18 @@
   margin: 0;
   font-size: 0.9rem;
   color: #888;
+  line-height: 1.5;
 }
 
 .toggleWrapper {
   display: flex;
   align-items: center;
   gap: 15px;
+  flex-shrink: 0;
+}
+
+.toggleWrapperEditable {
+  cursor: pointer;
 }
 
 .toggleTextOn {
@@ -879,6 +982,10 @@
   color: var(--tertiary);
 }
 
+.mutedText {
+  color: #888;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .layout {
@@ -899,21 +1006,412 @@
   .contactGrid {
     grid-template-columns: 1fr 1fr; /* On force le maintien des 2 colonnes pour Coordonnées sur tablette */
   }
+
+  .headerCard,
+  .infoCard,
+  .tableCard {
+    padding: 28px;
+  }
+
+  .headerContact {
+    gap: 24px;
+  }
 }
 
 @media (max-width: 768px) {
   .layout {
     flex-direction: column; /* Sur mobile seulement, on empile */
+    align-items: stretch;
+    padding: 20px;
+    padding-bottom: calc(120px + env(safe-area-inset-bottom));
+    gap: 20px;
   }
+
+  .mobileDirectoryToggle {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 16px 18px;
+    border: 1px solid rgba(139, 75, 84, 0.12);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: var(--box-shadow);
+    color: #333;
+    text-align: left;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .mobileDirectoryToggleLabel {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .mobileDirectoryToggleValue {
+    min-width: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #555;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobileDirectoryToggleIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #FAF4F4;
+    color: var(--tertiary);
+    font-size: 1.3rem;
+    line-height: 1;
+  }
+
   .sidebar {
     width: 100%;
     min-height: auto;
+    padding: 20px;
+    gap: 16px;
+    display: none;
   }
+
+  .sidebarMobileOpen {
+    display: flex;
+  }
+
+  .sidebarTitle {
+    font-size: clamp(2.2rem, 10vw, 3rem);
+  }
+
+  .mainContent {
+    gap: 18px;
+  }
+
+  .headerCard,
+  .infoCard,
+  .tableCard,
+  .consentActionsRow {
+    width: 100%;
+    align-self: stretch;
+    padding: 20px;
+  }
+
+  .headerTop {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .headerTitle {
+    font-size: clamp(2.2rem, 10vw, 3rem);
+  }
+
+  .headerActions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .btnNewRdv {
+    padding: 12px 16px;
+  }
+
   .headerContact {
     flex-direction: column;
     gap: 15px;
   }
+
+  .tabs {
+    gap: 10px;
+  }
+
+  .tab {
+    padding: 10px 18px;
+  }
+
   .infoGrid {
     grid-template-columns: 1fr; /* Sur mobile, notes passe aussi sur 1 colonne */
+  }
+
+  .contactGrid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .cardHeader,
+  .tableHeader,
+  .consentActionsRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .cardTitle,
+  .tableTitle,
+  .galerieTitle {
+    font-size: 1.8rem;
+  }
+
+  .galerieGrid {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(5, 150px);
+  }
+
+  .galerieMain,
+  .galerieGrid .galerieItem:nth-child(4) {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .tableContainer {
+    overflow: visible;
+  }
+
+  .customTable {
+    min-width: 0;
+  }
+
+  .customTable thead {
+    display: none;
+  }
+
+  .customTable,
+  .customTable tbody,
+  .customTable tr,
+  .customTable td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .customTable tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .customTable tr {
+    border: 1px solid #F1E6E8;
+    border-radius: 16px;
+    padding: 14px 16px;
+    background: #FFFEFE;
+    box-shadow: 0 4px 14px rgba(84, 48, 53, 0.05);
+  }
+
+  .customTable td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #F5ECEE;
+    font-size: 0.92rem;
+  }
+
+  .customTable td:last-child {
+    border-bottom: none;
+  }
+
+  .customTable td::before {
+    content: attr(data-label);
+    flex: 0 0 42%;
+    color: #8A6B70;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .tableActionCell {
+    justify-content: flex-end;
+    padding-top: 14px;
+  }
+
+  .tableActionCell::before,
+  .emptyRowCell::before {
+    display: none;
+  }
+
+  .emptyRowCell {
+    text-align: center;
+    justify-content: center;
+    padding: 8px 0 0;
+  }
+
+  .tdClient,
+  .tdDoc {
+    width: 100%;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .tdClient span,
+  .tdDoc {
+    word-break: break-word;
+  }
+
+  .tdAvatarSquare {
+    width: 36px;
+    height: 28px;
+    flex-shrink: 0;
+  }
+
+  .statusBadge,
+  .catBadge {
+    max-width: 100%;
+  }
+
+  .rdvTabContent,
+  .consentTabContent {
+    gap: 20px;
+  }
+
+  .consentDesc {
+    max-width: none;
+  }
+
+  .consentActionButtons {
+    width: 100%;
+  }
+
+  .consentActionButtons .btnNewRdv {
+    flex: 1 1 180px;
+  }
+
+  .consentGrid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .consentItem,
+  .consentItemFull {
+    padding: 16px;
+  }
+
+  .consentRow {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 16px 0;
+  }
+
+  .toggleWrapper {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .signatureBox {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .layout {
+    padding: 18px;
+    padding-bottom: calc(126px + env(safe-area-inset-bottom));
+  }
+
+  .mobileDirectoryToggle {
+    grid-template-columns: 1fr auto;
+    padding: 14px 16px;
+  }
+
+  .mobileDirectoryToggleValue {
+    grid-column: 1 / 2;
+    text-align: left;
+    white-space: normal;
+  }
+
+  .mobileDirectoryToggleIcon {
+    grid-column: 2 / 3;
+    grid-row: 1 / 3;
+    align-self: center;
+  }
+
+  .sidebar,
+  .headerCard,
+  .infoCard,
+  .tableCard,
+  .consentActionsRow {
+    width: 100%;
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .searchWrapper {
+    padding: 11px 16px;
+  }
+
+  .clientItem {
+    padding: 14px 16px;
+  }
+
+  .clientAvatar {
+    width: 44px;
+    height: 44px;
+  }
+
+  .headerTitle {
+    font-size: clamp(2rem, 12vw, 2.7rem);
+  }
+
+  .headerSubtitle,
+  .contactValue,
+  .infoValue,
+  .consentValue {
+    font-size: 0.9rem;
+  }
+
+  .btnNewRdv,
+  .btnOutline,
+  .tab {
+    width: 100%;
+  }
+
+  .headerActions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .iconBtn {
+    align-self: flex-end;
+  }
+
+  .customTable tr {
+    padding: 12px 14px;
+  }
+
+  .customTable td {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .customTable td::before {
+    flex: none;
+  }
+
+  .tableActionCell {
+    align-items: flex-end;
+  }
+
+  .consentTitleBox {
+    align-items: flex-start;
+  }
+
+  .consentIconBoxPink,
+  .consentIconBoxRed {
+    width: 40px;
+    height: 40px;
+  }
+
+  .consentRowText h4 {
+    font-size: 1rem;
   }
 }

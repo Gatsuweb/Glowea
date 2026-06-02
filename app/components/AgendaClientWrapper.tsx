@@ -303,12 +303,12 @@ export default function AgendaClientWrapper({
       {/* Liste des rendez-vous */}
       <section className={styles.listCard}>
         {actionError && (
-          <div style={{ color: '#8B1E2D', background: '#FFF2F4', border: '1px solid #F0B8C0', padding: '10px 12px', borderRadius: '8px', marginBottom: '12px', fontSize: '0.9rem' }}>
+          <div className={styles.errorAlert}>
             {actionError}
           </div>
         )}
         {filteredAppointments.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#888' }}>
+          <div className={styles.emptyState}>
             Aucun rendez-vous {isHistoryView ? "dans l'historique" : "pour cette période"}
           </div>
         )}
@@ -338,10 +338,10 @@ export default function AgendaClientWrapper({
                   <div className={styles.tags}>
                     <span className={styles.tag}>{app.service.name}</span>
                     <select
+                      className={styles.statusSelect}
                       value={app.status}
                       disabled={actionAppointmentId === app.id}
                       onChange={(e) => handleStatusChange(app.id, e.target.value as AppointmentStatusValue)}
-                      style={{ border: '1px solid #E8D2D6', background: '#fff', borderRadius: '999px', padding: '4px 8px', color: '#8B4B54', fontSize: '0.8rem', fontWeight: 600 }}
                       title="Changer le statut"
                     >
                       {Object.entries(statusLabels).map(([value, label]) => (
@@ -351,7 +351,7 @@ export default function AgendaClientWrapper({
                     <span className={styles.tag}>{app.paymentStatus === 'PAID' ? 'Payé' : 'Non-payé'}</span>
                   </div>
                   {app.notes && (
-                    <div style={{ marginTop: '8px', color: '#777', fontSize: '0.85rem' }}>
+                    <div className={styles.appointmentNote}>
                       {app.notes}
                     </div>
                   )}
@@ -412,7 +412,7 @@ export default function AgendaClientWrapper({
 
         {/* Pagination pour l'historique */}
         {isHistoryView && filteredAppointments.length > itemsPerPage && (
-          <div className={styles.pagination} style={{ display: 'flex', justifyContent: 'center', marginTop: '20px', gap: '10px' }}>
+          <div className={styles.pagination}>
             <button 
               className={styles.btnSecondary} 
               disabled={historyPage === 1}
@@ -420,7 +420,7 @@ export default function AgendaClientWrapper({
             >
               Précédent
             </button>
-            <span style={{ alignSelf: 'center', fontWeight: '500' }}>
+            <span className={styles.pageIndicator}>
               Page {historyPage} / {Math.ceil(filteredAppointments.length / itemsPerPage)}
             </span>
             <button 
@@ -438,93 +438,91 @@ export default function AgendaClientWrapper({
       {!isHistoryView && (
         <section className={styles.calendarSection}>
           <div className={styles.calendarHeader}>
-          <h2 className={styles.calendarTitle}>Planning de la semaine</h2>
-          <div className={styles.calendarActions}>
-            <div className={styles.calendarNav}>
-              <button className={styles.navBtn} onClick={() => changeWeek(-1)}>&lt;</button>
-              <div className={styles.currentDate}>{formatWeekRange()}</div>
-              <button className={styles.navBtn} onClick={() => changeWeek(1)}>&gt;</button>
+            <h2 className={styles.calendarTitle}>Planning de la semaine</h2>
+            <div className={styles.calendarActions}>
+              <div className={styles.calendarNav}>
+                <button className={styles.navBtn} onClick={() => changeWeek(-1)}>&lt;</button>
+                <div className={styles.currentDate}>{formatWeekRange()}</div>
+                <button className={styles.navBtn} onClick={() => changeWeek(1)}>&gt;</button>
+              </div>
+              <span className={styles.downloadText} onClick={() => exportElementToPDF('calendar-grid-export', 'planning_semaine', 'landscape')}>Télécharger</span>
+              <button 
+                className={styles.downloadBtn} 
+                onClick={() => exportElementToPDF('calendar-grid-export', 'planning_semaine', 'landscape')}
+                title="Télécharger le planning"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+              </button>
             </div>
-            <span className={styles.downloadText} style={{ cursor: 'pointer' }} onClick={() => exportElementToPDF('calendar-grid-export', 'planning_semaine', 'landscape')}>Télécharger</span>
-            <button 
-              className={styles.downloadBtn} 
-              onClick={() => exportElementToPDF('calendar-grid-export', 'planning_semaine', 'landscape')}
-              title="Télécharger le planning"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-            </button>
           </div>
-        </div>
-
-        <div className={styles.calendarGrid} id="calendar-grid-export">
-          {/* Header des jours */}
-          <div className={styles.daysRow}>
-            <div className={styles.timeLabel}></div>
-            {weekDays.map((day, index) => (
-              <div key={index} className={`${styles.dayHeader} ${isToday(day) ? styles.today : ''}`}>
-                <span className={styles.dayName}>{dayNames[index]}</span>
-                <span className={styles.dayNumber}>{day.getDate()}</span>
+          <div className={styles.calendarScroller}>
+            <div className={styles.calendarGrid} id="calendar-grid-export">
+              {/* Header des jours */}
+              <div className={styles.daysRow}>
+                <div className={styles.timeLabel}></div>
+                {weekDays.map((day, index) => (
+                  <div key={index} className={`${styles.dayHeader} ${isToday(day) ? styles.today : ''}`}>
+                    <span className={styles.dayName}>{dayNames[index]}</span>
+                    <span className={styles.dayNumber}>{day.getDate()}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          
-          {/* Corps du calendrier scrollable */}
-          <div className={styles.gridBody}>
-            {/* Ligne indiquant l'heure actuelle */}
-            {isCurrentWeek() && (
-              <div className={styles.currentTimeLine} style={{ top: `${getRedLinePosition()}px` }}></div>
-            )}
+              
+              {/* Corps du calendrier scrollable */}
+              <div className={styles.gridBody}>
+                {/* Ligne indiquant l'heure actuelle */}
+                {isCurrentWeek() && (
+                  <div className={styles.currentTimeLine} style={{ top: `${getRedLinePosition()}px` }}></div>
+                )}
 
-            {/* Génération des heures de 8h à 18h */}
-            {[8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].map((hour) => (
-              <div key={hour} className={styles.timeRow}>
-                <div className={styles.timeLabel}>{hour}:00</div>
-                {weekDays.map((day, dayIndex) => {
-                  // Find appointments for this day and hour
-                  const dayAppointments = filteredAppointments.filter(app => {
-                    const appDate = new Date(app.scheduledAt);
-                    return appDate.getDate() === day.getDate() && 
-                           appDate.getMonth() === day.getMonth() &&
-                           appDate.getHours() === hour;
-                  });
-
-                  return (
-                    <div key={dayIndex} className={styles.timeCell}>
-                      {dayAppointments.map((app, appIndex) => {
+                {/* Génération des heures de 8h à 18h */}
+                {[8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].map((hour) => (
+                  <div key={hour} className={styles.timeRow}>
+                    <div className={styles.timeLabel}>{hour}:00</div>
+                    {weekDays.map((day, dayIndex) => {
+                      const dayAppointments = filteredAppointments.filter(app => {
                         const appDate = new Date(app.scheduledAt);
-                        const endAt = new Date(app.endAt);
-                        const durationMinutes = (endAt.getTime() - appDate.getTime()) / 60000;
-                        const topOffset = (appDate.getMinutes() / 60) * 60; // 60px per hour
-                        const height = (durationMinutes / 60) * 60;
+                        return appDate.getDate() === day.getDate() && 
+                               appDate.getMonth() === day.getMonth() &&
+                               appDate.getHours() === hour;
+                      });
 
-                        // Alternate styles for demo
-                        const styleClass = appIndex % 3 === 0 ? styles.event1 : (appIndex % 3 === 1 ? styles.event2 : styles.event3);
+                      return (
+                        <div key={dayIndex} className={styles.timeCell}>
+                          {dayAppointments.map((app, appIndex) => {
+                            const appDate = new Date(app.scheduledAt);
+                            const endAt = new Date(app.endAt);
+                            const durationMinutes = (endAt.getTime() - appDate.getTime()) / 60000;
+                            const topOffset = (appDate.getMinutes() / 60) * 60;
+                            const height = (durationMinutes / 60) * 60;
+                            const styleClass = appIndex % 3 === 0 ? styles.event1 : (appIndex % 3 === 1 ? styles.event2 : styles.event3);
 
-                        return (
-                          <div 
-                            key={app.id} 
-                            className={`${styles.eventBlock} ${styleClass}`} 
-                            style={{ top: `${topOffset}px`, height: `${height}px` }}
-                          >
-                            <div className={styles.eventTitle}>{app.client.name.toUpperCase()}</div>
-                            <div className={styles.eventTime}>
-                              {appDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} - 
-                              {endAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
+                            return (
+                              <div 
+                                key={app.id} 
+                                className={`${styles.eventBlock} ${styleClass}`} 
+                                style={{ top: `${topOffset}px`, height: `${height}px` }}
+                              >
+                                <div className={styles.eventTitle}>{app.client.name.toUpperCase()}</div>
+                                <div className={styles.eventTime}>
+                                  {appDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} - 
+                                  {endAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
-        </div>
       </section>
       )}
 

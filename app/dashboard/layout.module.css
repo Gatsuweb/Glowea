@@ -3,11 +3,19 @@
   flex-direction: column;
   min-height: 100vh;
   background: url("/images/paper-texture.png");
-  padding-bottom: 145px; /* height of bottom nav */
+  padding-bottom: calc(145px + env(safe-area-inset-bottom)); /* height of bottom nav */
+  overflow-x: hidden;
 }
 
 .mainContent {
   flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .layoutWrapper {
+    padding-bottom: calc(120px + env(safe-area-inset-bottom));
+  }
 }
 
 @media (min-width: 1025px) {

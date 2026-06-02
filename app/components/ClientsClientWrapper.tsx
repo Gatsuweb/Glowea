@@ -47,6 +47,7 @@ const emptyConsentData: ConsentState = {
 export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
   const searchParams = useSearchParams();
   const [clientList, setClientList] = useState<any[]>(clients);
+  const [isMobileDirectoryOpen, setIsMobileDirectoryOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "infos");
   const [isSessionModalOpen, setSessionModalOpen] = useState(false);
@@ -169,6 +170,9 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
 
   const selectedClient = clientList.find(c => c.id === selectedClientId) || null;
   const selectedClientNote = selectedClient?.ClientNote?.[0]?.content || "";
+  const selectedClientDisplayName = selectedClient
+    ? `${selectedClient.firstName} ${selectedClient.lastName || ""}`.trim()
+    : "Aucun client sélectionné";
 
   useEffect(() => {
     if (!selectedClient) {
@@ -322,9 +326,23 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
 
   return (
     <main className={styles.layout}>
-      
+      <button
+        type="button"
+        className={styles.mobileDirectoryToggle}
+        onClick={() => setIsMobileDirectoryOpen((current) => !current)}
+        aria-expanded={isMobileDirectoryOpen}
+        aria-controls="clients-directory"
+      >
+        <span className={styles.mobileDirectoryToggleLabel}>Répertoire</span>
+        <span className={styles.mobileDirectoryToggleValue}>{selectedClientDisplayName}</span>
+        <span className={styles.mobileDirectoryToggleIcon}>{isMobileDirectoryOpen ? "−" : "+"}</span>
+      </button>
+
       {/* SIDEBAR - Répertoire */}
-      <aside className={styles.sidebar}>
+      <aside
+        id="clients-directory"
+        className={`${styles.sidebar} ${isMobileDirectoryOpen ? styles.sidebarMobileOpen : ""}`}
+      >
         <div className={styles.sidebarHeader}>
           <h1 className={styles.sidebarTitle}>Répertoire</h1>
           <span className={styles.clientCount}>{clientList.length} clients</span>
@@ -350,8 +368,10 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
             <div 
               key={client.id} 
               className={`${styles.clientItem} ${client.id === selectedClientId ? styles.clientItemActive : ''}`}
-              onClick={() => setSelectedClientId(client.id)}
-              style={{ cursor: "pointer" }}
+              onClick={() => {
+                setSelectedClientId(client.id);
+                setIsMobileDirectoryOpen(false);
+              }}
             >
               <div className={styles.clientAvatar}>
                 {client.firstName.charAt(0).toUpperCase()}
@@ -651,21 +671,21 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
                     {historyRdv.length > 0 ? (
                       historyRdv.map((rdv: any) => (
                         <tr key={rdv.id}>
-                          <td>{rdv.date}</td>
-                          <td>{rdv.time}</td>
-                          <td>
+                          <td data-label="Date">{rdv.date}</td>
+                          <td data-label="Heure">{rdv.time}</td>
+                          <td data-label="Cliente">
                             <div className={styles.tdClient}>
                               <span>{rdv.client}</span>
                             </div>
                           </td>
-                          <td>{rdv.presta}</td>
-                          <td>
+                          <td data-label="Prestation">{rdv.presta}</td>
+                          <td data-label="Statut">
                             <span className={`${styles.statusBadge} ${rdv.status === 'Terminé' ? styles.statusGreen : styles.statusOrange}`}>
                               {rdv.status}
                             </span>
                           </td>
-                          <td>{rdv.amount}</td>
-                          <td style={{ textAlign: 'right' }}>
+                          <td data-label="Montant">{rdv.amount}</td>
+                          <td className={styles.tableActionCell}>
                             {rdv.hasSession && (
                               <button 
                                 className={styles.btnVoirFiche}
@@ -686,7 +706,7 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={7} style={{ textAlign: 'center', padding: '20px' }}>Aucun rendez-vous trouvé</td>
+                        <td colSpan={7} className={styles.emptyRowCell}>Aucun rendez-vous trouvé</td>
                       </tr>
                     )}
                   </tbody>
@@ -715,13 +735,13 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
                     {historyPresta.length > 0 ? (
                       historyPresta.map((presta: any) => (
                         <tr key={presta.id}>
-                          <td>
+                          <td data-label="Prestation">
                             <div className={styles.tdClient}>
                               <div className={styles.tdAvatarSquare}></div>
                               <span>{presta.name}</span>
                             </div>
                           </td>
-                          <td>
+                          <td data-label="Catégorie">
                             <span className={styles.catBadge}>
                               {presta.cat === 'Cils' ? (
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -731,13 +751,13 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
                               {presta.cat}
                             </span>
                           </td>
-                          <td>{presta.count}</td>
-                          <td>{presta.ca}</td>
+                          <td data-label="Nombre">{presta.count}</td>
+                          <td data-label="Chiffre d'affaires">{presta.ca}</td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={4} style={{ textAlign: 'center', padding: '20px' }}>Aucune prestation terminée</td>
+                        <td colSpan={4} className={styles.emptyRowCell}>Aucune prestation terminée</td>
                       </tr>
                     )}
                   </tbody>
@@ -759,7 +779,7 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
                   {consentSignedAt ? "Renouveler" : "Remplir"}
                 </button>
               ) : (
-                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <div className={styles.consentActionButtons}>
                   <button className={styles.btnNewRdv} onClick={() => { setIsEditingConsent(false); loadConsent(); }} disabled={isLoadingConsent}>
                     Annuler
                   </button>
@@ -771,9 +791,9 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
             </div>
 
             {(consentError || consentSuccess) && (
-              <div style={{ marginBottom: "16px" }}>
-                {consentError && <div style={{ color: "#8B1E2D", background: "#FFF2F4", border: "1px solid #F0B8C0", padding: "10px 12px", borderRadius: "8px" }}>{consentError}</div>}
-                {consentSuccess && <div style={{ color: "#286B3B", background: "#F1FBF4", border: "1px solid #BFE7C9", padding: "10px 12px", borderRadius: "8px" }}>{consentSuccess}</div>}
+              <div className={styles.feedbackStack}>
+                {consentError && <div className={styles.feedbackError}>{consentError}</div>}
+                {consentSuccess && <div className={styles.feedbackSuccess}>{consentSuccess}</div>}
               </div>
             )}
 
@@ -855,14 +875,14 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
                 </div>
               </div>
               <div className={styles.consentList}>
-                <label className={styles.consentRow} style={{ cursor: isEditingConsent ? "pointer" : "default" }}>
+                <label className={`${styles.consentRow} ${isEditingConsent ? styles.consentRowEditable : ""}`}>
                   <div className={styles.consentRowText}>
                     <h4>Consentement aux soins</h4>
                     <p>La cliente confirme avoir transmis les informations utiles et autorise la realisation de la prestation.</p>
                   </div>
                   <input type="checkbox" checked={consentData.careConsentAccepted} disabled={!isEditingConsent} onChange={(e) => setConsentData({ ...consentData, careConsentAccepted: e.target.checked })} />
                 </label>
-                <label className={styles.consentRow} style={{ cursor: isEditingConsent ? "pointer" : "default" }}>
+                <label className={`${styles.consentRow} ${isEditingConsent ? styles.consentRowEditable : ""}`}>
                   <div className={styles.consentRowText}>
                     <h4>Conservation des donnees de suivi</h4>
                     <p>Autorise Glowea a conserver cette fiche pour le suivi client et la tracabilite des soins.</p>
@@ -874,7 +894,7 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
                     <h4>Publication avant/apres</h4>
                     <p>Autorise l&apos;utilisation de photos ou videos du resultat sur les reseaux sociaux.</p>
                   </div>
-                  <div className={styles.toggleWrapper} onClick={() => isEditingConsent && setConsentData({ ...consentData, mediaConsent: !consentData.mediaConsent })} style={{ cursor: isEditingConsent ? 'pointer' : 'default' }}>
+                  <div className={`${styles.toggleWrapper} ${isEditingConsent ? styles.toggleWrapperEditable : ""}`} onClick={() => isEditingConsent && setConsentData({ ...consentData, mediaConsent: !consentData.mediaConsent })}>
                     <span className={consentData.mediaConsent ? styles.toggleTextOn : styles.toggleTextOff}>{consentData.mediaConsent ? "Autorise" : "Refuse"}</span>
                     <div className={consentData.mediaConsent ? styles.toggleActive : styles.toggleInactive}>
                       <div className={styles.toggleThumb}></div>
@@ -886,7 +906,7 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
                     <h4>Anonymat des contenus</h4>
                     <p>Si publication autorisee, cadrage sans visage complet ni element identifiant.</p>
                   </div>
-                  <div className={styles.toggleWrapper} onClick={() => isEditingConsent && setConsentData({ ...consentData, anonymizeMedia: !consentData.anonymizeMedia })} style={{ cursor: isEditingConsent ? 'pointer' : 'default' }}>
+                  <div className={`${styles.toggleWrapper} ${isEditingConsent ? styles.toggleWrapperEditable : ""}`} onClick={() => isEditingConsent && setConsentData({ ...consentData, anonymizeMedia: !consentData.anonymizeMedia })}>
                     <span className={consentData.anonymizeMedia ? styles.toggleTextOn : styles.toggleTextOff}>{consentData.anonymizeMedia ? "Oui" : "Non"}</span>
                     <div className={consentData.anonymizeMedia ? styles.toggleActive : styles.toggleInactive}>
                       <div className={styles.toggleThumb}></div>
@@ -931,22 +951,22 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
                         const isExpired = document.expiresAt ? new Date(document.expiresAt) < new Date() : false;
                         return (
                           <tr key={document.id}>
-                            <td>
+                            <td data-label="Document">
                               <div className={styles.tdDoc}>
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                                 Consentement soins & image
                               </div>
                             </td>
-                            <td>{document.signedAt ? new Date(document.signedAt).toLocaleString("fr-FR") : "-"}</td>
-                            <td>{snapshot.signedBy || "-"}</td>
-                            <td><span className={`${styles.statusBadge} ${isExpired ? styles.statusOrange : styles.statusGreen}`}>{isExpired ? "A renouveler" : "Signe"}</span></td>
-                            <td>{document.pdfUrl ? <a className={styles.voirTout} href={document.pdfUrl} target="_blank">Ouvrir</a> : <span style={{ color: "#888" }}>Non genere</span>}</td>
+                            <td data-label="Date">{document.signedAt ? new Date(document.signedAt).toLocaleString("fr-FR") : "-"}</td>
+                            <td data-label="Signataire">{snapshot.signedBy || "-"}</td>
+                            <td data-label="Statut"><span className={`${styles.statusBadge} ${isExpired ? styles.statusOrange : styles.statusGreen}`}>{isExpired ? "A renouveler" : "Signe"}</span></td>
+                            <td data-label="PDF">{document.pdfUrl ? <a className={styles.voirTout} href={document.pdfUrl} target="_blank">Ouvrir</a> : <span className={styles.mutedText}>Non genere</span>}</td>
                           </tr>
                         );
                       })
                     ) : (
                       <tr>
-                        <td colSpan={5} style={{ textAlign: "center", padding: "20px" }}>Aucun consentement signe</td>
+                        <td colSpan={5} className={styles.emptyRowCell}>Aucun consentement signe</td>
                       </tr>
                     )}
                   </tbody>

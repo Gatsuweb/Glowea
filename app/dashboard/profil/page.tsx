@@ -354,7 +354,7 @@ export default function ProfilPage() {
 
               {/* Documents Légaux & Conformité */}
               <section className={`${styles.card} ${styles.legalCard}`}>
-                <div className={styles.cardHeader} style={{ borderBottomColor: '#E5C5C5' }}>
+                <div className={`${styles.cardHeader} ${styles.legalCardHeader}`}>
                   <h2 className={styles.cardTitle}>Documents & Conformité Légale</h2>
                 </div>
                 
@@ -414,15 +414,15 @@ export default function ProfilPage() {
           )}
 
           {activeTab === 'agenda' && (
-            <section className={styles.card} style={{ textAlign: 'center', padding: '80px 20px' }}>
-              <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '20px', opacity: 0.8 }}>
+            <section className={`${styles.card} ${styles.emptyFeatureCard}`}>
+              <svg className={styles.emptyFeatureIcon} width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                 <line x1="16" y1="2" x2="16" y2="6"></line>
                 <line x1="8" y1="2" x2="8" y2="6"></line>
                 <line x1="3" y1="10" x2="21" y2="10"></line>
               </svg>
               <h2 className={styles.cardTitle}>Agenda & Réservations</h2>
-              <p style={{ color: '#888', marginTop: '15px', fontSize: '1.1rem' }}>
+              <p className={styles.emptyFeatureText}>
                 Cette fonctionnalité est en cours de développement et sera disponible très prochainement !
               </p>
             </section>
@@ -630,7 +630,7 @@ export default function ProfilPage() {
                 <h2 className={styles.cardTitle}>Templates Mail</h2>
               </div>
               
-              <p className={styles.legalText} style={{ marginBottom: '30px' }}>
+              <p className={`${styles.legalText} ${styles.templatesIntro}`}>
                 Personnalisez les templates SMS et email utilises pour les campagnes. Ces modeles sont reutilisables dans l&apos;ecran Envoyer une campagne.
               </p>
 

@@ -274,9 +274,9 @@ export default function ComptaClient({
             <h2 className={styles.bilanTitle}>Bilan financier mensuel</h2>
             <span className={styles.bilanSubtitle}>{displayMonth}</span>
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div className={styles.bilanHeaderActions}>
             <button 
-              className={styles.btnExpand} 
+              className={`${styles.btnExpand} ${styles.btnDownload}`} 
               data-html2canvas-ignore="true"
               onClick={(e) => {
                 e.stopPropagation();
@@ -290,7 +290,6 @@ export default function ComptaClient({
                 }
               }}
               title="Télécharger le bilan"
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', background: 'var(--tertiary)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem' }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -310,16 +309,21 @@ export default function ComptaClient({
             {/* Ligne Principale : Bénéfice */}
             <div className={styles.bilanDynamicHero}>
               <div className={styles.heroMain}>
-                <p>Bénéfice Net (Ce qui va dans ta poche <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display: "inline-block", verticalAlign: "text-top", marginLeft: "4px", color: "var(--tertiary)"}}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>)</p>
+                <p>
+                  Bénéfice Net (Ce qui va dans ta poche
+                  <svg className={styles.heroInlineIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+                  </svg>)
+                </p>
                 <h3>{beneficeNet.toFixed(2)} €</h3>
               </div>
               <div className={styles.heroSecondary}>
                 <div className={styles.heroStat}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: "var(--tertiary)"}}><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg> CA Brut</span>
+                  <span className={styles.heroStatLabel}><svg className={styles.heroStatIcon} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg> CA Brut</span>
                   <strong>{caMois.toFixed(2)} €</strong>
                 </div>
                 <div className={styles.heroStat}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: "var(--tertiary)"}}><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg> Total Charges</span>
+                  <span className={styles.heroStatLabel}><svg className={styles.heroStatIcon} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg> Total Charges</span>
                   <strong>- {totalCharges.toFixed(2)} €</strong>
                 </div>
               </div>
@@ -388,7 +392,7 @@ export default function ComptaClient({
                     <span>URSSAF (21.2% du CA)</span>
                     <span className={styles.negative}>- {urssafTax.toFixed(2)} €</span>
                   </div>
-                  <div className={styles.dynRow} style={{ marginTop: 'auto', borderTop: '1px solid #eee', paddingTop: '10px' }}>
+                  <div className={`${styles.dynRow} ${styles.dynRowResult}`}>
                     <span><strong>Résultat Final</strong></span>
                     <span className={styles.positive}><strong>{beneficeNet.toFixed(2)} €</strong></span>
                   </div>
@@ -496,7 +500,7 @@ export default function ComptaClient({
                   <div className={styles.statSubtitle}>{statsData.meilleureSemaine.label} - {statsData.meilleureSemaine.amount}</div>
                 </div>
               </div>
-              <div className={styles.chartContainer} style={{ height: '100px', marginTop: '20px' }}>
+              <div className={`${styles.chartContainer} ${styles.bestWeekChart}`}>
                 <SparkBarChart data={statsData.meilleureSemaine.chartData} color="#FCD7D1" />
               </div>
             </div>
@@ -522,14 +526,13 @@ export default function ComptaClient({
               </div>
               <div className={styles.dayBlocksContainer}>
                 {statsData.daysData.map((d: DayStat, index: number) => (
-                  <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <div key={index} className={styles.dayColumn}>
                     <div 
                       className={`${styles.dayBlock} ${styles[d.level]}`}
                       title={`${d.count} RDV`}
-                      style={{ width: '100%' }}
                     >
                     </div>
-                    <span style={{ fontSize: '12px', fontWeight: '500', color: '#666' }}>{d.day}</span>
+                    <span className={styles.dayLabel}>{d.day}</span>
                   </div>
                 ))}
               </div>
@@ -734,7 +737,7 @@ export default function ComptaClient({
                   </div>
                 ))}
                 {data.recurringExpenses.length === 0 && (
-                  <div style={{ color: '#888', fontSize: '0.8rem', marginTop: '10px' }}>Aucune charge récurrente</div>
+                  <div className={styles.emptyHint}>Aucune charge récurrente</div>
                 )}
               </div>
             </div>
@@ -761,7 +764,7 @@ export default function ComptaClient({
                   </div>
                 ))}
                 {data.transactions.filter((t: TransactionItem) => t.type === "EXPENSE").length === 0 && (
-                  <div style={{ color: '#888', fontSize: '0.8rem', marginTop: '10px' }}>Aucune charge ponctuelle</div>
+                  <div className={styles.emptyHint}>Aucune charge ponctuelle</div>
                 )}
               </div>
             </div>
@@ -849,7 +852,7 @@ export default function ComptaClient({
                   </div>
                 ))
               ) : (
-                <div style={{ textAlign: 'center', color: '#888', padding: '20px' }}>
+                <div className={styles.emptyTransactions}>
                   Aucune transaction trouvée pour ces critères.
                 </div>
               )}
@@ -918,12 +921,12 @@ export default function ComptaClient({
                 <label>Date (ou date de début)</label>
                 <input type="date" value={chargeDate} onChange={(e) => setChargeDate(e.target.value)} required />
               </div>
-              <div className={styles.formGroup} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '15px' }}>
+              <div className={`${styles.formGroup} ${styles.checkboxGroup}`}>
                 <input type="checkbox" id="isRecurring" checked={chargeIsRecurring} onChange={(e) => setChargeIsRecurring(e.target.checked)} />
-                <label htmlFor="isRecurring" style={{ margin: 0, cursor: 'pointer' }}>Charge récurrente</label>
+                <label htmlFor="isRecurring" className={styles.checkboxLabel}>Charge récurrente</label>
               </div>
               {chargeIsRecurring && (
-                <div className={styles.formGroup} style={{ marginTop: '15px' }}>
+                <div className={`${styles.formGroup} ${styles.recurringGroup}`}>
                   <label>Périodicité</label>
                   <select
                     value={chargeFrequency}
