@@ -8,15 +8,24 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-05-27.dahlia",
 });
 
-function getPlanFromPriceId(priceId?: string | null): SubscriptionPlan {
-  if (!priceId) return "FREE";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function getPlanFromMetadata(plan?: string | null): SubscriptionPlan | null {
+  if (plan === "essential" || plan === "ESSENTIAL") return "ESSENTIAL";
+  if (plan === "pro" || plan === "PRO") return "PRO";
+  return null;
+}
+
+function getPlanFromPriceId(priceId?: string | null, metadataPlan?: string | null): SubscriptionPlan {
+  if (!priceId) return getPlanFromMetadata(metadataPlan) ?? "FREE";
 
   const prices: Record<string, SubscriptionPlan> = {};
   if (process.env.STRIPE_PRICE_ESSENTIAL) prices[process.env.STRIPE_PRICE_ESSENTIAL] = "ESSENTIAL";
   if (process.env.STRIPE_PRICE_STARTER) prices[process.env.STRIPE_PRICE_STARTER] = "ESSENTIAL";
   if (process.env.STRIPE_PRICE_PRO) prices[process.env.STRIPE_PRICE_PRO] = "PRO";
 
-  return prices[priceId] ?? "FREE";
+  return prices[priceId] ?? getPlanFromMetadata(metadataPlan) ?? "FREE";
 }
 
 function mapStripeStatus(status?: Stripe.Subscription.Status): SubscriptionStatus {
@@ -69,19 +78,28 @@ async function syncTenantSubscription(subscription: Stripe.Subscription, metadat
   const subscriptionId = subscription.id;
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
   const priceId = subscription.items.data[0]?.price.id || null;
+  const plan = getPlanFromPriceId(priceId, subscription.metadata?.plan);
+  const status = mapStripeStatus(subscription.status);
   const tenantId = await findTenantId({
     tenantId: metadataTenantId || subscription.metadata?.tenantId,
     subscriptionId,
     customerId,
   });
 
+  console.log("[stripe:webhook] tenantId", tenantId);
+  console.log("[stripe:webhook] subscriptionId", subscriptionId);
+  console.log("[stripe:webhook] customerId", customerId);
+  console.log("[stripe:webhook] priceId", priceId);
+  console.log("[stripe:webhook] plan", plan);
+  console.log("[stripe:webhook] status", status);
+
   if (!tenantId) return;
 
   await prisma.tenant.update({
     where: { id: tenantId },
     data: {
-      subscriptionPlan: getPlanFromPriceId(priceId),
-      subscriptionStatus: mapStripeStatus(subscription.status),
+      subscriptionPlan: plan,
+      subscriptionStatus: status,
       stripeCustomerId: customerId,
       stripeSubscriptionId: subscriptionId,
       stripePriceId: priceId,
@@ -108,6 +126,7 @@ export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text();
     event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+    console.log("[stripe:webhook] event", event.type);
   } catch (error) {
     console.error("Stripe webhook signature error:", error);
     return NextResponse.json({ error: "Invalid webhook signature" }, { status: 400 });
@@ -118,6 +137,12 @@ export async function POST(req: NextRequest) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const subscriptionId = typeof session.subscription === "string" ? session.subscription : null;
+        const customerId = typeof session.customer === "string" ? session.customer : null;
+        const tenantId = session.metadata?.tenantId || null;
+
+        console.log("[stripe:webhook] tenantId", tenantId);
+        console.log("[stripe:webhook] subscriptionId", subscriptionId);
+        console.log("[stripe:webhook] customerId", customerId);
 
         if (!subscriptionId) break;
 

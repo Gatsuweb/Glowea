@@ -4,6 +4,9 @@ import { stripe } from "@/lib/stripe";
 import { getTenantId } from "@/lib/tenant";
 import prisma from "@/lib/prisma";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 const priceMap = {
   essential: process.env.STRIPE_PRICE_ESSENTIAL || process.env.STRIPE_PRICE_STARTER,
   pro: process.env.STRIPE_PRICE_PRO,
