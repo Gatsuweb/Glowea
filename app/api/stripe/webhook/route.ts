@@ -44,6 +44,34 @@ function mapStripeStatus(status?: Stripe.Subscription.Status): SubscriptionStatu
   }
 }
 
+async function syncTenantFromCheckoutSession(session: Stripe.Checkout.Session) {
+  const tenantId = session.metadata?.tenantId || null;
+  const subscriptionId = typeof session.subscription === "string" ? session.subscription : null;
+  const customerId = typeof session.customer === "string" ? session.customer : null;
+  const plan = getPlanFromMetadata(session.metadata?.plan) ?? "FREE";
+  const status: SubscriptionStatus = session.payment_status === "paid" ? "ACTIVE" : "CANCELED";
+
+  console.log("[stripe:webhook] tenantId", tenantId);
+  console.log("[stripe:webhook] subscriptionId", subscriptionId);
+  console.log("[stripe:webhook] customerId", customerId);
+  console.log("[stripe:webhook] priceId", null);
+  console.log("[stripe:webhook] plan", plan);
+  console.log("[stripe:webhook] status", status);
+
+  if (!tenantId || !subscriptionId || !customerId) return;
+
+  await prisma.tenant.update({
+    where: { id: tenantId },
+    data: {
+      subscriptionPlan: plan,
+      subscriptionStatus: status,
+      stripeCustomerId: customerId,
+      stripeSubscriptionId: subscriptionId,
+      updatedAt: new Date(),
+    },
+  });
+}
+
 async function findTenantId(params: {
   tenantId?: string | null;
   subscriptionId?: string | null;
@@ -112,11 +140,16 @@ async function syncTenantSubscription(subscription: Stripe.Subscription, metadat
 export async function POST(req: NextRequest) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
+  console.log("[stripe:webhook] request received");
+  console.log("[stripe:webhook] hasWebhookSecret", Boolean(webhookSecret));
+
   if (!webhookSecret) {
     return NextResponse.json({ error: "Missing STRIPE_WEBHOOK_SECRET" }, { status: 500 });
   }
 
   const signature = req.headers.get("stripe-signature");
+  console.log("[stripe:webhook] hasSignature", Boolean(signature));
+
   if (!signature) {
     return NextResponse.json({ error: "Missing stripe-signature header" }, { status: 400 });
   }
@@ -146,8 +179,13 @@ export async function POST(req: NextRequest) {
 
         if (!subscriptionId) break;
 
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-        await syncTenantSubscription(subscription, session.metadata?.tenantId);
+        try {
+          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+          await syncTenantSubscription(subscription, session.metadata?.tenantId);
+        } catch (error) {
+          console.error("[stripe:webhook] subscription retrieve failed, using checkout session fallback", error);
+          await syncTenantFromCheckoutSession(session);
+        }
         break;
       }
 
