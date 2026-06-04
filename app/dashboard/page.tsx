@@ -1,6 +1,7 @@
 import { currentUser } from "@clerk/nextjs/server";
 import DashboardClientWrapper from "../components/DashboardClientWrapper";
 import prisma from "../../lib/prisma";
+import { getTenantSubscriptionAccess } from "../../lib/subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,11 @@ type RefillClient = {
   serviceName: string;
 };
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ success?: string }>;
+}) {
   const DEV_BYPASS_AUTH = process.env.NODE_ENV === "development";
   
   let user = null;
@@ -53,6 +58,8 @@ export default async function DashboardPage() {
   // Use the current user's tenant ID
   const { getTenantId } = await import("../../lib/tenant");
   const tenantId = await getTenantId();
+  const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
+  const resolvedSearchParams = searchParams ? await searchParams : {};
 
   const [profileUser, profileTenant] = await Promise.all([
     prisma.user.findUnique({ where: { id: tenantId } }),
@@ -516,6 +523,8 @@ export default async function DashboardPage() {
       weeklyBriefData={weeklyBriefData}
       products={products}
       insights={insightData}
+      subscriptionAccess={subscriptionAccess}
+      checkoutSuccess={resolvedSearchParams.success === "true"}
     />
   );
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
 import { getTenantId } from "../../lib/tenant";
+import { requireTenantMutationAccess } from "../../lib/subscription";
 
 async function getTenantCategoryId(tenantId: string, categoryId?: string | null) {
   if (!categoryId) return null;
@@ -28,6 +29,11 @@ export async function createProduct(data: {
   categoryId?: string | null;
 }) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const categoryId = await getTenantCategoryId(TENANT_ID, data.categoryId);
 
@@ -96,6 +102,11 @@ export async function updateProduct(id: string, data: {
   categoryId?: string | null;
 }) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const categoryId = await getTenantCategoryId(TENANT_ID, data.categoryId);
 
@@ -124,6 +135,11 @@ export async function updateProduct(id: string, data: {
 
 export async function deleteProduct(id: string) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     await prisma.product.delete({
       where: { id, tenantId: TENANT_ID },
@@ -139,6 +155,11 @@ export async function deleteProduct(id: string) {
 
 export async function adjustStock(productId: string, delta: number) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const product = await prisma.product.findFirst({
       where: {
@@ -199,6 +220,11 @@ export async function adjustStock(productId: string, delta: number) {
 
 export async function createProductCategory(name: string) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const id = `pcat_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     

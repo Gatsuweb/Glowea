@@ -3,6 +3,7 @@
 import prisma from "../../lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "../../lib/tenant";
+import { requireTenantMutationAccess } from "../../lib/subscription";
 
 export async function createClient(data: {
   firstName: string;
@@ -14,6 +15,11 @@ export async function createClient(data: {
   referredBy?: string;
 }) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const id = `cli_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
 

@@ -14,6 +14,7 @@ import NewClientModal from "./NewClientModal";
 import SendPromoModal from "./SendPromoModal";
 import WeeklyBriefModal from "./WeeklyBriefModal";
 import InstallAppModal from "./InstallAppModal";
+import type { SubscriptionAccess } from "../../lib/subscription";
 
 const currencyFormatter = new Intl.NumberFormat('fr-FR', {
   style: 'currency',
@@ -116,6 +117,8 @@ export default function DashboardClientWrapper({
   weeklyBriefData,
   products = [],
   insights = [],
+  subscriptionAccess,
+  checkoutSuccess = false,
 }: { 
   firstName: string; 
   lastName: string;
@@ -135,6 +138,8 @@ export default function DashboardClientWrapper({
   weeklyBriefData?: WeeklyBriefData;
   products?: DashboardProduct[];
   insights?: SmartInsight[];
+  subscriptionAccess: SubscriptionAccess;
+  checkoutSuccess?: boolean;
 }) {
   const router = useRouter();
   const [isSessionModalOpen, setSessionModalOpen] = useState(false);
@@ -218,9 +223,43 @@ export default function DashboardClientWrapper({
     action: "brief" as InsightAction,
   };
   const secondaryInsights = insights.slice(1, 4);
+  const isReadOnlyAccess = !subscriptionAccess.canUseApp;
+  const limitedAccessTitle =
+    subscriptionAccess.status === "PAST_DUE"
+      ? "Paiement a regulariser."
+      : subscriptionAccess.status === "CANCELED"
+        ? "Votre abonnement est annule."
+        : "Votre essai est termine.";
+  const limitedAccessText =
+    subscriptionAccess.status === "PAST_DUE"
+      ? "Vous pouvez consulter vos donnees, mais les actions importantes sont limitees jusqu'a regularisation."
+      : "Vous pouvez consulter vos donnees, mais les creations et modifications sont bloquees.";
+
+  const openPricing = () => {
+    router.push("/pricing");
+  };
+
+  const guardMutation = (action: () => void) => {
+    if (isReadOnlyAccess) {
+      openPricing();
+      return;
+    }
+
+    action();
+  };
+
+  const guardProFeature = (action: () => void) => {
+    if (!subscriptionAccess.canUseProFeatures) {
+      openPricing();
+      return;
+    }
+
+    action();
+  };
+
   const handleInsightAction = (action: InsightAction) => {
     if (action === "promo") {
-      setSendPromoModalOpen(true);
+      guardProFeature(() => setSendPromoModalOpen(true));
       return;
     }
     if (action === "brief") {
@@ -228,7 +267,7 @@ export default function DashboardClientWrapper({
       return;
     }
     if (action === "appointment") {
-      setNewAppointmentModalOpen(true);
+      guardMutation(() => setNewAppointmentModalOpen(true));
       return;
     }
     router.push("/dashboard/stock");
@@ -285,6 +324,32 @@ export default function DashboardClientWrapper({
 
   return (
     <main className={styles.layout}>
+      {checkoutSuccess && (
+        <section className={styles.subscriptionBannerSuccess} role="status">
+          Paiement confirme. Votre abonnement sera active apres confirmation du webhook Stripe.
+        </section>
+      )}
+
+      {subscriptionAccess.isTrialing && (
+        <section className={styles.subscriptionBanner}>
+          <div>
+            <strong>Essai gratuit Pro</strong>
+            <span>{subscriptionAccess.daysLeft} jour{subscriptionAccess.daysLeft > 1 ? "s" : ""} restant{subscriptionAccess.daysLeft > 1 ? "s" : ""}</span>
+          </div>
+          <button type="button" onClick={openPricing}>Choisir une formule</button>
+        </section>
+      )}
+
+      {isReadOnlyAccess && (
+        <section className={styles.subscriptionBannerBlocked} role="alert">
+          <div>
+            <strong>{limitedAccessTitle}</strong>
+            <span>{limitedAccessText}</span>
+          </div>
+          <button type="button" onClick={openPricing}>Choisir une formule</button>
+        </section>
+      )}
+
       {/* Welcome Section */}
       <section className={styles.welcomeSection}>
         <div className={styles.welcomeText}>
@@ -295,13 +360,13 @@ export default function DashboardClientWrapper({
           <button className={styles.actionBtn} onClick={() => setWeeklyBriefOpen(true)} title="Point de la semaine">
             <Image src="/icones/dash_lumiere.svg" alt="Brief" width={24} height={24} />
           </button>
-          <button className={styles.actionBtn} onClick={() => setNewAppointmentModalOpen(true)} title="Nouveau RDV">
+          <button className={styles.actionBtn} onClick={() => guardMutation(() => setNewAppointmentModalOpen(true))} title="Nouveau RDV">
             <Image src="/icones/dash_plus.svg" alt="RDV" width={24} height={24} />
           </button>
-          <button className={styles.actionBtn} onClick={() => setNewClientModalOpen(true)} title="Nouveau client">
+          <button className={styles.actionBtn} onClick={() => guardMutation(() => setNewClientModalOpen(true))} title="Nouveau client">
             <Image src="/icones/dash_clients.svg" alt="Clients" width={24} height={24} />
           </button>
-          <button className={styles.actionBtn} onClick={() => setSendPromoModalOpen(true)} title="Envoyer une promo">
+          <button className={styles.actionBtn} onClick={() => guardProFeature(() => setSendPromoModalOpen(true))} title="Envoyer une promo">
             <Image src="/icones/dash_promo.svg" alt="Promo" width={24} height={24} />
           </button>
         </div>
@@ -381,7 +446,7 @@ export default function DashboardClientWrapper({
             {appointments.length === 0 ? (
               <div className={styles.emptyState}>
                 <p>Aucun rendez-vous prévu</p>
-                <button className={styles.emptyStateBtn} onClick={() => setNewAppointmentModalOpen(true)}>
+                <button className={styles.emptyStateBtn} onClick={() => guardMutation(() => setNewAppointmentModalOpen(true))}>
                   Créer un premier rendez-vous
                 </button>
               </div>
@@ -436,7 +501,7 @@ export default function DashboardClientWrapper({
                         className={styles.actionIcon}
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleEditAppointment(app);
+                          guardMutation(() => handleEditAppointment(app));
                         }}
                         title="Modifier le rendez-vous"
                         aria-label={`Modifier le rendez-vous de ${app.clientName}`}
@@ -514,7 +579,7 @@ export default function DashboardClientWrapper({
             {topClients.length === 0 ? (
               <div className={styles.emptyState}>
                 <p>Aucune cliente enregistrée</p>
-                <button className={styles.emptyStateBtn} onClick={() => setNewClientModalOpen(true)}>
+                <button className={styles.emptyStateBtn} onClick={() => guardMutation(() => setNewClientModalOpen(true))}>
                   Ajouter une première cliente
                 </button>
               </div>
@@ -532,7 +597,7 @@ export default function DashboardClientWrapper({
             )}
           </div>
           <div className={styles.topClientActions}>
-            <button className={styles.btnFideliser}>
+            <button className={styles.btnFideliser} onClick={() => guardProFeature(() => setSendPromoModalOpen(true))}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
               Fidéliser avec une offre
             </button>

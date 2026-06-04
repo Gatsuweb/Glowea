@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "../../../../lib/prisma";
-import { canUseAutomaticSmsReminders } from "../../../../lib/features";
 import { getTenantId } from "../../../../lib/tenant";
+import { getTenantSubscriptionAccess } from "../../../../lib/subscription";
 
 export async function PATCH(request: Request) {
   let tenantId: string;
@@ -49,7 +49,8 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const isAllowed = canUseAutomaticSmsReminders(tenant.subscriptionPlan);
+    const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
+    const isAllowed = subscriptionAccess.canUseProFeatures;
     if (enabled && !isAllowed) {
       return NextResponse.json(
         {
@@ -57,6 +58,7 @@ export async function PATCH(request: Request) {
           code: "PLAN_REQUIRED",
           error: "Les rappels SMS automatiques sont disponibles avec l'abonnement Pro.",
           subscriptionPlan: tenant.subscriptionPlan,
+          subscriptionStatus: subscriptionAccess.status,
           smsRemindersEnabled: false,
           canUseAutomaticSmsReminders: false,
         },
@@ -87,6 +89,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({
       success: true,
       subscriptionPlan: tenant.subscriptionPlan,
+      subscriptionStatus: subscriptionAccess.status,
       canUseAutomaticSmsReminders: isAllowed,
       smsRemindersEnabled: settings.smsRemindersEnabled,
       smsReminderDelayHours: settings.smsReminderDelayHours,

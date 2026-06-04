@@ -1,6 +1,12 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import prisma from "./prisma";
 
+function getTrialEndsAt() {
+  const trialEndsAt = new Date();
+  trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+  return trialEndsAt;
+}
+
 export async function getTenantId() {
   const { userId } = await auth();
   
@@ -23,7 +29,9 @@ export async function getTenantId() {
       data: {
         id: userId,
         name: `Espace de ${fullName}`,
-        subscriptionPlan: "FREE",
+        subscriptionPlan: "PRO",
+        subscriptionStatus: "TRIALING",
+        trialEndsAt: getTrialEndsAt(),
         updatedAt: new Date(),
         BusinessSettings: {
           create: {

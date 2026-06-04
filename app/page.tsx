@@ -33,19 +33,202 @@ const specialties = [
   },
 ];
 
+type PricingIcon =
+  | "calendar"
+  | "session"
+  | "history"
+  | "stock"
+  | "compta"
+  | "sms"
+  | "mail"
+  | "deposit"
+  | "shield"
+  | "loyalty"
+  | "site"
+  | "booking";
+
+const renderPricingIcon = (icon: PricingIcon) => {
+  switch (icon) {
+    case "calendar":
+      return (
+        <>
+          <rect x="3" y="4" width="18" height="18" rx="3" />
+          <path d="M8 2v4M16 2v4M3 10h18" />
+        </>
+      );
+    case "session":
+      return (
+        <>
+          <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z" />
+          <path d="M14 2v5h5M9 13h6M9 17h6M9 9h1" />
+        </>
+      );
+    case "history":
+      return (
+        <>
+          <path d="M3 12a9 9 0 1 0 3-6.7" />
+          <path d="M3 4v5h5M12 7v5l3 2" />
+        </>
+      );
+    case "stock":
+      return (
+        <>
+          <path d="M21 8.5 12 13 3 8.5 12 4z" />
+          <path d="M3 8.5V16l9 4.5 9-4.5V8.5M12 13V20.5" />
+        </>
+      );
+    case "compta":
+      return (
+        <>
+          <path d="M4 19V5" />
+          <path d="M10 19V9" />
+          <path d="M16 19V11" />
+          <path d="M22 19V7" />
+        </>
+      );
+    case "sms":
+      return (
+        <>
+          <path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </>
+      );
+    case "mail":
+      return (
+        <>
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <path d="m4 7 8 6 8-6" />
+        </>
+      );
+    case "deposit":
+      return (
+        <>
+          <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
+          <path d="M16 12h.01M2.5 10h19" />
+        </>
+      );
+    case "shield":
+      return (
+        <>
+          <path d="M12 3 5 6v6c0 5 3.5 7.5 7 9 3.5-1.5 7-4 7-9V6z" />
+          <path d="m9 12 2 2 4-4" />
+        </>
+      );
+    case "loyalty":
+      return (
+        <>
+          <path d="M12 20s-6.5-4.2-8.3-8.1A4.8 4.8 0 0 1 12 6a4.8 4.8 0 0 1 8.3 5.9C18.5 15.8 12 20 12 20Z" />
+        </>
+      );
+    case "site":
+      return (
+        <>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+        </>
+      );
+    case "booking":
+      return (
+        <>
+          <rect x="3" y="4" width="18" height="18" rx="3" />
+          <path d="M8 2v4M16 2v4M3 10h18M12 13v5M9.5 15.5h5" />
+        </>
+      );
+  }
+};
+
 const plans = [
   {
     name: "Essentiel",
-    price: "39,90 EUR",
-    text: "Pour structurer votre activité avec les outils indispensables.",
-    items: ["Agenda et clientes", "Historique complet", "Stock produits", "Statistiques simples"],
+    monthlyPrice: "39,90 €",
+    yearlyPrice: "399 €",
+    yearlyNote: "Équivalent à 2 mois offerts",
+    positioning: "Pour organiser votre activité au quotidien.",
+    text: "Une base claire, élégante et rassurante pour gérer vos rendez-vous, vos clientes et votre suivi sans friction.",
+    primaryBenefits: ["Gérez votre activité simplement"],
+    metrics: ["+2h économisées chaque semaine", "Vision plus claire de vos journées", "Suivi centralisé en un seul espace"],
+    features: [
+      {
+        icon: "calendar" as PricingIcon,
+        title: "Agenda intelligent",
+        description: "Visualisez vos journées et gardez chaque rendez-vous sous contrôle.",
+      },
+      {
+        icon: "session" as PricingIcon,
+        title: "Sessions techniques avancées",
+        description: "Conservez vos notes de pose, paramètres, photos et détails utiles.",
+      },
+      {
+        icon: "history" as PricingIcon,
+        title: "Historique complet",
+        description: "Retrouvez facilement les habitudes, préférences et rendez-vous passés.",
+      },
+      {
+        icon: "stock" as PricingIcon,
+        title: "Stock produits",
+        description: "Suivez vos consommables sans tableur ni oublis.",
+      },
+      {
+        icon: "compta" as PricingIcon,
+        title: "Comptabilité automatique",
+        description: "Gardez un oeil simple sur vos revenus et vos charges.",
+      },
+    ],
+    ctaLabel: "Commencer avec Essentiel",
   },
   {
     name: "Pro",
-    price: "49,90 EUR",
-    text: "Pour automatiser, sécuriser vos revenus et piloter avec plus de précision.",
-    items: ["Tout Essentiel", "Rappels SMS / email", "Acomptes et no-shows", "Sessions techniques avancées"],
+    monthlyPrice: "59,90 €",
+    yearlyPrice: "599 €",
+    yearlyNote: "Équivalent à 2 mois offerts",
+    positioning: "Pour développer votre activité et sécuriser vos revenus.",
+    text: "Le plan pensé pour automatiser vos relances, inspirer confiance et transformer Glowea en moteur de croissance.",
+    primaryBenefits: [
+      "Réduisez les no-shows",
+      "Recevez des réservations en ligne",
+      "Fidélisez davantage vos clientes",
+    ],
+    metrics: ["-35% de rendez-vous oubliés", "24h/24 réservations en ligne", "+1 canal d'acquisition toujours actif"],
+    features: [
+      {
+        icon: "sms" as PricingIcon,
+        title: "SMS automatiques",
+        description: "Envoyez des rappels au bon moment pour réduire les absences.",
+      },
+      {
+        icon: "mail" as PricingIcon,
+        title: "Emails automatiques",
+        description: "Automatisez vos confirmations, relances et messages utiles.",
+      },
+      {
+        icon: "deposit" as PricingIcon,
+        title: "Gestion des acomptes",
+        description: "Sécurisez vos créneaux avec une réservation plus engageante.",
+      },
+      {
+        icon: "shield" as PricingIcon,
+        title: "Protection anti no-show",
+        description: "Cadrez vos réservations avec des rappels et des règles plus solides.",
+      },
+      {
+        icon: "loyalty" as PricingIcon,
+        title: "Fidélisation clientes",
+        description: "Gardez le lien et donnez envie de reprendre rendez-vous.",
+      },
+      {
+        icon: "site" as PricingIcon,
+        title: "Mini-site professionnel",
+        description: "Renforcez votre image avec une vitrine simple, claire et crédible.",
+      },
+    ],
+    proIncludes: [
+      { icon: "site" as PricingIcon, label: "Mini-site professionnel" },
+      { icon: "booking" as PricingIcon, label: "Réservation en ligne" },
+      { icon: "sms" as PricingIcon, label: "SMS automatiques" },
+      { icon: "shield" as PricingIcon, label: "Protection anti no-show" },
+    ],
+    ctaLabel: "Développer mon activité",
     featured: true,
+    badgeText: "✨ Le meilleur choix pour développer votre activité",
   },
 ];
 
@@ -224,26 +407,100 @@ export default function Home() {
           <span className={styles.eyebrow}>Tarifs</span>
           <h2>Choisissez la formule qui vous suffit.</h2>
         </div>
+        {/* <div className={styles.billingToggle} aria-label="Période de facturation">
+          <span className={`${styles.billingOption} ${styles.billingOptionActive}`}>
+            Mensuel
+          </span>
+          <span className={`${styles.billingOption} ${styles.billingOptionRecommended}`}>
+            Annuel
+            <span className={styles.billingBadge}>⭐ Économisez 17%</span>
+          </span>
+        </div> */}
         <div className={styles.pricingGrid}>
           {plans.map((plan) => (
             <article
               className={`${styles.priceCard} ${plan.featured ? styles.priceCardFeatured : ""}`}
               key={plan.name}
             >
-              {plan.featured ? <span className={styles.badge}>Le plus choisi</span> : null}
-              <h3>{plan.name}</h3>
-              <p>{plan.text}</p>
-              <div className={styles.price}>
-                <strong>{plan.price}</strong>
-                <span>/ mois</span>
+              <div className={styles.priceCardAura} aria-hidden="true"></div>
+              {plan.featured ? <span className={styles.badge}>{plan.badgeText}</span> : null}
+              <div className={styles.priceCardHeader}>
+                <div className={styles.priceCardHeading}>
+                  <span className={styles.planKicker}>{plan.name}</span>
+                  <h3>{plan.name}</h3>
+                  <p className={styles.planPositioning}>{plan.positioning}</p>
+                  <p className={styles.planSummary}>{plan.text}</p>
+                </div>
+                <div className={styles.priceStack}>
+                  <div className={styles.price}>
+                    <strong>{plan.monthlyPrice}</strong>
+                    <span>/ mois</span>
+                  </div>
+                  <div className={styles.priceDivider}>ou</div>
+                  <div className={`${styles.price} ${styles.priceYearly}`}>
+                    <strong>{plan.yearlyPrice}</strong>
+                    <span>/ an</span>
+                  </div>
+                  <div className={styles.priceSaving}>{plan.yearlyNote}</div>
+                </div>
               </div>
-              <ul>
-                {plan.items.map((item) => (
-                  <li key={item}>{item}</li>
+
+              <div className={`${styles.primaryBenefitCard} ${plan.featured ? styles.primaryBenefitCardFeatured : ""}`}>
+                <span className={styles.primaryBenefitEyebrow}>Bénéfice principal</span>
+                <ul className={styles.primaryBenefitList}>
+                  {plan.primaryBenefits.map((benefit) => (
+                    <li key={benefit}>
+                      <span className={styles.primaryBenefitCheck}>✓</span>
+                      <span>{benefit}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className={styles.metricsBadgeRow}>
+                {plan.metrics.map((metric) => (
+                  <span key={metric} className={`${styles.metricBadge} ${plan.featured ? styles.metricBadgeFeatured : ""}`}>
+                    {metric}
+                  </span>
                 ))}
-              </ul>
+              </div>
+
+              {plan.featured ? (
+                <div className={styles.proIncludesBlock}>
+                  <span className={styles.proIncludesTitle}>Inclus dans Pro</span>
+                  <div className={styles.proIncludesGrid}>
+                    {plan.proIncludes.map((item) => (
+                      <div key={item.label} className={styles.proIncludeChip}>
+                        <span className={styles.proIncludeIcon}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            {renderPricingIcon(item.icon)}
+                          </svg>
+                        </span>
+                        <span>{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className={styles.planFeatureList}>
+                {plan.features.map((feature) => (
+                  <div key={feature.title} className={styles.planFeatureRow}>
+                    <span className={styles.planFeatureIcon}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        {renderPricingIcon(feature.icon)}
+                      </svg>
+                    </span>
+                    <div className={styles.planFeatureCopy}>
+                      <strong>{feature.title}</strong>
+                      <p>{feature.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               <Link href="/sign-up" className={plan.featured ? styles.primaryButton : styles.secondaryButton}>
-                Choisir {plan.name}
+                {plan.ctaLabel}
               </Link>
             </article>
           ))}

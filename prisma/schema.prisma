@@ -909,6 +909,11 @@ model Tenant {
   name                 String
   slug                 String?                @unique
   subscriptionPlan     SubscriptionPlan       @default(FREE)
+  subscriptionStatus   SubscriptionStatus     @default(TRIALING)
+  trialEndsAt          DateTime?
+  stripeCustomerId     String?                @unique
+  stripeSubscriptionId String?                @unique
+  stripePriceId        String?
   createdAt            DateTime               @default(now())
   updatedAt            DateTime
   AgendaSettings       AgendaSettings?
@@ -1200,6 +1205,7 @@ enum SubscriptionStatus {
 
 enum SubscriptionPlan {
   FREE
+  ESSENTIAL
   PRO
   PREMIUM
 }

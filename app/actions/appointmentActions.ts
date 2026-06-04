@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
 import { getTenantId } from "../../lib/tenant";
+import { requireTenantMutationAccess } from "../../lib/subscription";
 
 type AppointmentStatusInput =
   | "SCHEDULED"
@@ -269,6 +270,11 @@ export async function markAllNotificationsRead() {
 
 export async function createAppointment(data: AppointmentMutationInput) {
   const tenantId = await getTenantId();
+  const access = await requireTenantMutationAccess(tenantId);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     if (!data.clientId || !data.serviceId) {
       return { success: false, error: "Cliente et prestation sont obligatoires" };
@@ -332,6 +338,11 @@ export async function updateAppointment(
   data: Partial<AppointmentMutationInput> & { status?: AppointmentStatusInput }
 ) {
   const tenantId = await getTenantId();
+  const access = await requireTenantMutationAccess(tenantId);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const existingAppointment = await prisma.appointment.findFirst({
       where: { id, tenantId },
@@ -426,6 +437,11 @@ export async function updateAppointmentStatus(id: string, status: AppointmentSta
 
 export async function deleteAppointment(id: string) {
   const tenantId = await getTenantId();
+  const access = await requireTenantMutationAccess(tenantId);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const appointment = await prisma.appointment.findFirst({
       where: { id, tenantId },

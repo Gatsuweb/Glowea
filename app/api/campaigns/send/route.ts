@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { CampaignChannel, CampaignStatus, CampaignTargetSegment } from "@prisma/client";
 import prisma from "../../../../lib/prisma";
 import { getTenantId } from "../../../../lib/tenant";
-import { canUseCampaigns } from "../../../../lib/features";
+import { getTenantSubscriptionAccess } from "../../../../lib/subscription";
 import { sendSms } from "../../../../lib/twilio";
 import {
   getBusinessName,
@@ -55,12 +55,9 @@ export async function POST(request: Request) {
     const requestedChannel = isChannel(body.channel) ? body.channel : null;
     const channel = requestedChannel || (template.channel === "EMAIL" ? "EMAIL" : "SMS");
     const providerMode = getCampaignProviderMode(channel);
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { subscriptionPlan: true },
-    });
+    const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
 
-    if (!canUseCampaigns(tenant?.subscriptionPlan) && providerMode !== "mock") {
+    if (!subscriptionAccess.canUseProFeatures && providerMode !== "mock") {
       return NextResponse.json(
         { success: false, error: "Les campagnes reelles sont reservees aux offres PRO et PREMIUM" },
         { status: 403 }
