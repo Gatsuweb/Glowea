@@ -119,6 +119,7 @@ export default function DashboardClientWrapper({
   insights = [],
   subscriptionAccess,
   checkoutSuccess = false,
+  checkoutSyncState = null,
 }: { 
   firstName: string; 
   lastName: string;
@@ -140,6 +141,7 @@ export default function DashboardClientWrapper({
   insights?: SmartInsight[];
   subscriptionAccess: SubscriptionAccess;
   checkoutSuccess?: boolean;
+  checkoutSyncState?: "activated" | "pending" | "error" | null;
 }) {
   const router = useRouter();
   const [isSessionModalOpen, setSessionModalOpen] = useState(false);
@@ -326,7 +328,11 @@ export default function DashboardClientWrapper({
     <main className={styles.layout}>
       {checkoutSuccess && (
         <section className={styles.subscriptionBannerSuccess} role="status">
-          Paiement confirme. Votre abonnement sera active apres confirmation du webhook Stripe.
+          {checkoutSyncState === "activated"
+            ? "Paiement confirme. Votre abonnement est maintenant actif."
+            : checkoutSyncState === "error"
+              ? "Paiement confirme. Le retour Stripe a fonctionne, mais la synchronisation automatique a echoue. Le webhook finalisera l'activation."
+              : "Paiement confirme. Votre abonnement sera active apres confirmation du webhook Stripe."}
         </section>
       )}
 

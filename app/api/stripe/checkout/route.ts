@@ -94,7 +94,7 @@ export async function POST(req: Request) {
         billing,
       },
     },
-    success_url: `${appUrl}/dashboard?success=true`,
+    success_url: `${appUrl}/dashboard?success=true&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/pricing?canceled=true`,
   });
 

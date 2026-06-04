@@ -2,6 +2,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import DashboardClientWrapper from "../components/DashboardClientWrapper";
 import prisma from "../../lib/prisma";
 import { getTenantSubscriptionAccess } from "../../lib/subscription";
+import { syncCheckoutSessionById } from "../../lib/stripeSubscriptionSync";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ type RefillClient = {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ success?: string }>;
+  searchParams?: Promise<{ success?: string; session_id?: string }>;
 }) {
   const DEV_BYPASS_AUTH = process.env.NODE_ENV === "development";
   
@@ -58,8 +59,22 @@ export default async function DashboardPage({
   // Use the current user's tenant ID
   const { getTenantId } = await import("../../lib/tenant");
   const tenantId = await getTenantId();
-  const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
   const resolvedSearchParams = searchParams ? await searchParams : {};
+  let checkoutSyncState: "activated" | "pending" | "error" | null = null;
+
+  if (resolvedSearchParams.success === "true" && resolvedSearchParams.session_id) {
+    try {
+      const syncResult = await syncCheckoutSessionById(resolvedSearchParams.session_id, tenantId);
+      checkoutSyncState = syncResult.synced && syncResult.status === "ACTIVE" ? "activated" : "pending";
+    } catch (error) {
+      console.error("[stripe:dashboard] checkout sync failed", error);
+      checkoutSyncState = "error";
+    }
+  } else if (resolvedSearchParams.success === "true") {
+    checkoutSyncState = "pending";
+  }
+
+  const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
 
   const [profileUser, profileTenant] = await Promise.all([
     prisma.user.findUnique({ where: { id: tenantId } }),
@@ -525,6 +540,7 @@ export default async function DashboardPage({
       insights={insightData}
       subscriptionAccess={subscriptionAccess}
       checkoutSuccess={resolvedSearchParams.success === "true"}
+      checkoutSyncState={checkoutSyncState}
     />
   );
 }

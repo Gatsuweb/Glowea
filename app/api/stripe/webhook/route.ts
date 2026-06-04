@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { SubscriptionPlan, SubscriptionStatus } from "@prisma/client";
 import Stripe from "stripe";
 
 import { prisma } from "@/lib/prisma";
+import {
+  syncTenantFromCheckoutSession,
+  syncTenantSubscription as syncStripeTenantSubscription,
+} from "@/lib/stripeSubscriptionSync";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-05-27.dahlia",
@@ -10,67 +13,6 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function getPlanFromMetadata(plan?: string | null): SubscriptionPlan | null {
-  if (plan === "essential" || plan === "ESSENTIAL") return "ESSENTIAL";
-  if (plan === "pro" || plan === "PRO") return "PRO";
-  return null;
-}
-
-function getPlanFromPriceId(priceId?: string | null, metadataPlan?: string | null): SubscriptionPlan {
-  if (!priceId) return getPlanFromMetadata(metadataPlan) ?? "FREE";
-
-  const prices: Record<string, SubscriptionPlan> = {};
-  if (process.env.STRIPE_PRICE_ESSENTIAL) prices[process.env.STRIPE_PRICE_ESSENTIAL] = "ESSENTIAL";
-  if (process.env.STRIPE_PRICE_STARTER) prices[process.env.STRIPE_PRICE_STARTER] = "ESSENTIAL";
-  if (process.env.STRIPE_PRICE_PRO) prices[process.env.STRIPE_PRICE_PRO] = "PRO";
-
-  return prices[priceId] ?? getPlanFromMetadata(metadataPlan) ?? "FREE";
-}
-
-function mapStripeStatus(status?: Stripe.Subscription.Status): SubscriptionStatus {
-  switch (status) {
-    case "trialing":
-      return "TRIALING";
-    case "active":
-      return "ACTIVE";
-    case "past_due":
-    case "unpaid":
-      return "PAST_DUE";
-    case "canceled":
-      return "CANCELED";
-    default:
-      return "CANCELED";
-  }
-}
-
-async function syncTenantFromCheckoutSession(session: Stripe.Checkout.Session) {
-  const tenantId = session.metadata?.tenantId || null;
-  const subscriptionId = typeof session.subscription === "string" ? session.subscription : null;
-  const customerId = typeof session.customer === "string" ? session.customer : null;
-  const plan = getPlanFromMetadata(session.metadata?.plan) ?? "FREE";
-  const status: SubscriptionStatus = session.payment_status === "paid" ? "ACTIVE" : "CANCELED";
-
-  console.log("[stripe:webhook] tenantId", tenantId);
-  console.log("[stripe:webhook] subscriptionId", subscriptionId);
-  console.log("[stripe:webhook] customerId", customerId);
-  console.log("[stripe:webhook] priceId", null);
-  console.log("[stripe:webhook] plan", plan);
-  console.log("[stripe:webhook] status", status);
-
-  if (!tenantId || !subscriptionId || !customerId) return;
-
-  await prisma.tenant.update({
-    where: { id: tenantId },
-    data: {
-      subscriptionPlan: plan,
-      subscriptionStatus: status,
-      stripeCustomerId: customerId,
-      stripeSubscriptionId: subscriptionId,
-      updatedAt: new Date(),
-    },
-  });
-}
 
 async function findTenantId(params: {
   tenantId?: string | null;
@@ -102,12 +44,10 @@ async function findTenantId(params: {
   return tenant?.id || null;
 }
 
-async function syncTenantSubscription(subscription: Stripe.Subscription, metadataTenantId?: string | null) {
+async function logAndSyncTenantSubscription(subscription: Stripe.Subscription, metadataTenantId?: string | null) {
   const subscriptionId = subscription.id;
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
   const priceId = subscription.items.data[0]?.price.id || null;
-  const plan = getPlanFromPriceId(priceId, subscription.metadata?.plan);
-  const status = mapStripeStatus(subscription.status);
   const tenantId = await findTenantId({
     tenantId: metadataTenantId || subscription.metadata?.tenantId,
     subscriptionId,
@@ -118,23 +58,8 @@ async function syncTenantSubscription(subscription: Stripe.Subscription, metadat
   console.log("[stripe:webhook] subscriptionId", subscriptionId);
   console.log("[stripe:webhook] customerId", customerId);
   console.log("[stripe:webhook] priceId", priceId);
-  console.log("[stripe:webhook] plan", plan);
-  console.log("[stripe:webhook] status", status);
 
-  if (!tenantId) return;
-
-  await prisma.tenant.update({
-    where: { id: tenantId },
-    data: {
-      subscriptionPlan: plan,
-      subscriptionStatus: status,
-      stripeCustomerId: customerId,
-      stripeSubscriptionId: subscriptionId,
-      stripePriceId: priceId,
-      trialEndsAt: subscription.trial_end ? new Date(subscription.trial_end * 1000) : null,
-      updatedAt: new Date(),
-    },
-  });
+  await syncStripeTenantSubscription(subscription, metadataTenantId);
 }
 
 export async function POST(req: NextRequest) {
@@ -181,7 +106,7 @@ export async function POST(req: NextRequest) {
 
         try {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          await syncTenantSubscription(subscription, session.metadata?.tenantId);
+          await logAndSyncTenantSubscription(subscription, session.metadata?.tenantId);
         } catch (error) {
           console.error("[stripe:webhook] subscription retrieve failed, using checkout session fallback", error);
           await syncTenantFromCheckoutSession(session);
@@ -191,7 +116,7 @@ export async function POST(req: NextRequest) {
 
       case "customer.subscription.created":
       case "customer.subscription.updated": {
-        await syncTenantSubscription(event.data.object as Stripe.Subscription);
+        await logAndSyncTenantSubscription(event.data.object as Stripe.Subscription);
         break;
       }
 
