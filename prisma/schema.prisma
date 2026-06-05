@@ -90,21 +90,21 @@ model AppointmentReminder {
 }
 
 model AppointmentReminderLog {
-  id               String              @id
+  id               String           @id
   tenantId         String
   appointmentId    String
   clientId         String?
   type             ReminderLogType
-  channel          MessageChannel      @default(SMS)
-  status           MessageLogStatus    @default(PENDING)
+  channel          MessageChannel   @default(SMS)
+  status           MessageLogStatus @default(PENDING)
   twilioMessageSid String?
   errorMessage     String?
   sentAt           DateTime?
-  createdAt        DateTime            @default(now())
+  createdAt        DateTime         @default(now())
   updatedAt        DateTime
-  Appointment      Appointment         @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  Client           Client?             @relation(fields: [clientId], references: [id])
-  Tenant           Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  Appointment      Appointment      @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  Client           Client?          @relation(fields: [clientId], references: [id])
+  Tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([appointmentId, type])
   @@index([clientId])
@@ -177,50 +177,50 @@ model BrowliftSession {
 }
 
 model BusinessSettings {
-  id              String   @id
-  tenantId        String   @unique
-  displayName     String?
-  logoUrl         String?
-  primaryColor    String?
-  defaultCurrency String   @default("EUR")
-  bookingEnabled  Boolean  @default(false)
-  smsRemindersEnabled Boolean @default(false)
-  smsReminderDelayHours Int   @default(24)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime
-  Tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                    String   @id
+  tenantId              String   @unique
+  displayName           String?
+  logoUrl               String?
+  primaryColor          String?
+  defaultCurrency       String   @default("EUR")
+  bookingEnabled        Boolean  @default(false)
+  smsRemindersEnabled   Boolean  @default(false)
+  smsReminderDelayHours Int      @default(24)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime
+  Tenant                Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model Client {
-  id                  String                @id
-  tenantId            String
-  firstName           String
-  lastName            String?
-  fullName            String?
-  email               String?
-  phone               String?
-  instagram           String?
-  birthDate           DateTime?
-  referredBy          String?
-  isLoyal             Boolean               @default(false)
-  firstVisitAt        DateTime?
-  lastVisitAt         DateTime?
-  visitCount          Int                   @default(0)
-  archivedAt          DateTime?
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime
-  Appointment         Appointment[]
-  CampaignRecipientLog CampaignRecipientLog[]
-  Tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  ClientAllergy       ClientAllergy[]
-  ClientMedia         ClientMedia[]
-  ClientNote          ClientNote[]
-  ClientTagAssignment ClientTagAssignment[]
-  ConsentDocument     ConsentDocument[]
+  id                     String                   @id
+  tenantId               String
+  firstName              String
+  lastName               String?
+  fullName               String?
+  email                  String?
+  phone                  String?
+  instagram              String?
+  birthDate              DateTime?
+  referredBy             String?
+  isLoyal                Boolean                  @default(false)
+  firstVisitAt           DateTime?
+  lastVisitAt            DateTime?
+  visitCount             Int                      @default(0)
+  archivedAt             DateTime?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime
+  Appointment            Appointment[]
+  CampaignRecipientLog   CampaignRecipientLog[]
+  Tenant                 Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ClientAllergy          ClientAllergy[]
+  ClientMedia            ClientMedia[]
+  ClientNote             ClientNote[]
+  ClientTagAssignment    ClientTagAssignment[]
+  ConsentDocument        ConsentDocument[]
   AppointmentReminderLog AppointmentReminderLog[]
-  MessageLog          MessageLog[]
-  Notification        Notification[]
-  Session             Session[]
+  MessageLog             MessageLog[]
+  Notification           Notification[]
+  Session                Session[]
 
   @@index([tenantId, archivedAt])
   @@index([tenantId, firstName])
@@ -526,6 +526,21 @@ model Media {
   @@index([tenantId])
 }
 
+model GalleryImage {
+  id        String   @id
+  tenantId  String
+  imageUrl  String
+  alt       String?
+  sortOrder Int      @default(0)
+  isPublic  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  Tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, isPublic])
+  @@index([tenantId, sortOrder])
+}
+
 model MessageLog {
   id              String           @id
   tenantId        String
@@ -722,6 +737,31 @@ model ProductLot {
   @@index([status])
 }
 
+model PublicProfile {
+  id            String   @id
+  tenantId      String   @unique
+  slug          String   @unique
+  isPublished   Boolean  @default(false)
+  businessName  String?
+  ownerName     String?
+  description   String?
+  address       String?
+  city          String?
+  phone         String?
+  email         String?
+  instagramUrl  String?
+  websiteUrl    String?
+  openingHours  String?
+  coverImageUrl String?
+  avatarUrl     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime
+  Tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([slug])
+  @@index([tenantId, isPublished])
+}
+
 model RecurringExpense {
   id        String                    @id
   tenantId  String
@@ -742,14 +782,32 @@ model RecurringExpense {
   @@index([tenantId, isActive])
 }
 
+model Review {
+  id         String   @id
+  tenantId   String
+  authorName String
+  rating     Int
+  comment    String
+  isVisible  Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  Tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, isVisible])
+  @@index([tenantId, createdAt])
+}
+
 model Service {
   id                String           @id
   tenantId          String
   serviceCategoryId String?
   name              String
   slug              String?
+  description       String?
   durationMin       Int?
   price             Decimal?         @db.Decimal(10, 2)
+  category          String?
+  isPublic          Boolean          @default(true)
   isActive          Boolean          @default(true)
   color             String?
   createdAt         DateTime         @default(now())
@@ -762,6 +820,7 @@ model Service {
   @@unique([tenantId, name])
   @@index([serviceCategoryId])
   @@index([tenantId])
+  @@index([tenantId, isPublic])
 }
 
 model ServiceCategory {
@@ -905,44 +964,47 @@ model Subscription {
 }
 
 model Tenant {
-  id                   String                 @id
-  name                 String
-  slug                 String?                @unique
-  subscriptionPlan     SubscriptionPlan       @default(FREE)
-  subscriptionStatus   SubscriptionStatus     @default(TRIALING)
-  trialEndsAt          DateTime?
-  stripeCustomerId     String?                @unique
-  stripeSubscriptionId String?                @unique
-  stripePriceId        String?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime
-  AgendaSettings       AgendaSettings?
-  Appointment          Appointment[]
-  AppointmentReminder  AppointmentReminder[]
+  id                     String                   @id
+  name                   String
+  slug                   String?                  @unique
+  subscriptionPlan       SubscriptionPlan         @default(FREE)
+  subscriptionStatus     SubscriptionStatus       @default(TRIALING)
+  trialEndsAt            DateTime?
+  stripeCustomerId       String?                  @unique
+  stripeSubscriptionId   String?                  @unique
+  stripePriceId          String?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime
+  AgendaSettings         AgendaSettings?
+  Appointment            Appointment[]
+  AppointmentReminder    AppointmentReminder[]
   AppointmentReminderLog AppointmentReminderLog[]
-  BillingProfile       BillingProfile?
-  BusinessSettings     BusinessSettings?
-  Client               Client[]
-  ClientTag            ClientTag[]
-  ConsentDocument      ConsentDocument[]
-  FinancialGoal        FinancialGoal?
-  FinancialSnapshot    FinancialSnapshot[]
-  FinancialTransaction FinancialTransaction[]
-  Media                Media[]
-  Campaign             Campaign[]
-  CampaignRecipientLog CampaignRecipientLog[]
-  MessageLog           MessageLog[]
-  MessageTemplate      MessageTemplate[]
-  Notification         Notification[]
-  Product              Product[]
-  ProductCategory      ProductCategory[]
-  RecurringExpense     RecurringExpense[]
-  Service              Service[]
-  ServiceCategory      ServiceCategory[]
-  Session              Session[]
-  StockMovement        StockMovement[]
-  Subscription         Subscription?
-  User                 User[]
+  BillingProfile         BillingProfile?
+  BusinessSettings       BusinessSettings?
+  Client                 Client[]
+  ClientTag              ClientTag[]
+  ConsentDocument        ConsentDocument[]
+  FinancialGoal          FinancialGoal?
+  FinancialSnapshot      FinancialSnapshot[]
+  FinancialTransaction   FinancialTransaction[]
+  GalleryImage           GalleryImage[]
+  Media                  Media[]
+  PublicProfile          PublicProfile?
+  Campaign               Campaign[]
+  CampaignRecipientLog   CampaignRecipientLog[]
+  MessageLog             MessageLog[]
+  MessageTemplate        MessageTemplate[]
+  Notification           Notification[]
+  Product                Product[]
+  ProductCategory        ProductCategory[]
+  RecurringExpense       RecurringExpense[]
+  Review                 Review[]
+  Service                Service[]
+  ServiceCategory        ServiceCategory[]
+  Session                Session[]
+  StockMovement          StockMovement[]
+  Subscription           Subscription?
+  User                   User[]
 
   @@index([slug])
 }

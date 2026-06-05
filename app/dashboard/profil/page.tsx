@@ -6,6 +6,52 @@ import PromoModal, { type EditableMessageTemplate } from "../../components/Promo
 import PrestationsTab from "./PrestationsTab";
 import { getProfileData, updateProfileData, type ProfileData } from "../../actions/profileActions";
 
+const planDetails: Record<ProfileData["subscriptionPlan"], {
+  name: string;
+  price: string;
+  description: string;
+  features: string[];
+}> = {
+  FREE: {
+    name: "Gratuit",
+    price: "0 EUR",
+    description: "Votre espace est pret. Choisissez une formule pour utiliser Glowea au quotidien.",
+    features: ["Compte Glowea", "Preparation de l'espace"],
+  },
+  ESSENTIAL: {
+    name: "Essentiel",
+    price: "39,90 EUR",
+    description: "La formule simple pour organiser votre activite, suivre vos clientes et garder un historique complet.",
+    features: ["Agenda et fiches clientes", "Sessions techniques", "Stock produits", "Comptabilite automatique", "Historique complet"],
+  },
+  PRO: {
+    name: "Pro",
+    price: "59,90 EUR",
+    description: "La formule complete pour automatiser vos rappels, reduire les absences et developper votre image pro.",
+    features: ["Tout Essentiel", "Rappels SMS automatiques", "Emails automatiques", "Acomptes et anti no-show", "Mini-site professionnel", "Reservation en ligne"],
+  },
+  PREMIUM: {
+    name: "Premium",
+    price: "Sur mesure",
+    description: "Une formule avancee pour les besoins au-dela de l'offre Pro.",
+    features: ["Tout Pro", "Accompagnement avance", "Fonctionnalites premium"],
+  },
+};
+
+const statusLabels: Record<ProfileData["subscription"]["status"], { label: string; tone: "success" | "warning" | "danger" }> = {
+  ACTIVE: { label: "Actif", tone: "success" },
+  TRIALING: { label: "Essai gratuit", tone: "warning" },
+  PAST_DUE: { label: "Paiement en attente", tone: "danger" },
+  CANCELED: { label: "Resilie", tone: "danger" },
+  INCOMPLETE: { label: "Paiement en attente", tone: "warning" },
+  PAUSED: { label: "Suspendu", tone: "warning" },
+};
+
+function formatDate(value: string | null) {
+  if (!value) return "Non renseignee";
+  return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(value));
+}
+
 export default function ProfilPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState("compte");
@@ -27,6 +73,21 @@ export default function ProfilPage() {
     canUseAutomaticSmsReminders: false,
     smsRemindersEnabled: false,
     smsReminderDelayHours: 24,
+    subscription: {
+      plan: "FREE",
+      status: "CANCELED",
+      provider: null,
+      trialEndsAt: null,
+      trialDaysLeft: 0,
+      currentPeriodStart: null,
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      stripePriceId: null,
+      canUseApp: false,
+      canUseProFeatures: false,
+    },
   });
 
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
@@ -170,6 +231,16 @@ export default function ProfilPage() {
     if (full) return full;
     return "Mon compte";
   }, [profileData.firstName, profileData.lastName]);
+
+  const currentPlan = planDetails[profileData.subscription.plan] || planDetails.FREE;
+  const currentStatus = statusLabels[profileData.subscription.status] || statusLabels.CANCELED;
+  const showTrialInfo = profileData.subscription.status === "TRIALING";
+  const badgeClassName =
+    currentStatus.tone === "success"
+      ? styles.badgeGreen
+      : currentStatus.tone === "danger"
+        ? styles.badgeRed
+        : styles.badgeAmber;
 
   const navItems = [
     { id: "compte", label: "Compte", icon: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" },
@@ -432,25 +503,76 @@ export default function ProfilPage() {
             <>
               <section className={styles.card}>
                 <div className={styles.cardHeader}>
-                  <h2 className={styles.cardTitle}>Mon Abonnement</h2>
+                  <h2 className={styles.cardTitle}>Mon abonnement</h2>
                 </div>
                 
                 <div className={styles.planBox}>
                   <div className={styles.planHeader}>
                     <div>
-                      <h3 className={styles.planTitle}>Glowéa Pro</h3>
-                      <span className={styles.badgeGreen}>Actif</span>
+                      <h3 className={styles.planTitle}>Glowea {currentPlan.name}</h3>
+                      <span className={badgeClassName}>{currentStatus.label}</span>
                     </div>
-                    <div className={styles.planPrice}>39,90€<span>/mois</span></div>
+                    <div className={styles.planPrice}>
+                      {currentPlan.price}
+                      <span>{currentPlan.price === "Sur mesure" ? "" : "/mois"}</span>
+                    </div>
                   </div>
-                  
-                  <p className={styles.planDesc}>
-                    Accès complet au CRM, Gestion des consentements RGPD, Suivi du stock, Statistiques avancées, et prise de rendez-vous en ligne (bientôt).
-                  </p>
-                  
+
+                  <p className={styles.planDesc}>{currentPlan.description}</p>
+
+                  {showTrialInfo && (
+                    <div className={styles.trialNotice}>
+                      <div>
+                        <span>Essai gratuit</span>
+                        <strong>{profileData.subscription.trialDaysLeft} jour{profileData.subscription.trialDaysLeft > 1 ? "s" : ""} restant{profileData.subscription.trialDaysLeft > 1 ? "s" : ""}</strong>
+                      </div>
+                      <p>Votre essai se termine le {formatDate(profileData.subscription.trialEndsAt)}.</p>
+                    </div>
+                  )}
+
+                  <div className={styles.subscriptionContentGrid}>
+                    <section className={styles.subscriptionPanel}>
+                      <h4>Votre formule inclut</h4>
+                      <ul className={styles.subscriptionIncludedList}>
+                        {currentPlan.features.map((feature) => (
+                          <li key={feature}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            {feature}
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+
+                    <section className={styles.subscriptionPanel}>
+                      <h4>Acces</h4>
+                      <div className={styles.accessList}>
+                        <div className={styles.accessRow}>
+                          <span>Application</span>
+                          <strong className={profileData.subscription.canUseApp ? styles.accessOpen : styles.accessClosed}>
+                            {profileData.subscription.canUseApp ? "Ouvert" : "Bloque"}
+                          </strong>
+                        </div>
+                        <div className={styles.accessRow}>
+                          <span>Fonctionnalites Pro</span>
+                          <strong className={profileData.subscription.canUseProFeatures ? styles.accessOpen : styles.accessMuted}>
+                            {profileData.subscription.canUseProFeatures ? "Disponibles" : "Non incluses"}
+                          </strong>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+
+                  {profileData.subscription.cancelAtPeriodEnd && (
+                    <div className={styles.subscriptionNotice}>
+                      Votre abonnement est programme pour s&apos;arreter a la fin de la periode en cours.
+                    </div>
+                  )}
+
                   <div className={styles.planActions}>
-                    <button className={styles.btnEdit}>Changer de forfait</button>
-                    <button className={styles.btnOutlineRed}>Résilier l&apos;abonnement</button>
+                    <a className={styles.btnEdit} href="/pricing">Changer de forfait</a>
+                    <a className={styles.btnSecondary} href="mailto:support@glowea.fr">Contacter le support</a>
                   </div>
                 </div>
               </section>
