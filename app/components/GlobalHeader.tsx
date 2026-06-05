@@ -112,6 +112,13 @@ export default async function GlobalHeader() {
         <Image src="/logo.svg" alt="Glowea" width={185} height={55} priority />
       </Link>
       <div className={styles.userSection}>
+        <Link href="/dashboard/page-publique" className={styles.iconBtn} title="Page publique" aria-label="Acceder a ma page publique">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M2 12h20"></path>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+        </Link>
         <Link href="/dashboard/profil" className={styles.iconBtn} title="Parametres & Profil">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3"></circle>
