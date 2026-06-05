@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import type { BillingProvider, SubscriptionStatus } from "@prisma/client";
 import prisma from "../../lib/prisma";
-import { canUseAutomaticSmsReminders, type SubscriptionPlanValue } from "../../lib/features";
+import { type SubscriptionPlanValue } from "../../lib/features";
+import { getSubscriptionAccessFromTenant } from "../../lib/subscription";
 import { getTenantId } from "../../lib/tenant";
 
 export type ProfileSubscriptionData = {
@@ -42,12 +43,6 @@ function safeString(value: unknown) {
   return value.trim();
 }
 
-function getTrialDaysLeft(trialEndsAt: Date | null | undefined) {
-  if (!trialEndsAt) return 0;
-  const diffMs = trialEndsAt.getTime() - Date.now();
-  return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-}
-
 export async function getProfileData() {
   const tenantId = await getTenantId();
 
@@ -71,10 +66,8 @@ export async function getProfileData() {
     const siret = safeString(tenant?.BillingProfile?.siret);
     const address = safeString(tenant?.BillingProfile?.addressLine1);
     const subscriptionPlan = (tenant?.subscriptionPlan || "FREE") as SubscriptionPlanValue;
-    const subscriptionStatus = tenant?.subscriptionStatus || "CANCELED";
-    const trialDaysLeft = getTrialDaysLeft(tenant?.trialEndsAt);
-    const canUseApp = subscriptionStatus === "ACTIVE" || (subscriptionStatus === "TRIALING" && trialDaysLeft > 0);
-    const canUseSmsReminders = canUseAutomaticSmsReminders(subscriptionPlan);
+    const subscriptionAccess = getSubscriptionAccessFromTenant(tenant);
+    const canUseSmsReminders = subscriptionAccess.canUseSms;
 
     const data: ProfileData = {
       firstName,
@@ -90,18 +83,18 @@ export async function getProfileData() {
       smsReminderDelayHours: tenant?.BusinessSettings?.smsReminderDelayHours || 24,
       subscription: {
         plan: subscriptionPlan,
-        status: subscriptionStatus,
+        status: subscriptionAccess.status,
         provider: tenant?.Subscription?.provider || (tenant?.stripeCustomerId ? "STRIPE" : null),
         trialEndsAt: tenant?.trialEndsAt?.toISOString() || null,
-        trialDaysLeft,
+        trialDaysLeft: subscriptionAccess.daysLeft,
         currentPeriodStart: tenant?.Subscription?.currentPeriodStart?.toISOString() || null,
         currentPeriodEnd: tenant?.Subscription?.currentPeriodEnd?.toISOString() || null,
         cancelAtPeriodEnd: Boolean(tenant?.Subscription?.cancelAtPeriodEnd),
         stripeCustomerId: tenant?.stripeCustomerId || null,
         stripeSubscriptionId: tenant?.stripeSubscriptionId || null,
         stripePriceId: tenant?.stripePriceId || null,
-        canUseApp,
-        canUseProFeatures: canUseApp && canUseSmsReminders,
+        canUseApp: subscriptionAccess.canUseApp,
+        canUseProFeatures: subscriptionAccess.canUseProFeatures,
       },
     };
 

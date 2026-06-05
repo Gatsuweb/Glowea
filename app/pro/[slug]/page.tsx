@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
 import prisma from "../../../lib/prisma";
+import { getSubscriptionAccessFromTenant } from "../../../lib/subscription";
 import PublicBookingModal from "./PublicBookingModal";
 import PublicGallery from "./PublicGallery";
 import styles from "./publicProfile.module.css";
@@ -95,8 +96,7 @@ export default async function PublicProPage({ params }: { params: Promise<{ slug
   if (
     !profile ||
     !profile.isPublished ||
-    profile.Tenant.subscriptionPlan !== "PRO" ||
-    profile.Tenant.subscriptionStatus !== "ACTIVE"
+    !getSubscriptionAccessFromTenant(profile.Tenant).canUsePublicPage
   ) {
     notFound();
   }

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
+import { getSubscriptionAccessFromTenant, getTenantSubscriptionAccess } from "../../lib/subscription";
 import { getTenantId } from "../../lib/tenant";
 
 const ACTIVE_BOOKING_STATUSES = ["SCHEDULED", "CONFIRMED", "IN_PROGRESS"] as const;
@@ -82,10 +83,6 @@ function slugify(value: string) {
     .slice(0, 60);
 
   return slug || `pro-${crypto.randomUUID().replace(/-/g, "").slice(0, 8)}`;
-}
-
-function isProActive(tenant: { subscriptionPlan: string; subscriptionStatus: string } | null | undefined) {
-  return tenant?.subscriptionPlan === "PRO" && tenant.subscriptionStatus === "ACTIVE";
 }
 
 function toMoney(value: unknown) {
@@ -181,6 +178,7 @@ async function ensurePublicProfile(tenantId: string) {
 export async function getPublicPageConfig() {
   const tenantId = await getTenantId();
   const { tenant, profile } = await ensurePublicProfile(tenantId);
+  const access = getSubscriptionAccessFromTenant(tenant);
   const [services, gallery, reviews] = await Promise.all([
     prisma.service.findMany({
       where: { tenantId, isActive: true },
@@ -198,7 +196,8 @@ export async function getPublicPageConfig() {
 
   return {
     success: true as const,
-    isPro: isProActive(tenant),
+    isPro: access.canUsePublicPage,
+    access,
     publicPath: `/pro/${profile.slug}`,
     profile: {
       id: profile.id,
@@ -240,7 +239,7 @@ export async function updatePublicProfile(input: PublicProfileInput) {
   const tenantId = await getTenantId();
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
 
-  if (!isProActive(tenant)) {
+  if (!getSubscriptionAccessFromTenant(tenant).canUsePublicPage) {
     return { success: false as const, error: "La page publique est disponible avec Glowea Pro." };
   }
 
@@ -296,9 +295,9 @@ export async function updatePublicProfile(input: PublicProfileInput) {
 
 export async function savePublicService(input: PublicServiceInput) {
   const tenantId = await getTenantId();
-  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  const access = await getTenantSubscriptionAccess(tenantId);
 
-  if (!isProActive(tenant)) {
+  if (!access.canUsePublicPage) {
     return { success: false as const, error: "La page publique est disponible avec Glowea Pro." };
   }
 
@@ -338,9 +337,9 @@ export async function savePublicService(input: PublicServiceInput) {
 
 export async function deletePublicService(id: string) {
   const tenantId = await getTenantId();
-  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  const access = await getTenantSubscriptionAccess(tenantId);
 
-  if (!isProActive(tenant)) {
+  if (!access.canUsePublicPage) {
     return { success: false as const, error: "La page publique est disponible avec Glowea Pro." };
   }
 
@@ -367,9 +366,9 @@ export async function deletePublicService(id: string) {
 
 export async function addGalleryImage(input: GalleryImageInput) {
   const tenantId = await getTenantId();
-  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  const access = await getTenantSubscriptionAccess(tenantId);
 
-  if (!isProActive(tenant)) {
+  if (!access.canUsePublicPage) {
     return { success: false as const, error: "La page publique est disponible avec Glowea Pro." };
   }
 
@@ -396,9 +395,9 @@ export async function addGalleryImage(input: GalleryImageInput) {
 
 export async function deleteGalleryImage(id: string) {
   const tenantId = await getTenantId();
-  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  const access = await getTenantSubscriptionAccess(tenantId);
 
-  if (!isProActive(tenant)) {
+  if (!access.canUsePublicPage) {
     return { success: false as const, error: "La page publique est disponible avec Glowea Pro." };
   }
 
@@ -413,9 +412,9 @@ export async function deleteGalleryImage(id: string) {
 
 export async function saveReview(input: ReviewInput) {
   const tenantId = await getTenantId();
-  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  const access = await getTenantSubscriptionAccess(tenantId);
 
-  if (!isProActive(tenant)) {
+  if (!access.canUsePublicPage) {
     return { success: false as const, error: "La page publique est disponible avec Glowea Pro." };
   }
 
@@ -467,9 +466,9 @@ export async function saveReview(input: ReviewInput) {
 
 export async function deleteReview(id: string) {
   const tenantId = await getTenantId();
-  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  const access = await getTenantSubscriptionAccess(tenantId);
 
-  if (!isProActive(tenant)) {
+  if (!access.canUsePublicPage) {
     return { success: false as const, error: "La page publique est disponible avec Glowea Pro." };
   }
 
@@ -504,7 +503,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
     include: { Tenant: true },
   });
 
-  if (!profile || !profile.isPublished || !isProActive(profile.Tenant)) {
+  if (!profile || !profile.isPublished || !getSubscriptionAccessFromTenant(profile.Tenant).canUseBooking) {
     return { success: false as const, error: "Cette page de reservation n'est pas disponible." };
   }
 

@@ -131,18 +131,19 @@ export function toSmsSendError(error: unknown) {
 export async function sendSms(params: SendSmsParams) {
   const provider = getSmsProvider();
   const from = process.env.TWILIO_FROM_NUMBER;
-  const to = normalizeSmsPhoneNumber(params.to);
+  const rawPhone = params.to;
+  const normalizedPhone = normalizeSmsPhoneNumber(rawPhone);
 
   if (provider === "mock") {
     console.log("[sms:mock] sent", {
       from: from || "mock_from",
-      to,
+      to: normalizedPhone,
       body: params.body,
     });
 
     return {
       sid: `mock_${Date.now()}`,
-      to,
+      to: normalizedPhone,
       from: from || "mock_from",
       provider,
     };
@@ -158,14 +159,26 @@ export async function sendSms(params: SendSmsParams) {
   }
 
   try {
+    console.log("[TWILIO DEBUG] SMS_PROVIDER:", process.env.SMS_PROVIDER);
+    console.log("[TWILIO DEBUG] Account SID:", process.env.TWILIO_ACCOUNT_SID);
+    console.log("[TWILIO DEBUG] From:", process.env.TWILIO_FROM_NUMBER);
+    console.log("[TWILIO DEBUG] Raw TO:", rawPhone);
+    console.log("[TWILIO DEBUG] Normalized TO:", normalizedPhone);
+
     const message = await getTwilioClient().messages.create({
       from,
-      to,
+      to: normalizedPhone,
       body: params.body,
     });
 
-    return { sid: message.sid, to, from, provider };
+    return { sid: message.sid, to: normalizedPhone, from, provider };
   } catch (error) {
+    const twilioError = error as { code?: number | string; status?: number; message?: string; moreInfo?: string };
+    console.error("[TWILIO DEBUG] Error code:", twilioError.code);
+    console.error("[TWILIO DEBUG] Error message:", twilioError.message);
+    console.error("[TWILIO DEBUG] Error moreInfo:", twilioError.moreInfo);
+    console.error("[TWILIO DEBUG] Error status:", twilioError.status);
+
     throw toSmsSendError(error);
   }
 }

@@ -50,7 +50,7 @@ export async function PATCH(request: Request) {
     }
 
     const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
-    const isAllowed = subscriptionAccess.canUseProFeatures;
+    const isAllowed = subscriptionAccess.canUseSms;
     if (enabled && !isAllowed) {
       return NextResponse.json(
         {

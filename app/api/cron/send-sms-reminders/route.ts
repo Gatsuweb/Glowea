@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { AppointmentStatus, Prisma } from "@prisma/client";
 import prisma from "../../../../lib/prisma";
-import { canUseAutomaticSmsReminders } from "../../../../lib/features";
+import { getSubscriptionAccessFromTenant } from "../../../../lib/subscription";
 import { sendSms } from "../../../../lib/twilio";
 
 const REMINDER_TYPE = "SMS_24H_REMINDER";
@@ -225,7 +225,7 @@ export async function GET(request: Request) {
         continue;
       }
 
-      if (!canUseAutomaticSmsReminders(tenant.subscriptionPlan)) {
+      if (!getSubscriptionAccessFromTenant(tenant).canUseSms) {
         summary.skipped += 1;
         addDebug({ ...baseDebug, reason: "PLAN_NOT_ALLOWED" });
         continue;

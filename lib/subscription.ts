@@ -8,6 +8,9 @@ export type SubscriptionAccess = {
   currentPlan: SubscriptionPlan;
   canUseApp: boolean;
   canUseProFeatures: boolean;
+  canUsePublicPage: boolean;
+  canUseSms: boolean;
+  canUseBooking: boolean;
   daysLeft: number;
   status: SubscriptionStatus;
 };
@@ -21,16 +24,14 @@ function getDaysLeft(trialEndsAt: Date | null | undefined, now: Date) {
   return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
 }
 
-export async function getTenantSubscriptionAccess(tenantId: string): Promise<SubscriptionAccess> {
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: tenantId },
-    select: {
-      subscriptionPlan: true,
-      subscriptionStatus: true,
-      trialEndsAt: true,
-    },
-  });
-
+export function getSubscriptionAccessFromTenant(
+  tenant: {
+    subscriptionPlan: SubscriptionPlan;
+    subscriptionStatus: SubscriptionStatus;
+    trialEndsAt: Date | null;
+  } | null | undefined,
+  now = new Date()
+): SubscriptionAccess {
   if (!tenant) {
     return {
       isTrialing: false,
@@ -39,12 +40,14 @@ export async function getTenantSubscriptionAccess(tenantId: string): Promise<Sub
       currentPlan: "FREE",
       canUseApp: false,
       canUseProFeatures: false,
+      canUsePublicPage: false,
+      canUseSms: false,
+      canUseBooking: false,
       daysLeft: 0,
       status: "CANCELED",
     };
   }
 
-  const now = new Date();
   const daysLeft = getDaysLeft(tenant.trialEndsAt, now);
   const isTrialing = tenant.subscriptionStatus === "TRIALING" && daysLeft > 0;
   const isTrialExpired = tenant.subscriptionStatus === "TRIALING" && !isTrialing;
@@ -60,9 +63,25 @@ export async function getTenantSubscriptionAccess(tenantId: string): Promise<Sub
     currentPlan: tenant.subscriptionPlan,
     canUseApp,
     canUseProFeatures,
+    canUsePublicPage: canUseProFeatures,
+    canUseSms: canUseProFeatures,
+    canUseBooking: canUseProFeatures,
     daysLeft,
     status: tenant.subscriptionStatus,
   };
+}
+
+export async function getTenantSubscriptionAccess(tenantId: string): Promise<SubscriptionAccess> {
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: {
+      subscriptionPlan: true,
+      subscriptionStatus: true,
+      trialEndsAt: true,
+    },
+  });
+
+  return getSubscriptionAccessFromTenant(tenant);
 }
 
 export async function canMutateTenantData(tenantId: string) {
