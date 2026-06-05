@@ -3,7 +3,7 @@ import type { CampaignChannel, CampaignStatus, CampaignTargetSegment } from "@pr
 import prisma from "../../../../lib/prisma";
 import { getTenantId } from "../../../../lib/tenant";
 import { getTenantSubscriptionAccess } from "../../../../lib/subscription";
-import { sendSms } from "../../../../lib/twilio";
+import { getTwilioDiagnostics, normalizeSmsPhoneNumber, sendSms, toSmsSendError } from "../../../../lib/twilio";
 import {
   getBusinessName,
   getCampaignProviderMode,
@@ -30,6 +30,13 @@ function getCampaignStatus(sentCount: number, failedCount: number, skippedCount:
   return "FAILED";
 }
 
+type RecipientError = {
+  clientId: string;
+  clientName: string;
+  to: string;
+  error: string;
+};
+
 export async function POST(request: Request) {
   try {
     const tenantId = await getTenantId();
@@ -55,7 +62,20 @@ export async function POST(request: Request) {
     const requestedChannel = isChannel(body.channel) ? body.channel : null;
     const channel = requestedChannel || (template.channel === "EMAIL" ? "EMAIL" : "SMS");
     const providerMode = getCampaignProviderMode(channel);
+    const twilioDiagnostics = getTwilioDiagnostics();
     const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
+
+    console.info("[campaign:send] start", {
+      tenantId,
+      channel,
+      smsProvider: twilioDiagnostics.smsProvider,
+      resolvedProvider: twilioDiagnostics.resolvedProvider,
+      providerMode,
+      hasTwilioAccountSid: twilioDiagnostics.hasAccountSid,
+      hasTwilioAuthToken: twilioDiagnostics.hasAuthToken,
+      hasTwilioFromNumber: twilioDiagnostics.hasFromNumber,
+      twilioFromNumber: twilioDiagnostics.fromNumber,
+    });
 
     if (!subscriptionAccess.canUseProFeatures) {
       return NextResponse.json(
@@ -76,6 +96,12 @@ export async function POST(request: Request) {
       );
     }
 
+    console.info("[campaign:send] recipients", {
+      campaignTemplateId: template.id,
+      targetSegment,
+      recipientsCount: clients.length,
+    });
+
     const campaign = await prisma.campaign.create({
       data: {
         id: `camp_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
@@ -94,6 +120,7 @@ export async function POST(request: Request) {
     let sentCount = 0;
     let failedCount = 0;
     let skippedCount = 0;
+    const recipientErrors: RecipientError[] = [];
 
     for (const client of clients) {
       const address = getSendAddress(client, channel);
@@ -102,9 +129,19 @@ export async function POST(request: Request) {
         lastName: client.lastName,
         businessName,
       });
+      const clientName = `${client.firstName || ""} ${client.lastName || ""}`.trim() || "Cliente";
 
       if (!address) {
         skippedCount += 1;
+        const errorMessage = channel === "EMAIL" ? "Email manquant" : "Telephone manquant";
+        console.info("[campaign:send] recipient skipped", {
+          campaignId: campaign.id,
+          tenantId,
+          clientId: client.id,
+          clientName,
+          channel,
+          error: errorMessage,
+        });
         await prisma.campaignRecipientLog.create({
           data: {
             id: `crl_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
@@ -113,7 +150,7 @@ export async function POST(request: Request) {
             clientId: client.id,
             channel,
             status: "SKIPPED",
-            errorMessage: channel === "EMAIL" ? "Email manquant" : "Telephone manquant",
+            errorMessage,
             updatedAt: new Date(),
           },
         });
@@ -121,15 +158,37 @@ export async function POST(request: Request) {
       }
 
       try {
+        const normalizedAddress = channel === "SMS" ? normalizeSmsPhoneNumber(address) : address;
+        console.info("[campaign:send] recipient send attempt", {
+          campaignId: campaign.id,
+          tenantId,
+          clientId: client.id,
+          clientName,
+          channel,
+          smsProvider: twilioDiagnostics.smsProvider,
+          providerMode,
+          to: normalizedAddress,
+          from: channel === "SMS" ? twilioDiagnostics.fromNumber : null,
+          body: renderedBody,
+        });
+
         if (providerMode === "real" && channel === "SMS") {
-          await sendSms({ to: address, body: renderedBody });
+          const smsResult = await sendSms({ to: normalizedAddress, body: renderedBody });
+          console.info("[campaign:send] twilio sent", {
+            campaignId: campaign.id,
+            tenantId,
+            clientId: client.id,
+            to: smsResult.to,
+            from: smsResult.from,
+            sid: smsResult.sid,
+          });
         } else {
           console.log("MOCK CAMPAIGN MESSAGE", {
             campaignId: campaign.id,
             tenantId,
             clientId: client.id,
             channel,
-            to: address,
+            to: normalizedAddress,
             body: renderedBody,
           });
         }
@@ -149,6 +208,30 @@ export async function POST(request: Request) {
         });
       } catch (error) {
         failedCount += 1;
+        const smsError = toSmsSendError(error);
+        const errorMessage = smsError.userMessage;
+        recipientErrors.push({
+          clientId: client.id,
+          clientName,
+          to: address,
+          error: errorMessage,
+        });
+
+        console.error("[campaign:send] recipient failed", {
+          campaignId: campaign.id,
+          tenantId,
+          clientId: client.id,
+          clientName,
+          channel,
+          to: address,
+          from: channel === "SMS" ? twilioDiagnostics.fromNumber : null,
+          body: renderedBody,
+          errorCode: smsError.code,
+          errorMessage: smsError.message,
+          userMessage: smsError.userMessage,
+          details: smsError.details,
+        });
+
         await prisma.campaignRecipientLog.create({
           data: {
             id: `crl_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
@@ -157,7 +240,7 @@ export async function POST(request: Request) {
             clientId: client.id,
             channel,
             status: "FAILED",
-            errorMessage: error instanceof Error ? error.message.slice(0, 500) : "Erreur d'envoi inconnue",
+            errorMessage: errorMessage.slice(0, 500),
             updatedAt: new Date(),
           },
         });
@@ -186,6 +269,8 @@ export async function POST(request: Request) {
       failedCount,
       skippedCount,
       providerMode,
+      recipientErrors,
+      errorSummary: recipientErrors.length > 0 ? recipientErrors.map((item) => `${item.clientName}: ${item.error}`).join(" | ") : null,
     });
   } catch (error) {
     console.error("Error sending campaign:", error);

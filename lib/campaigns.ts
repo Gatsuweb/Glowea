@@ -71,7 +71,7 @@ export function getCampaignProviderMode(channel: CampaignChannel) {
   if (channel === "MOCK") return "mock";
   if (channel === "EMAIL") return "mock";
   const provider = process.env.SMS_PROVIDER?.toLowerCase();
-  return provider && provider !== "mock" ? "real" : "mock";
+  return provider === "twilio" ? "real" : "mock";
 }
 
 export async function ensureDefaultCampaignTemplates(tenantId: string) {

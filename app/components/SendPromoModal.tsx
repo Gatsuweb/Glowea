@@ -30,6 +30,21 @@ type Preview = {
   }>;
 };
 
+type SendCampaignResponse = {
+  success: boolean;
+  error?: string;
+  sentCount?: number;
+  failedCount?: number;
+  skippedCount?: number;
+  errorSummary?: string | null;
+  recipientErrors?: Array<{
+    clientId: string;
+    clientName: string;
+    to: string;
+    error: string;
+  }>;
+};
+
 interface SendPromoModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -156,12 +171,16 @@ export default function SendPromoModal({ isOpen, onClose }: SendPromoModalProps)
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ targetSegment, templateId: selectedTemplateId, channel }),
       });
-      const data = await response.json();
+      const data = await response.json() as SendCampaignResponse;
       if (!data.success) throw new Error(data.error || "Envoi impossible");
 
-      setSuccess(
-        `${isMockMode ? "Simulation terminee" : "Campagne envoyee"} : ${data.sentCount} envoyee(s), ${data.failedCount} echec(s), ${data.skippedCount} ignoree(s).`
-      );
+      const details = data.errorSummary ? ` Raison : ${data.errorSummary}` : "";
+      const resultMessage = `${isMockMode ? "Simulation terminee" : "Campagne traitee"} : ${data.sentCount || 0} envoyee(s), ${data.failedCount || 0} echec(s), ${data.skippedCount || 0} ignoree(s).${details}`;
+      if ((data.failedCount || 0) > 0 && (data.sentCount || 0) === 0) {
+        setError(resultMessage);
+      } else {
+        setSuccess(resultMessage);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Impossible d'envoyer la campagne");
     } finally {
