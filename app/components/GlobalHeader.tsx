@@ -108,9 +108,9 @@ export default async function GlobalHeader() {
 
   return (
     <header className={styles.header}>
-      <div className={styles.logoContainer}>
+      <Link href="/dashboard" className={styles.logoContainer} aria-label="Retour au dashboard">
         <Image src="/logo.svg" alt="Glowea" width={185} height={55} priority />
-      </div>
+      </Link>
       <div className={styles.userSection}>
         <Link href="/dashboard/profil" className={styles.iconBtn} title="Parametres & Profil">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

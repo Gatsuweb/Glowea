@@ -57,9 +57,9 @@ export async function POST(request: Request) {
     const providerMode = getCampaignProviderMode(channel);
     const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
 
-    if (!subscriptionAccess.canUseProFeatures && providerMode !== "mock") {
+    if (!subscriptionAccess.canUseProFeatures) {
       return NextResponse.json(
-        { success: false, error: "Les campagnes reelles sont reservees aux offres PRO et PREMIUM" },
+        { success: false, error: "Les campagnes sont reservees a la formule Pro" },
         { status: 403 }
       );
     }

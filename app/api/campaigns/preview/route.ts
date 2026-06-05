@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { CampaignChannel, CampaignTargetSegment } from "@prisma/client";
 import { getTenantId } from "../../../../lib/tenant";
+import { getTenantSubscriptionAccess } from "../../../../lib/subscription";
 import {
   buildCampaignPreview,
   getBusinessName,
@@ -23,6 +24,14 @@ function isChannel(value: unknown): value is CampaignChannel {
 export async function POST(request: Request) {
   try {
     const tenantId = await getTenantId();
+    const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
+    if (!subscriptionAccess.canUseProFeatures) {
+      return NextResponse.json(
+        { success: false, error: "Les campagnes sont reservees a la formule Pro" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const targetSegment = body.targetSegment;
     const templateId = typeof body.templateId === "string" ? body.templateId : "";

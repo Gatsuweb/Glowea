@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
 import styles from "./profil.module.css";
 import PromoModal, { type EditableMessageTemplate } from "../../components/PromoModal";
@@ -53,6 +54,7 @@ function formatDate(value: string | null) {
 }
 
 export default function ProfilPage() {
+  const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState("compte");
   const [isPromoModalOpen, setPromoModalOpen] = useState(false);
@@ -146,19 +148,28 @@ export default function ProfilPage() {
   };
 
   useEffect(() => {
+    if (activeTab === "templates" && !profileData.subscription.canUseProFeatures) {
+      openPricing();
+      return;
+    }
+
     if (activeTab === "templates") {
       void loadTemplates();
     }
-  }, [activeTab]);
+  }, [activeTab, profileData.subscription.canUseProFeatures]);
 
   const openCreateTemplateModal = () => {
-    setEditingTemplate(null);
-    setPromoModalOpen(true);
+    guardProFeature(() => {
+      setEditingTemplate(null);
+      setPromoModalOpen(true);
+    });
   };
 
   const openEditTemplateModal = (template: EditableMessageTemplate) => {
-    setEditingTemplate(template);
-    setPromoModalOpen(true);
+    guardProFeature(() => {
+      setEditingTemplate(template);
+      setPromoModalOpen(true);
+    });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -168,6 +179,15 @@ export default function ProfilPage() {
 
   const canEdit = !isLoadingProfile && !isSaving;
   const canToggleSmsReminders = (profileData.canUseAutomaticSmsReminders || profileData.smsRemindersEnabled) && !isLoadingProfile && !isSavingSmsReminders;
+  const openPricing = () => router.push("/pricing");
+  const guardProFeature = (action: () => void) => {
+    if (!profileData.subscription.canUseProFeatures) {
+      openPricing();
+      return;
+    }
+
+    action();
+  };
 
   const handleSave = async () => {
     if (!canEdit) return;
@@ -245,12 +265,30 @@ export default function ProfilPage() {
   const navItems = [
     { id: "compte", label: "Compte", icon: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" },
     { id: "prestations", label: "Prestations", icon: "M14 2H6a2 2 0 0 0-2 2v16c0 1.1.9 2 2 2h12a2 2 0 0 0 2-2V8l-6-6z M14 3v5h5 M16 13H8 M16 17H8 M10 9H8" },
-    { id: "agenda", label: "Agenda", icon: "M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z M16 2v4 M8 2v4 M3 10h18" },
+    { id: "page-publique", label: "Page publique", icon: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z M2 12h20 M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z" },
     { id: "abonnements", label: "Abonnements", icon: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" },
     { id: "paiements", label: "Paiements", icon: "M21 4H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z M21 10H3 M21 16H3" },
     { id: "notifications", label: "Notifications", icon: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" },
     { id: "templates", label: "Templates Mail", icon: "M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6l-10 7L2 6" },
   ];
+
+  const handleNavItemClick = (itemId: string) => {
+    if (itemId === "page-publique") {
+      router.push(profileData.subscription.canUseProFeatures ? "/dashboard/page-publique" : "/pricing");
+      return;
+    }
+
+    if (itemId === "templates") {
+      if (!profileData.subscription.canUseProFeatures) {
+        openPricing();
+        return;
+      }
+      setActiveTab("templates");
+      return;
+    }
+
+    setActiveTab(itemId);
+  };
 
   return (
     <main className={styles.layout}>
@@ -276,7 +314,7 @@ export default function ProfilPage() {
               <button 
                 key={index} 
                 className={`${styles.navItem} ${item.id === activeTab ? styles.navItemActive : ''}`}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => handleNavItemClick(item.id)}
               >
                 <svg className={styles.navIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d={item.icon} />

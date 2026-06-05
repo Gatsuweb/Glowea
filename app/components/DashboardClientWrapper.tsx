@@ -14,7 +14,9 @@ import NewClientModal from "./NewClientModal";
 import SendPromoModal from "./SendPromoModal";
 import WeeklyBriefModal from "./WeeklyBriefModal";
 import InstallAppModal from "./InstallAppModal";
+import OnboardingChecklist from "./OnboardingChecklist";
 import type { SubscriptionAccess } from "../../lib/subscription";
+import type { OnboardingState } from "../actions/onboardingActions";
 
 const currencyFormatter = new Intl.NumberFormat('fr-FR', {
   style: 'currency',
@@ -120,6 +122,7 @@ export default function DashboardClientWrapper({
   subscriptionAccess,
   checkoutSuccess = false,
   checkoutSyncState = null,
+  onboarding,
 }: { 
   firstName: string; 
   lastName: string;
@@ -142,6 +145,7 @@ export default function DashboardClientWrapper({
   subscriptionAccess: SubscriptionAccess;
   checkoutSuccess?: boolean;
   checkoutSyncState?: "activated" | "pending" | "error" | null;
+  onboarding?: OnboardingState;
 }) {
   const router = useRouter();
   const [isSessionModalOpen, setSessionModalOpen] = useState(false);
@@ -226,6 +230,7 @@ export default function DashboardClientWrapper({
   };
   const secondaryInsights = insights.slice(1, 4);
   const isReadOnlyAccess = !subscriptionAccess.canUseApp;
+  const todayAppointmentsCount = appointments.filter((appointment) => !appointment.isTomorrow).length;
   const limitedAccessTitle =
     subscriptionAccess.status === "PAST_DUE"
       ? "Paiement a regulariser."
@@ -356,11 +361,13 @@ export default function DashboardClientWrapper({
         </section>
       )}
 
+      {onboarding && <OnboardingChecklist onboarding={onboarding} />}
+
       {/* Welcome Section */}
       <section className={styles.welcomeSection}>
         <div className={styles.welcomeText}>
           <h1>Bienvenue {firstName} {lastName}</h1>
-          <p>AUJOURD&apos;HUI - {appointments.length} RENDEZ-VOUS</p>
+          <p>AUJOURD&apos;HUI - {todayAppointmentsCount} RENDEZ-VOUS</p>
         </div>
         <div className={styles.actionButtons}>
           <button className={styles.actionBtn} onClick={() => setWeeklyBriefOpen(true)} title="Point de la semaine">
@@ -451,7 +458,7 @@ export default function DashboardClientWrapper({
             )}
             {appointments.length === 0 ? (
               <div className={styles.emptyState}>
-                <p>Aucun rendez-vous prévu</p>
+                <p>Aucun rendez-vous prevu aujourd&apos;hui ou demain</p>
                 <button className={styles.emptyStateBtn} onClick={() => guardMutation(() => setNewAppointmentModalOpen(true))}>
                   Créer un premier rendez-vous
                 </button>
@@ -467,7 +474,12 @@ export default function DashboardClientWrapper({
                     <div className={styles.appointmentType}>{app.serviceName}</div>
                   </div>
                   <div className={styles.appointmentTags}>
-                    {!app.isTomorrow && <span className={styles.tagDemain} style={{ background: 'var(--tertiary)' }}>AUJOURD&apos;HUI</span>}
+                    <span
+                      className={styles.tagDemain}
+                      style={{ background: app.isTomorrow ? 'var(--secondary)' : 'var(--tertiary)' }}
+                    >
+                      {app.isTomorrow ? "DEMAIN" : "AUJOURD&apos;HUI"}
+                    </span>
                     <div className={styles.appointmentActions}>
                       <button
                         type="button"

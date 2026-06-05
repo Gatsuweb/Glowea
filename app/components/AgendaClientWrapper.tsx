@@ -366,7 +366,12 @@ export default function AgendaClientWrapper({
                         <path d="M26 20L16 26V14L26 20Z" fill="white"/>
                       </svg>
                     </button>
-                    <button className={styles.btnAfficher}>AFFICHER</button>
+                    <button
+                      className={styles.btnAfficher}
+                      onClick={() => router.push(`/dashboard/clients?clientId=${encodeURIComponent(app.clientId)}&tab=infos`)}
+                    >
+                      AFFICHER
+                    </button>
                   </div>
                   <div className={styles.bottomIcons}>
                     <button className={styles.iconBtn}>

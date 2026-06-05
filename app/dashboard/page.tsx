@@ -3,6 +3,7 @@ import DashboardClientWrapper from "../components/DashboardClientWrapper";
 import prisma from "../../lib/prisma";
 import { getTenantSubscriptionAccess } from "../../lib/subscription";
 import { syncCheckoutSessionById } from "../../lib/stripeSubscriptionSync";
+import { getTenantOnboardingState } from "../actions/onboardingActions";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +76,7 @@ export default async function DashboardPage({
   }
 
   const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
+  const onboarding = await getTenantOnboardingState(tenantId);
 
   const [profileUser, profileTenant] = await Promise.all([
     prisma.user.findUnique({ where: { id: tenantId } }),
@@ -103,13 +105,13 @@ export default async function DashboardPage({
     user?.lastName?.trim() ||
     "";
 
-  // Fetch today's appointments
-  const todaysAppointments = await prisma.appointment.findMany({
+  // Fetch upcoming appointments for today and tomorrow
+  const upcomingAppointments = await prisma.appointment.findMany({
     where: {
       tenantId,
       scheduledAt: {
         gte: todayStart,
-        lte: todayEnd,
+        lte: tomorrowEnd,
       },
     },
     include: {
@@ -343,7 +345,7 @@ export default async function DashboardPage({
     .slice(0, 3);
 
   // Format data for the client wrapper
-  const formattedAppointments = todaysAppointments.map(app => {
+  const formattedAppointments = upcomingAppointments.map(app => {
     const appointmentDocument = app.AppointmentAttachment[0]?.url
       || app.ConsentDocument[0]?.pdfUrl
       || app.Client?.ConsentDocument[0]?.pdfUrl
@@ -541,6 +543,7 @@ export default async function DashboardPage({
       subscriptionAccess={subscriptionAccess}
       checkoutSuccess={resolvedSearchParams.success === "true"}
       checkoutSyncState={checkoutSyncState}
+      onboarding={onboarding}
     />
   );
 }

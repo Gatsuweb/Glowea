@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { CSSProperties } from "react";
 import prisma from "../../../lib/prisma";
 import PublicBookingModal from "./PublicBookingModal";
 import PublicGallery from "./PublicGallery";
@@ -17,7 +18,7 @@ const fallbackGallery = [
   { imageUrl: "/cils.png", alt: "Pose de cils" },
   { imageUrl: "/ongles.png", alt: "Prestation ongles" },
   { imageUrl: "/sourcils.png", alt: "Sourcils" },
-  { imageUrl: "/volume-russe.png", alt: "Volume russe" },
+  { imageUrl: "/cils.png", alt: "Volume russe" },
 ];
 
 const iconPaths = {
@@ -51,6 +52,19 @@ function normalizeInstagram(value: string | null) {
   if (!value) return null;
   if (value.includes("instagram.com")) return value;
   return `https://instagram.com/${value.replace(/^@/, "")}`;
+}
+
+function getServiceCardImage(service: PublicService) {
+  const text = `${service.name} ${service.category} ${service.description}`.toLowerCase();
+
+  if (text.includes("volume russe")) return "/volume-russe.png";
+  if (text.includes("mega")) return "/mega-volume.png";
+  if (text.includes("mixte")) return "/mixte.png";
+  if (text.includes("cil") || text.includes("lash")) return "/cils.png";
+  if (text.includes("ongle") || text.includes("manuc") || text.includes("gel") || text.includes("semi")) return "/ongles.png";
+  if (text.includes("sourcil") || text.includes("brow")) return "/sourcils.png";
+
+  return "/card-1.png";
 }
 
 export default async function PublicProPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -140,11 +154,6 @@ export default async function PublicProPage({ params }: { params: Promise<{ slug
               triggerLabel="Reserver un rendez-vous"
             />
 
-            <div className={styles.quickStats}>
-              <div><strong>{services.length}</strong><span>prestations</span></div>
-              {reviews.length > 0 && <div><strong>{averageRating.toFixed(1)}/5</strong><span>{reviews.length} avis</span></div>}
-            </div>
-
             <div className={styles.infoList}>
               {(profile.address || profile.city) && (
                 <div><Icon name="location" /><span>Adresse</span><strong>{[profile.address, profile.city].filter(Boolean).join(", ")}</strong></div>
@@ -170,17 +179,14 @@ export default async function PublicProPage({ params }: { params: Promise<{ slug
 
         <div className={styles.content}>
           <section className={styles.hero}>
-            <span className={styles.kicker}>Reservation en ligne</span>
-            <h2>Des prestations beaute pensees pour vous.</h2>
-            <p>Consultez le catalogue, explorez le portfolio et choisissez votre prochain rendez-vous.</p>
+            <h2>Catalogue des Services</h2>
+            <p>Découvrez notre sélection soigneusement élaborée de soins de beauté haut de gamme, conçus pour sublimer votre élégance naturelle grâce à un savoir-faire minutieux.</p>
           </section>
 
           <section className={styles.catalogSection}>
-            <div className={styles.sectionHeader}>
-              <span className={styles.kicker}>Catalogue</span>
-              <h2>Prestations</h2>
+            {/* <div className={styles.sectionHeader}>
               <p>{services.length} prestation{services.length > 1 ? "s" : ""} disponible{services.length > 1 ? "s" : ""} a la reservation.</p>
-            </div>
+            </div> */}
             <div className={styles.serviceGrid}>
               {services.map((service) => (
                 <PublicBookingModal
@@ -190,15 +196,27 @@ export default async function PublicProPage({ params }: { params: Promise<{ slug
                   initialServiceId={service.id}
                   triggerClassName={styles.serviceCardButton}
                   triggerLabel={`Reserver ${service.name}`}
+                  triggerStyle={
+                    {
+                      "--service-card-image": `url("${getServiceCardImage(service)}")`,
+                    } as CSSProperties
+                  }
                   triggerContent={(
                     <>
-                      <div>
+                      <div className={styles.serviceCardTop}>
                         <span className={styles.serviceCategory}>{service.category}</span>
-                        <h3>{service.name}</h3>
+                        <div className={styles.serviceCardCopy}>
+                          <h3>{service.name}</h3>
+                          <p className={styles.serviceDescription}>{service.description}</p>
+                        </div>
                       </div>
                       <div className={styles.serviceMeta}>
-                        <span>{service.durationMin} min</span>
+                        <span className={styles.serviceMetaTag}>{service.durationMin} min</span>
                         <strong>{formatPrice(service.price)}</strong>
+                      </div>
+                      <div className={styles.serviceCardCta}>
+                        <span>Reserver cette prestation</span>
+                        <span aria-hidden="true">↗</span>
                       </div>
                     </>
                   )}
@@ -209,8 +227,8 @@ export default async function PublicProPage({ params }: { params: Promise<{ slug
 
           <section className={styles.gallerySection}>
             <div className={styles.sectionHeader}>
-              <span className={styles.kicker}>Portfolio</span>
-              <h2>Galerie</h2>
+              <span className={styles.kicker}>NOS CRÉATIONS</span>
+              <h3>Portfolio & Galerie</h3>
               <p>Un apercu du travail, des details et de l&apos;univers du studio.</p>
             </div>
             <PublicGallery images={galleryImages} />

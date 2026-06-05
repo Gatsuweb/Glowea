@@ -866,28 +866,84 @@ export default function ComptaClient({
         <div className={styles.modalOverlay} onClick={() => setIsTransactionModalOpen(false)}>
           <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <h2 className={styles.modalTitle}>Nouvelle Transaction</h2>
+              <div className={styles.modalHeaderText}>
+                <span className={styles.modalEyebrow}>Comptabilite Glowea</span>
+                <h2 className={styles.modalTitle}>Nouvelle Transaction</h2>
+                <p className={styles.modalSubtitle}>
+                  Ajoutez un revenu ou une depense ponctuelle pour garder un suivi propre de votre activite.
+                </p>
+              </div>
               <button className={styles.modalClose} onClick={() => setIsTransactionModalOpen(false)}>×</button>
             </div>
             <form onSubmit={handleCreateTransaction} className={styles.modalBody}>
-              <div className={styles.formGroup}>
-                <label>Type</label>
-                <select value={transType} onChange={(e) => setTransType(e.target.value as 'INCOME' | 'EXPENSE')} required>
-                  <option value="INCOME">Revenu</option>
-                  <option value="EXPENSE">Dépense (ponctuelle)</option>
-                </select>
+              <div className={styles.modalIntroCard}>
+                <div className={styles.modalIntroIcon}>
+                  {transType === "INCOME" ? "EUR" : "DEP"}
+                </div>
+                <div className={styles.modalIntroText}>
+                  <strong>{transType === "INCOME" ? "Enregistrer un revenu" : "Enregistrer une depense ponctuelle"}</strong>
+                  <span>
+                    {transType === "INCOME"
+                      ? "Ideal pour ajouter une prestation, une vente ou un encaissement manuel."
+                      : "Ideal pour une depense materiel, un achat ponctuel ou un frais exceptionnel."}
+                  </span>
+                </div>
               </div>
-              <div className={styles.formGroup}>
-                <label>Libellé</label>
-                <input type="text" value={transLabel} onChange={(e) => setTransLabel(e.target.value)} required placeholder="Ex: Prestation cils" />
-              </div>
-              <div className={styles.formGroup}>
-                <label>Montant (€)</label>
-                <input type="number" step="0.01" value={transAmount} onChange={(e) => setTransAmount(e.target.value)} required placeholder="Ex: 50.00" />
-              </div>
-              <div className={styles.formGroup}>
-                <label>Date</label>
-                <input type="date" value={transDate} onChange={(e) => setTransDate(e.target.value)} required />
+
+              <div className={styles.modalFormGrid}>
+                <div className={styles.formGroup}>
+                  <label className={styles.fieldLabel}>Type</label>
+                  <select
+                    className={styles.formField}
+                    value={transType}
+                    onChange={(e) => setTransType(e.target.value as 'INCOME' | 'EXPENSE')}
+                    required
+                  >
+                    <option value="INCOME">Revenu</option>
+                    <option value="EXPENSE">Depense ponctuelle</option>
+                  </select>
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.fieldLabel}>Date</label>
+                  <input
+                    className={styles.formField}
+                    type="date"
+                    value={transDate}
+                    onChange={(e) => setTransDate(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className={`${styles.formGroup} ${styles.formGroupFull}`}>
+                  <label className={styles.fieldLabel}>Libelle</label>
+                  <input
+                    className={styles.formField}
+                    type="text"
+                    value={transLabel}
+                    onChange={(e) => setTransLabel(e.target.value)}
+                    required
+                    placeholder="Ex: Prestation cils"
+                  />
+                  <span className={styles.fieldHint}>Donnez un nom clair pour retrouver facilement cette transaction.</span>
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.fieldLabel}>Montant (EUR)</label>
+                  <input
+                    className={styles.formField}
+                    type="number"
+                    step="0.01"
+                    value={transAmount}
+                    onChange={(e) => setTransAmount(e.target.value)}
+                    required
+                    placeholder="Ex: 50.00"
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <div className={styles.metricCard}>
+                    <span className={styles.metricLabel}>Impact</span>
+                    <strong className={styles.metricValue}>{transType === "INCOME" ? "Ajout au chiffre d'affaires" : "Ajout aux charges ponctuelles"}</strong>
+                    <span className={styles.metricHint}>La transaction apparaitra dans votre vue d&apos;ensemble du mois selectionne.</span>
+                  </div>
+                </div>
               </div>
               <div className={styles.modalFooter}>
                 <button type="button" className={styles.btnWhite} onClick={() => setIsTransactionModalOpen(false)}>Annuler</button>
@@ -905,45 +961,107 @@ export default function ComptaClient({
         <div className={styles.modalOverlay} onClick={() => setIsChargeModalOpen(false)}>
           <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <h2 className={styles.modalTitle}>Nouvelle Charge</h2>
+              <div className={styles.modalHeaderText}>
+                <span className={styles.modalEyebrow}>Comptabilite Glowea</span>
+                <h2 className={styles.modalTitle}>Nouvelle Charge</h2>
+                <p className={styles.modalSubtitle}>
+                  Centralisez vos frais fixes et ponctuels pour mieux visualiser votre rentabilite.
+                </p>
+              </div>
               <button className={styles.modalClose} onClick={() => setIsChargeModalOpen(false)}>×</button>
             </div>
             <form onSubmit={handleCreateCharge} className={styles.modalBody}>
-              <div className={styles.formGroup}>
-                <label>Libellé de la charge</label>
-                <input type="text" value={chargeLabel} onChange={(e) => setChargeLabel(e.target.value)} required placeholder="Ex: Loyer, Assurance..." />
-              </div>
-              <div className={styles.formGroup}>
-                <label>Montant (€)</label>
-                <input type="number" step="0.01" value={chargeAmount} onChange={(e) => setChargeAmount(e.target.value)} required placeholder="Ex: 600.00" />
-              </div>
-              <div className={styles.formGroup}>
-                <label>Date (ou date de début)</label>
-                <input type="date" value={chargeDate} onChange={(e) => setChargeDate(e.target.value)} required />
-              </div>
-              <div className={`${styles.formGroup} ${styles.checkboxGroup}`}>
-                <input type="checkbox" id="isRecurring" checked={chargeIsRecurring} onChange={(e) => setChargeIsRecurring(e.target.checked)} />
-                <label htmlFor="isRecurring" className={styles.checkboxLabel}>Charge récurrente</label>
-              </div>
-              {chargeIsRecurring && (
-                <div className={`${styles.formGroup} ${styles.recurringGroup}`}>
-                  <label>Périodicité</label>
-                  <select
-                    value={chargeFrequency}
-                    onChange={(e) =>
-                      setChargeFrequency(
-                        e.target.value as "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY",
-                      )
-                    }
-                    required
-                  >
-                    <option value="WEEKLY">Hebdomadaire</option>
-                    <option value="MONTHLY">Mensuelle</option>
-                    <option value="QUARTERLY">Trimestrielle</option>
-                    <option value="YEARLY">Annuelle</option>
-                  </select>
+              <div className={styles.modalIntroCard}>
+                <div className={`${styles.modalIntroIcon} ${styles.modalIntroIconMuted}`}>FIXE</div>
+                <div className={styles.modalIntroText}>
+                  <strong>{chargeIsRecurring ? "Configurer une charge recurrente" : "Ajouter une charge ponctuelle"}</strong>
+                  <span>
+                    {chargeIsRecurring
+                      ? "Parfait pour le loyer, les outils logiciels, les assurances ou tout autre frais regulier."
+                      : "Ajoutez un achat exceptionnel ou une depense unique sans alourdir votre comptabilite."}
+                  </span>
                 </div>
-              )}
+              </div>
+
+              <div className={styles.modalFormGrid}>
+                <div className={`${styles.formGroup} ${styles.formGroupFull}`}>
+                  <label className={styles.fieldLabel}>Libelle de la charge</label>
+                  <input
+                    className={styles.formField}
+                    type="text"
+                    value={chargeLabel}
+                    onChange={(e) => setChargeLabel(e.target.value)}
+                    required
+                    placeholder="Ex: Loyer, Assurance..."
+                  />
+                  <span className={styles.fieldHint}>Choisissez un libelle simple et reconnaissable dans votre historique.</span>
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.fieldLabel}>Montant (EUR)</label>
+                  <input
+                    className={styles.formField}
+                    type="number"
+                    step="0.01"
+                    value={chargeAmount}
+                    onChange={(e) => setChargeAmount(e.target.value)}
+                    required
+                    placeholder="Ex: 600.00"
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.fieldLabel}>Date ou debut</label>
+                  <input
+                    className={styles.formField}
+                    type="date"
+                    value={chargeDate}
+                    onChange={(e) => setChargeDate(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className={`${styles.formGroup} ${styles.formGroupFull}`}>
+                  <label htmlFor="isRecurring" className={styles.toggleCard}>
+                    <div className={styles.toggleCardContent}>
+                      <span className={styles.toggleLabel}>Charge recurrente</span>
+                      <span className={styles.toggleHint}>Activez cette option si cette charge revient automatiquement.</span>
+                    </div>
+                    <div className={styles.toggleControl}>
+                      <input
+                        className={styles.checkboxInput}
+                        type="checkbox"
+                        id="isRecurring"
+                        checked={chargeIsRecurring}
+                        onChange={(e) => setChargeIsRecurring(e.target.checked)}
+                      />
+                      <span className={styles.toggleVisual} aria-hidden="true">
+                        <span className={styles.toggleThumb} />
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+                {chargeIsRecurring && (
+                  <div className={`${styles.formGroup} ${styles.formGroupFull}`}>
+                    <label className={styles.fieldLabel}>Periodicite</label>
+                    <select
+                      className={styles.formField}
+                      value={chargeFrequency}
+                      onChange={(e) =>
+                        setChargeFrequency(
+                          e.target.value as "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY",
+                        )
+                      }
+                      required
+                    >
+                      <option value="WEEKLY">Hebdomadaire</option>
+                      <option value="MONTHLY">Mensuelle</option>
+                      <option value="QUARTERLY">Trimestrielle</option>
+                      <option value="YEARLY">Annuelle</option>
+                    </select>
+                    <span className={styles.fieldHint}>Cette charge sera prise en compte comme un frais fixe dans vos analyses.</span>
+                  </div>
+                )}
+              </div>
               <div className={styles.modalFooter}>
                 <button type="button" className={styles.btnWhite} onClick={() => setIsChargeModalOpen(false)}>Annuler</button>
                 <button type="submit" className={styles.btnDarkRed} disabled={isSubmitting}>

@@ -336,6 +336,35 @@ export async function savePublicService(input: PublicServiceInput) {
   return { success: true as const, service: serviceToDto(service) };
 }
 
+export async function deletePublicService(id: string) {
+  const tenantId = await getTenantId();
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+
+  if (!isProActive(tenant)) {
+    return { success: false as const, error: "La page publique est disponible avec Glowea Pro." };
+  }
+
+  if (!id) {
+    return { success: false as const, error: "Prestation introuvable." };
+  }
+
+  await prisma.service.update({
+    where: { id, tenantId },
+    data: {
+      isActive: false,
+      isPublic: false,
+      updatedAt: new Date(),
+    },
+  });
+
+  const profile = await prisma.publicProfile.findUnique({ where: { tenantId }, select: { slug: true } });
+  if (profile) revalidatePath(`/pro/${profile.slug}`);
+  revalidatePath("/dashboard/page-publique");
+  revalidatePath("/dashboard/profil");
+
+  return { success: true as const };
+}
+
 export async function addGalleryImage(input: GalleryImageInput) {
   const tenantId = await getTenantId();
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
@@ -507,6 +536,9 @@ export async function createPublicBooking(input: PublicBookingInput) {
   }
 
   const endAt = new Date(scheduledAt.getTime() + (service.durationMin || 60) * 60000);
+  const clientFullName = `${firstName} ${lastName}`.trim() || firstName;
+  const timeLabel = scheduledAt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const dateLabel = scheduledAt.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" });
 
   const appointment = await prisma.$transaction(async (tx) => {
     const existingClient = await tx.client.findFirst({
@@ -546,7 +578,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
           },
         });
 
-    return tx.appointment.create({
+    const appointment = await tx.appointment.create({
       data: {
         id: `app_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
         tenantId: profile.tenantId,
@@ -561,6 +593,20 @@ export async function createPublicBooking(input: PublicBookingInput) {
         updatedAt: new Date(),
       },
     });
+
+    await tx.notification.create({
+      data: {
+        id: `not_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+        tenantId: profile.tenantId,
+        clientId: client.id,
+        appointmentId: appointment.id,
+        type: "OTHER",
+        title: "Nouveau rendez-vous via la page publique",
+        body: `${clientFullName} a reserve ${service.name} le ${dateLabel} a ${timeLabel}.`,
+      },
+    });
+
+    return appointment;
   });
 
   revalidatePath("/dashboard/agenda");

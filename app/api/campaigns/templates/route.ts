@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { MessageChannel, MessageTemplateType } from "@prisma/client";
 import prisma from "../../../../lib/prisma";
 import { getTenantId } from "../../../../lib/tenant";
+import { getTenantSubscriptionAccess } from "../../../../lib/subscription";
 import { getCampaignTemplates } from "../../../../lib/campaigns";
 
 const CHANNELS: MessageChannel[] = ["SMS", "EMAIL"];
@@ -40,6 +41,15 @@ function normalizeTemplateInput(body: Record<string, unknown>) {
 export async function GET() {
   try {
     const tenantId = await getTenantId();
+    const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
+
+    if (!subscriptionAccess.canUseProFeatures) {
+      return NextResponse.json(
+        { success: false, error: "Les templates de campagnes sont reserves a la formule Pro" },
+        { status: 403 }
+      );
+    }
+
     const templates = await getCampaignTemplates(tenantId);
 
     return NextResponse.json({
@@ -66,6 +76,14 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const tenantId = await getTenantId();
+    const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
+    if (!subscriptionAccess.canUseProFeatures) {
+      return NextResponse.json(
+        { success: false, error: "Les templates de campagnes sont reserves a la formule Pro" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const parsed = normalizeTemplateInput(body);
 
@@ -98,6 +116,14 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const tenantId = await getTenantId();
+    const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
+    if (!subscriptionAccess.canUseProFeatures) {
+      return NextResponse.json(
+        { success: false, error: "Les templates de campagnes sont reserves a la formule Pro" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const templateId = typeof body.id === "string" ? body.id : "";
     const parsed = normalizeTemplateInput(body);

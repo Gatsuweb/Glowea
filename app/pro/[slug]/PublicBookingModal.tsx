@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { createPublicBooking } from "../../actions/publicPageActions";
 import styles from "./publicProfile.module.css";
 
@@ -25,6 +25,7 @@ export default function PublicBookingModal({
   triggerClassName,
   triggerLabel,
   triggerContent,
+  triggerStyle,
 }: {
   slug: string;
   services: BookingService[];
@@ -32,6 +33,7 @@ export default function PublicBookingModal({
   triggerClassName: string;
   triggerLabel: string;
   triggerContent?: ReactNode;
+  triggerStyle?: CSSProperties;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -91,6 +93,7 @@ export default function PublicBookingModal({
         type="button"
         onClick={() => setIsOpen(true)}
         disabled={services.length === 0}
+        style={triggerStyle}
       >
         {triggerContent || triggerLabel}
       </button>

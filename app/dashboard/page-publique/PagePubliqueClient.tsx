@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 import {
   addGalleryImage,
+  deletePublicService,
   deleteGalleryImage,
   deleteReview,
   savePublicService,
@@ -21,6 +22,7 @@ type ServiceState = ConfigData["services"][number];
 type GalleryState = ConfigData["gallery"][number];
 type ReviewState = ConfigData["reviews"][number];
 type TabId = "profil" | "prestations" | "galerie" | "avis" | "apercu";
+type ServiceEditorState = ServiceState & { localId: string };
 
 const emptyService: ServiceState = {
   id: "",
@@ -55,14 +57,39 @@ function formatPrice(value: number) {
   return `${value.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} EUR`;
 }
 
+function formatDuration(value: number) {
+  return `${value || 60} min`;
+}
+
+function createLocalId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function toServiceEditorState(service: ServiceState): ServiceEditorState {
+  return { ...service, localId: createLocalId() };
+}
+
+function createEmptyServiceDraft(): ServiceEditorState {
+  return { ...emptyService, localId: createLocalId() };
+}
+
 export default function PagePubliqueClient({ initialData }: { initialData: ConfigData }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const [activeTab, setActiveTab] = useState<TabId>("profil");
+  const initialTab = tabs.some((tab) => tab.id === searchParams.get("tab"))
+    ? searchParams.get("tab") as TabId
+    : "profil";
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [profile, setProfile] = useState<ProfileState>(initialData.profile);
-  const [services, setServices] = useState<ServiceState[]>(initialData.services.length ? initialData.services : [emptyService]);
+  const [services, setServices] = useState<ServiceEditorState[]>(() => initialData.services.map(toServiceEditorState));
   const [gallery, setGallery] = useState<GalleryState[]>(initialData.gallery);
   const [reviews, setReviews] = useState<ReviewState[]>(initialData.reviews.length ? initialData.reviews : [emptyReview]);
+  const [editingServices, setEditingServices] = useState<Record<string, boolean>>({});
+  const [serviceSnapshots, setServiceSnapshots] = useState<Record<string, ServiceState>>({});
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
@@ -87,6 +114,63 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
     setServices((current) => current.map((service, serviceIndex) => (
       serviceIndex === index ? { ...service, ...patch } : service
     )));
+  }
+
+  function startEditingService(service: ServiceEditorState) {
+    setEditingServices((current) => ({ ...current, [service.localId]: true }));
+    setServiceSnapshots((current) => (
+      current[service.localId]
+        ? current
+        : {
+            ...current,
+            [service.localId]: {
+              id: service.id,
+              name: service.name,
+              description: service.description,
+              durationMin: service.durationMin,
+              price: service.price,
+              category: service.category,
+              isPublic: service.isPublic,
+              isActive: service.isActive,
+            },
+          }
+    ));
+  }
+
+  function stopEditingService(localId: string) {
+    setEditingServices((current) => {
+      const next = { ...current };
+      delete next[localId];
+      return next;
+    });
+    setServiceSnapshots((current) => {
+      const next = { ...current };
+      delete next[localId];
+      return next;
+    });
+  }
+
+  function addServiceDraft() {
+    const draft = createEmptyServiceDraft();
+    setServices((current) => [draft, ...current]);
+    setEditingServices((current) => ({ ...current, [draft.localId]: true }));
+  }
+
+  function cancelServiceEditing(localId: string) {
+    const snapshot = serviceSnapshots[localId];
+    setServices((current) => {
+      const target = current.find((service) => service.localId === localId);
+      if (!target) return current;
+      if (!target.id && !snapshot) {
+        return current.filter((service) => service.localId !== localId);
+      }
+      return current.map((service) => (
+        service.localId === localId
+          ? { ...service, ...(snapshot || emptyService) }
+          : service
+      ));
+    });
+    stopEditingService(localId);
   }
 
   function updateReview(index: number, patch: Partial<ReviewState>) {
@@ -196,13 +280,55 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
     setError(null);
     const service = services[index];
     startTransition(async () => {
-      const result = await savePublicService(service);
+      const result = await savePublicService({
+        id: service.id || undefined,
+        name: service.name,
+        description: service.description,
+        durationMin: service.durationMin,
+        price: service.price,
+        category: service.category,
+        isPublic: service.isPublic,
+      });
       if (!result.success) {
         setError(result.error);
         return;
       }
-      updateService(index, result.service);
+      setServices((current) => current.map((item, itemIndex) => (
+        itemIndex === index ? { ...result.service, localId: item.localId } : item
+      )));
+      stopEditingService(service.localId);
       setFeedback("Prestation enregistree.");
+      router.refresh();
+    });
+  }
+
+  function removeService(localId: string) {
+    const service = services.find((item) => item.localId === localId);
+    if (!service) return;
+
+    const confirmed = window.confirm(
+      `Supprimer ${service.name || "cette prestation"} du catalogue public ?`
+    );
+    if (!confirmed) return;
+
+    if (!service.id) {
+      setServices((current) => current.filter((item) => item.localId !== localId));
+      stopEditingService(localId);
+      setFeedback("Brouillon supprime.");
+      return;
+    }
+
+    setFeedback(null);
+    setError(null);
+    startTransition(async () => {
+      const result = await deletePublicService(service.id);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      setServices((current) => current.filter((item) => item.localId !== localId));
+      stopEditingService(localId);
+      setFeedback("Prestation supprimee.");
       router.refresh();
     });
   }
@@ -394,26 +520,162 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
         {activeTab === "prestations" && (
           <article className={styles.card}>
             <div className={styles.cardHeader}>
-              <div><span className={styles.kicker}>Prestations</span><h2>Catalogue public</h2></div>
-              <button className={styles.secondaryButton} type="button" onClick={() => setServices((current) => [...current, { ...emptyService }])}>Ajouter</button>
+              <div>
+                <span className={styles.kicker}>Prestations</span>
+                <h2>Catalogue public</h2>
+                <p className={styles.sectionDescription}>Choisissez les prestations visibles sur votre page publique.</p>
+              </div>
+              <button className={styles.secondaryButton} type="button" onClick={addServiceDraft}>
+                Ajouter une prestation
+              </button>
             </div>
-            <div className={styles.serviceList}>
-              {services.map((service, index) => (
-                <div className={styles.serviceEditor} key={`${service.id || "new"}-${index}`}>
-                  <div className={styles.serviceTopRow}>
-                    <input value={service.name} onChange={(event) => updateService(index, { name: event.target.value })} placeholder="Nom de la prestation" />
-                    <label className={styles.inlineCheck}><input type="checkbox" checked={service.isPublic} onChange={(event) => updateService(index, { isPublic: event.target.checked })} />Visible</label>
-                  </div>
-                  <textarea value={service.description} onChange={(event) => updateService(index, { description: event.target.value })} placeholder="Description courte" rows={3} />
-                  <div className={styles.serviceMetaGrid}>
-                    <input value={service.category} onChange={(event) => updateService(index, { category: event.target.value })} placeholder="Categorie" />
-                    <input type="number" value={service.durationMin} onChange={(event) => updateService(index, { durationMin: Number(event.target.value) })} placeholder="Duree" />
-                    <input type="number" step="0.01" value={service.price} onChange={(event) => updateService(index, { price: Number(event.target.value) })} placeholder="Prix" />
-                    <button type="button" onClick={() => saveService(index)} disabled={isPending}>Enregistrer</button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {services.length === 0 ? (
+              <div className={styles.emptyStateCard}>
+                <span className={styles.emptyStateIcon}>+</span>
+                <h3>Aucune prestation publique pour le moment</h3>
+                <p>Créez votre catalogue pour commencer à présenter votre savoir-faire sur la page publique.</p>
+                <button className={styles.primaryButton} type="button" onClick={addServiceDraft}>
+                  Ajouter ma premiere prestation
+                </button>
+              </div>
+            ) : (
+              <div className={styles.serviceList}>
+                {services.map((service, index) => {
+                  const isEditing = Boolean(editingServices[service.localId]);
+                  const isVisible = service.isPublic;
+
+                  return (
+                    <div className={styles.serviceCard} key={service.localId}>
+                      <div className={styles.serviceCardHeader}>
+                        <div className={styles.serviceCardTitleBlock}>
+                          <div className={styles.serviceCardTitleRow}>
+                            <h3>{service.name || "Nouvelle prestation"}</h3>
+                            <span className={isVisible ? styles.statusBadgeVisible : styles.statusBadgeHidden}>
+                              {isVisible ? "Visible" : "Masquee"}
+                            </span>
+                          </div>
+                          <span className={styles.serviceCategoryLine}>{service.category || "Categorie a renseigner"}</span>
+                        </div>
+                      </div>
+
+                      {!isEditing ? (
+                        <>
+                          <div className={styles.serviceReadGrid}>
+                            <div className={styles.serviceReadBlock}>
+                              <span className={styles.serviceReadLabel}>Description</span>
+                              <p>{service.description || "Ajoutez une courte description pour rassurer et donner envie de reserver."}</p>
+                            </div>
+                            <div className={styles.serviceReadMeta}>
+                              <div>
+                                <span className={styles.serviceReadLabel}>Duree</span>
+                                <strong>{formatDuration(service.durationMin)}</strong>
+                              </div>
+                              <div>
+                                <span className={styles.serviceReadLabel}>Prix</span>
+                                <strong>{service.price ? formatPrice(service.price) : "Sur devis"}</strong>
+                              </div>
+                            </div>
+                          </div>
+                          <div className={styles.serviceCardActions}>
+                            <button className={styles.secondaryButton} type="button" onClick={() => startEditingService(service)}>
+                              Modifier
+                            </button>
+                            <button className={styles.ghostDangerButton} type="button" onClick={() => removeService(service.localId)} disabled={isPending}>
+                              Supprimer
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className={styles.serviceEditGrid}>
+                            <label>
+                              Nom
+                              <input
+                                value={service.name}
+                                onChange={(event) => updateService(index, { name: event.target.value })}
+                                placeholder="Nom de la prestation"
+                              />
+                            </label>
+                            <label>
+                              Categorie
+                              <input
+                                value={service.category}
+                                onChange={(event) => updateService(index, { category: event.target.value })}
+                                placeholder="Cils, ongles, sourcils..."
+                              />
+                            </label>
+                            <label className={styles.full}>
+                              Description
+                              <textarea
+                                value={service.description}
+                                onChange={(event) => updateService(index, { description: event.target.value })}
+                                placeholder="Description courte"
+                                rows={4}
+                              />
+                            </label>
+                            <label>
+                              Duree en minutes
+                              <input
+                                type="number"
+                                min="15"
+                                step="15"
+                                value={service.durationMin}
+                                onChange={(event) => updateService(index, { durationMin: Number(event.target.value) })}
+                                placeholder="60"
+                              />
+                            </label>
+                            <label>
+                              Prix
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={service.price}
+                                onChange={(event) => updateService(index, { price: Number(event.target.value) })}
+                                placeholder="0"
+                              />
+                            </label>
+                            <div className={styles.serviceToggleField}>
+                              <span>Visible sur la page publique</span>
+                              <label className={styles.serviceToggleControl}>
+                                <input
+                                  className={styles.serviceToggleInput}
+                                  type="checkbox"
+                                  checked={service.isPublic}
+                                  onChange={(event) => updateService(index, { isPublic: event.target.checked })}
+                                />
+                                <span className={styles.serviceToggleSwitch} aria-hidden="true">
+                                  <span className={styles.serviceToggleThumb}></span>
+                                </span>
+                                <span className={styles.serviceToggleText}>
+                                  <strong>{service.isPublic ? "Visible" : "Masquee"}</strong>
+                                  <small>
+                                    {service.isPublic
+                                      ? "Cette prestation apparaitra sur votre page publique."
+                                      : "Cette prestation reste masquee tant que vous ne l'activez pas."}
+                                  </small>
+                                </span>
+                              </label>
+                            </div>
+                          </div>
+                          <div className={styles.serviceCardActions}>
+                            <button className={styles.primaryButton} type="button" onClick={() => saveService(index)} disabled={isPending}>
+                              {isPending ? "Enregistrement..." : "Enregistrer"}
+                            </button>
+                            <button className={styles.secondaryButton} type="button" onClick={() => cancelServiceEditing(service.localId)} disabled={isPending}>
+                              Annuler
+                            </button>
+                            <button className={styles.ghostDangerButton} type="button" onClick={() => removeService(service.localId)} disabled={isPending}>
+                              Supprimer
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </article>
         )}
 

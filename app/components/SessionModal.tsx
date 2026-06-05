@@ -537,6 +537,27 @@ export default function SessionModal({
     }
   };
 
+  const browliftAdvice = (() => {
+    const allergiesText = String(clientDetails?.allergies || "").toLowerCase();
+    const hasKnownSensitivity = allergiesText && !allergiesText.includes("aucune");
+    const isFirstBrowliftVisit = Number(clientDetails?.appointmentCount || 0) <= 1;
+    const selectedBrowliftSteps = browliftProducts.filter((product) => product.checked).length;
+
+    return [
+      hasKnownSensitivity
+        ? "Cliente avec sensibilites notees : verifier le confort cutane a chaque etape et limiter tout excedent de produit sur la peau."
+        : "Verifier la souplesse naturelle du poil avant de lancer le protocole : un poil fin demande souvent une surveillance plus rapprochee du temps de pose.",
+      hasTeinture
+        ? "Avec teinture : nettoyer parfaitement la zone avant application et garder une intensite legerement plus douce sur une premiere visite pour eviter un rendu trop marque."
+        : "Sans teinture : soigner particulierement le brossage final et la fixation pour que la ligne reste nette, lumineuse et harmonieuse.",
+      isFirstBrowliftVisit
+        ? "Premiere visite : privilegier un resultat souple et photographier l'avant/apres pour ajuster le protocole au prochain rendez-vous."
+        : selectedBrowliftSteps < 3
+          ? "Pensez a verifier que toutes les lotions utiles sont bien cochees afin de garder une tracabilite complete de la prestation."
+          : "Noter le sens de brossage, la reaction du poil et le timing reel aide a reproduire un resultat regulier sur les prochains rendez-vous.",
+    ];
+  })();
+
   // SVG Mapping to display selected lengths in an arc
   const EyelashMapping = ({ selectedLengths }: { selectedLengths: string[] }) => {
     // Sort lengths to make the mapping logical (shortest on edges, longest in middle)
@@ -617,7 +638,7 @@ export default function SessionModal({
               <span className={styles.badgeWhite}>Aucune allergie</span>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div className={styles.headerActions}>
             <button className={styles.closeBtn} onClick={onClose} data-html2canvas-ignore="true">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
@@ -625,7 +646,7 @@ export default function SessionModal({
         </div>
 
         {/* Export Container Starts Here */}
-        <div id="session-export-container" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+        <div id="session-export-container" className={styles.exportContainer}>
           {/* Tabs */}
         <div className={styles.tabs}>
           {["Cils", "Browlift", "Rehaussement de cils", "Ongles"].map(tab => (
@@ -1072,7 +1093,12 @@ export default function SessionModal({
               
               {/* Info Banner */}
               <div className={styles.infoBanner}>
-                Texte d'info ou de conseil
+                <strong className={styles.infoBannerTitle}>Conseils Browlift intelligents</strong>
+                <ul className={styles.infoBannerList}>
+                  {browliftAdvice.map((advice) => (
+                    <li key={advice}>{advice}</li>
+                  ))}
+                </ul>
               </div>
             </div>
           )}
@@ -1483,7 +1509,7 @@ export default function SessionModal({
 
         {/* Footer */}
         {isReadOnly ? (
-          <div className={styles.footer} style={{ justifyContent: 'flex-end', gap: '10px' }} data-html2canvas-ignore="true">
+          <div className={`${styles.footer} ${styles.footerReadOnly}`} data-html2canvas-ignore="true">
             <button 
               className={styles.btnSecondary} 
               onClick={() => exportElementToPDF('session-export-container', `fiche_session_${clientName.replace(' ', '_')}`, 'portrait')}
