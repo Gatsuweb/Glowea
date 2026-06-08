@@ -554,6 +554,31 @@
   border-color: var(--tertiary);
 }
 
+.detailsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.detailsGrid label {
+  display: grid;
+  gap: 6px;
+  color: #555;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.detailsGrid input,
+.detailsGrid select {
+  width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 10px;
+  background: white;
+  color: #333;
+  font: inherit;
+}
+
 /* Catégorie */
 .categoryTabs {
   display: flex;
@@ -752,5 +777,9 @@
   .productCategoryCard {
     min-height: 120px;
     padding: 9px;
+  }
+
+  .detailsGrid {
+    grid-template-columns: 1fr;
   }
 }

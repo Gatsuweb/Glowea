@@ -1,0 +1,202 @@
+.layout {
+  min-height: 100vh;
+  padding: 40px;
+  background: #fff8f6;
+  color: #2f2728;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  max-width: 1080px;
+  margin: 0 auto 28px;
+}
+
+.header h1 {
+  margin: 10px 0 8px;
+  color: var(--tertiary);
+  font-size: 3rem;
+  font-weight: 500;
+}
+
+.header p,
+.panel p {
+  color: #6f6264;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.backLink {
+  color: var(--tertiary);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.badge {
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.badgeGreen {
+  background: #e7f8ed;
+  color: #176b35;
+}
+
+.badgeAmber {
+  background: #fff2d8;
+  color: #8a5a00;
+}
+
+.badgeNeutral {
+  background: #f0eceb;
+  color: #665b5d;
+}
+
+.feedbackRow {
+  display: grid;
+  gap: 10px;
+  max-width: 1080px;
+  margin: 0 auto 18px;
+}
+
+.errorBox,
+.successBox {
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.95rem;
+}
+
+.errorBox {
+  background: #fff0f2;
+  border: 1px solid #efb7c0;
+  color: #8b1e2d;
+}
+
+.successBox {
+  background: #eefaf1;
+  border: 1px solid #bfe7c9;
+  color: #176b35;
+}
+
+.panel {
+  max-width: 1080px;
+  margin: 0 auto 20px;
+  background: #fff;
+  border: 1px solid #f0dedb;
+  border-radius: 8px;
+  padding: 26px;
+  box-shadow: 0 8px 24px rgba(139, 75, 84, 0.08);
+}
+
+.panel h2 {
+  margin: 0 0 8px;
+  color: #2f2728;
+  font-size: 1.35rem;
+}
+
+.statusGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 22px 0;
+}
+
+.statusGrid div {
+  border: 1px solid #f0dedb;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fffafa;
+}
+
+.statusGrid span {
+  display: block;
+  color: #7b7072;
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+}
+
+.statusGrid strong {
+  color: #2f2728;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.primaryButton,
+.secondaryButton {
+  min-height: 44px;
+  border-radius: 8px;
+  padding: 11px 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primaryButton {
+  border: 0;
+  color: #fff;
+  background: var(--tertiary);
+}
+
+.secondaryButton {
+  border: 1px solid #e6c9ce;
+  color: var(--tertiary);
+  background: #fff;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 22px 0;
+}
+
+.formGrid label {
+  display: grid;
+  gap: 8px;
+  color: #5f5456;
+  font-weight: 700;
+}
+
+.formGrid input,
+.formGrid select {
+  width: 100%;
+  border: 1px solid #e6d7d4;
+  border-radius: 8px;
+  padding: 12px;
+  font: inherit;
+  background: #fff;
+  color: #2f2728;
+}
+
+@media (max-width: 720px) {
+  .layout {
+    padding: 24px 18px;
+  }
+
+  .header {
+    flex-direction: column;
+  }
+
+  .header h1 {
+    font-size: 2.3rem;
+  }
+
+  .statusGrid,
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+}

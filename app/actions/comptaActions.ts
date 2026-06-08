@@ -39,6 +39,7 @@ type NormalizedTransactionLike = {
   category?: string | null;
   amount: number;
   type: TransactionType;
+  sourceType?: string | null;
   transactionDate: Date | string;
 };
 
@@ -140,6 +141,7 @@ export async function getVueEnsembleData(monthString: string) {
       category: t.category,
       amount: Number(t.amount),
       type: t.type,
+      sourceType: (t as TransactionLike & { sourceType?: string | null }).sourceType || null,
       transactionDate: t.transactionDate,
     }));
 
@@ -164,6 +166,7 @@ export async function getVueEnsembleData(monthString: string) {
       category: t.category,
       amount: Number(t.amount),
       type: t.type,
+      sourceType: (t as TransactionLike & { sourceType?: string | null }).sourceType || null,
       transactionDate: t.transactionDate,
     }));
 
@@ -256,7 +259,8 @@ export async function getStatsData(monthString: string) {
       where: {
         tenantId: TENANT_ID,
         transactionDate: { gte: startDate, lte: endDate },
-        type: 'INCOME'
+        type: 'INCOME',
+        sourceType: 'APPOINTMENT'
       },
       include: {
         Appointment: {

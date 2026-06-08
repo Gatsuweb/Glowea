@@ -1,9 +1,8 @@
-import { currentUser } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import DashboardClientWrapper from "../components/DashboardClientWrapper";
 import prisma from "../../lib/prisma";
 import { getTenantSubscriptionAccess } from "../../lib/subscription";
 import { syncCheckoutSessionById } from "../../lib/stripeSubscriptionSync";
-import { getTenantOnboardingState } from "../actions/onboardingActions";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +23,20 @@ type RefillClient = {
   lastVisit: string;
   serviceName: string;
 };
+
+function serializeValue<T>(value: T): T {
+  return JSON.parse(
+    JSON.stringify(value, (_key, current) => {
+      if (current && typeof current === "object" && current.constructor?.name === "Decimal") {
+        return current.toString();
+      }
+      if (typeof current === "bigint") {
+        return current.toString();
+      }
+      return current;
+    })
+  );
+}
 
 export default async function DashboardPage({
   searchParams,
@@ -60,6 +73,7 @@ export default async function DashboardPage({
   // Use the current user's tenant ID
   const { getTenantId } = await import("../../lib/tenant");
   const tenantId = await getTenantId();
+  const { userId } = await auth();
   const resolvedSearchParams = searchParams ? await searchParams : {};
   let checkoutSyncState: "activated" | "pending" | "error" | null = null;
 
@@ -76,14 +90,25 @@ export default async function DashboardPage({
   }
 
   const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
-  const onboarding = await getTenantOnboardingState(tenantId);
 
-  const [profileUser, profileTenant] = await Promise.all([
+  const [profileUser, profileTenant, paymentSettings] = await Promise.all([
     prisma.user.findUnique({ where: { id: tenantId } }),
     prisma.tenant.findUnique({
       where: { id: tenantId },
       include: { BusinessSettings: true },
     }),
+    userId
+      ? prisma.user.findFirst({
+          where: { id: userId, tenantId },
+          select: {
+            stripeAccountId: true,
+            stripeOnboardingComplete: true,
+            paymentsEnabled: true,
+            defaultDepositAmount: true,
+            defaultDepositType: true,
+          },
+        })
+      : null,
   ]);
 
   const clerkEmailName = user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] || "";
@@ -154,15 +179,13 @@ export default async function DashboardPage({
   });
 
   const monthAppointmentsCount = monthAppointments.length;
-  const projectedMonthRevenues = monthAppointments
-    .filter(app => app.status === 'COMPLETED' || app.status === 'SCHEDULED') // For demo, let's include scheduled to show some revenue
-    .reduce((sum, app) => sum + Number(app.Service?.price || 0), 0);
 
   const monthRevenueTransactions = await prisma.financialTransaction.findMany({
     where: {
       tenantId,
       transactionDate: { gte: monthStart, lte: monthEnd },
-      type: 'INCOME'
+      type: 'INCOME',
+      sourceType: 'APPOINTMENT'
     }
   });
 
@@ -170,13 +193,14 @@ export default async function DashboardPage({
     where: {
       tenantId,
       transactionDate: { gte: previousMonthStart, lte: previousMonthEnd },
-      type: 'INCOME'
+      type: 'INCOME',
+      sourceType: 'APPOINTMENT'
     }
   });
 
   const transactionMonthRevenues = monthRevenueTransactions.reduce((sum, t) => sum + Number(t.amount || 0), 0);
   const previousMonthRevenues = previousMonthRevenueTransactions.reduce((sum, t) => sum + Number(t.amount || 0), 0);
-  const monthRevenues = transactionMonthRevenues > 0 ? transactionMonthRevenues : projectedMonthRevenues;
+  const monthRevenues = transactionMonthRevenues;
   const revenueTrendPercent = previousMonthRevenues > 0
     ? Math.round(((monthRevenues - previousMonthRevenues) / previousMonthRevenues) * 100)
     : null;
@@ -202,7 +226,8 @@ export default async function DashboardPage({
     where: {
       tenantId,
       transactionDate: { gte: sevenDaysAgo, lte: todayEnd },
-      type: 'INCOME'
+      type: 'INCOME',
+      sourceType: 'APPOINTMENT'
     }
   });
 
@@ -227,14 +252,8 @@ export default async function DashboardPage({
     const dayRevs = recentTransactions.filter(
       t => new Date(t.transactionDate).toDateString() === d.toDateString()
     );
-    // If we don't have enough transactions in the DB for the demo, we can fallback to appointment prices
-    let dayRevTotal = dayRevs.reduce((sum, t) => sum + Number(t.amount || 0), 0);
-    
-    // Fallback for demo if transaction table is empty
-    if (dayRevTotal === 0 && dayAppts.length > 0) {
-      dayRevTotal = dayAppts.reduce((sum, a) => sum + Number(a.Service?.price || 0), 0);
-    }
-    
+    const dayRevTotal = dayRevs.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
     revTrend.push({ name: dayStr, val: dayRevTotal });
     lastWeekRevenue += dayRevTotal;
   }
@@ -323,17 +342,30 @@ export default async function DashboardPage({
   // Fetch top clients
   const clients = await prisma.client.findMany({
     where: { tenantId },
+    include: { Appointment: true }
+  });
+
+  const appointmentIncomeTransactions = await prisma.financialTransaction.findMany({
+    where: {
+      tenantId,
+      type: 'INCOME',
+      sourceType: 'APPOINTMENT',
+    },
     include: {
       Appointment: {
-        include: { Service: true }
-      }
-    }
+        include: {
+          Client: true,
+        },
+      },
+    },
   });
 
   const topClients = clients
     .map(client => {
-      const visits = client.Appointment.length;
-      const totalAmount = client.Appointment.reduce((sum, app) => sum + Number(app.Service?.price || 0), 0);
+      const visits = client.Appointment.filter((app) => app.status !== "CANCELED" && app.status !== "NO_SHOW").length;
+      const totalAmount = appointmentIncomeTransactions
+        .filter((transaction) => transaction.Appointment?.clientId === client.id)
+        .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
       return {
         id: client.id,
         name: `${client.firstName} ${client.lastName || ''}`.trim(),
@@ -363,6 +395,13 @@ export default async function DashboardPage({
       clientPhone: app.Client?.phone || "",
       serviceName: app.Service?.name || 'Prestation',
       servicePrice: app.Service?.price ? Number(app.Service.price) : 0,
+      price: app.price,
+      depositAmount: app.depositAmount,
+      depositPaidAmount: app.depositPaidAmount,
+      paidAmount: app.paidAmount,
+      remainingAmount: app.remainingAmount,
+      paymentMethod: app.paymentMethod,
+      paymentStatus: app.paymentStatus,
       serviceDurationMin: app.Service?.durationMin || 60,
       documentUrl: appointmentDocument,
       hasDocument: Boolean(appointmentDocument),
@@ -380,6 +419,7 @@ export default async function DashboardPage({
       },
     };
   });
+  const serializedAppointments = serializeValue(formattedAppointments);
 
   // Fetch clients and services for NewAppointmentModal
   const clientsData = await prisma.client.findMany({
@@ -424,7 +464,7 @@ export default async function DashboardPage({
       id: p.id,
       name: p.name,
       currentQuantity: count,
-      idealQuantity: p.alertThreshold ? Number(p.alertThreshold) * 2 : 10,
+      alertThreshold: p.alertThreshold ? Number(p.alertThreshold) : 5,
     };
   });
 
@@ -437,8 +477,7 @@ export default async function DashboardPage({
   });
 
   const lowStockProducts = products.filter((product) => {
-    const alertLevel = product.idealQuantity / 2;
-    return product.currentQuantity <= alertLevel;
+    return product.currentQuantity <= product.alertThreshold;
   });
 
   const monthDayProgress = todayStart.getDate() / monthEnd.getDate();
@@ -533,7 +572,7 @@ export default async function DashboardPage({
         revTrend,
         revenueTrendPercent
       }}
-      appointments={formattedAppointments}
+      appointments={serializedAppointments}
       topClients={topClients}
       clients={modalClients}
       services={services}
@@ -541,9 +580,15 @@ export default async function DashboardPage({
       products={products}
       insights={insightData}
       subscriptionAccess={subscriptionAccess}
+      paymentSettings={{
+        stripeConnected: Boolean(paymentSettings?.stripeAccountId),
+        stripeOnboardingComplete: Boolean(paymentSettings?.stripeOnboardingComplete),
+        paymentsEnabled: Boolean(paymentSettings?.paymentsEnabled),
+        defaultDepositAmount: Number(paymentSettings?.defaultDepositAmount || 0),
+        defaultDepositType: paymentSettings?.defaultDepositType || "fixed",
+      }}
       checkoutSuccess={resolvedSearchParams.success === "true"}
       checkoutSyncState={checkoutSyncState}
-      onboarding={onboarding}
     />
   );
 }

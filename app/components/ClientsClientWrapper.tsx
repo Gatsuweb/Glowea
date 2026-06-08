@@ -6,8 +6,12 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import styles from "../dashboard/clients/clients.module.css";
 import SessionModal from "./SessionModal";
+import NewAppointmentModal from "./NewAppointmentModal";
 import { getConsent, saveConsent, type ConsentSnapshot } from "../actions/consentActions";
 import { updateClientProfile } from "../actions/clientActions";
+import {
+  getAppointmentFinancialSummary,
+} from "../../lib/appointmentFinance";
 
 type ConsentDocumentItem = {
   id: string;
@@ -44,14 +48,16 @@ const emptyConsentData: ConsentState = {
   dateSigned: "",
 };
 
-export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
+export default function ClientsClientWrapper({ clients, services = [] }: { clients: any[]; services?: any[] }) {
   const searchParams = useSearchParams();
   const [clientList, setClientList] = useState<any[]>(clients);
   const [isMobileDirectoryOpen, setIsMobileDirectoryOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "infos");
   const [isSessionModalOpen, setSessionModalOpen] = useState(false);
+  const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
   const [selectedRdv, setSelectedRdv] = useState<any>(null);
+  const [appointmentToEdit, setAppointmentToEdit] = useState<any>(null);
   
   // Set initial selected client from URL or first client
   const [selectedClientId, setSelectedClientId] = useState<string | null>(
@@ -288,8 +294,20 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
 
   // Calculs pour le client sélectionné
   const clientAppointments = selectedClient?.Appointment || [];
+  const appointmentClientOptions = clientList.map((client) => ({
+    id: client.id,
+    name: `${client.firstName} ${client.lastName || ""}`.trim(),
+  }));
+  const appointmentServiceOptions = services.map((service) => ({
+    id: service.id,
+    name: service.name,
+    price: service.price ? Number(service.price) : 0,
+    durationMin: service.durationMin || 60,
+    color: service.color || null,
+  }));
   
   const historyRdv = clientAppointments.map((app: any) => {
+      const finance = getAppointmentFinancialSummary(app);
       const date = new Date(app.scheduledAt);
       return {
         id: app.id,
@@ -298,7 +316,8 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
         client: `${selectedClient.firstName} ${selectedClient.lastName || ''}`.trim(),
         presta: app.Service?.name || "Inconnu",
         status: app.status === "COMPLETED" ? "Terminé" : app.status === "CANCELED" ? "Annulé" : "En attente",
-        amount: app.Service?.price ? `${app.Service.price} €` : "-",
+        amount: `${(finance.paidAmountCents / 100).toFixed(2)} €`,
+        remainingAmount: finance.remainingAmountCents,
         serviceCat: app.Service?.ServiceCategory?.name || "Prestation",
         hasSession: !!app.Session,
         originalApp: app
@@ -308,21 +327,50 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
   const historyPresta = clientAppointments.reduce((acc: any[], app: any) => {
     if (app.Service && app.status === "COMPLETED") {
       const existing = acc.find(p => p.id === app.Service.id);
+      const finance = getAppointmentFinancialSummary(app);
       if (existing) {
         existing.count += 1;
-        existing.ca += Number(app.Service.price || 0);
+        existing.ca += finance.paidAmountCents;
       } else {
         acc.push({
           id: app.Service.id,
           name: app.Service.name,
           cat: app.Service.ServiceCategory?.name || "Prestation",
           count: 1,
-          ca: Number(app.Service.price || 0)
+          ca: finance.paidAmountCents
         });
       }
     }
     return acc;
-  }, []).map((p: any) => ({ ...p, ca: `${p.ca} €` }));
+  }, []).map((p: any) => ({ ...p, ca: `${(p.ca / 100).toFixed(2)} €` }));
+
+  const openAppointmentEditor = (rdv: any) => {
+    if (!selectedClient) return;
+
+    const appointment = rdv.originalApp;
+    setAppointmentToEdit({
+      id: appointment.id,
+      scheduledAt: appointment.scheduledAt,
+      endAt: appointment.endAt,
+      status: appointment.status,
+      price: appointment.price ?? (appointment.Service?.price ? Math.round(Number(appointment.Service.price) * 100) : null),
+      notes: appointment.notes || "",
+      client: {
+        id: selectedClient.id,
+        name: `${selectedClient.firstName} ${selectedClient.lastName || ""}`.trim(),
+      },
+      service: appointment.Service
+        ? {
+            id: appointment.Service.id,
+            name: appointment.Service.name,
+            price: appointment.Service.price ? Number(appointment.Service.price) : 0,
+            durationMin: appointment.Service.durationMin || 60,
+            color: appointment.Service.color || null,
+          }
+        : null,
+    });
+    setAppointmentModalOpen(true);
+  };
 
   return (
     <main className={styles.layout}>
@@ -664,6 +712,7 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
                       <th>PRESTATION</th>
                       <th>STATUT</th>
                       <th>MONTANT</th>
+                      <th>MODIFIER</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -684,7 +733,24 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
                               {rdv.status}
                             </span>
                           </td>
-                          <td data-label="Montant">{rdv.amount}</td>
+                          <td data-label="Montant">
+                            <div className={styles.paymentAmountCell}>
+                              <span>{rdv.amount}</span>
+                              {rdv.remainingAmount > 0 && (
+                                <small>Reste {(rdv.remainingAmount / 100).toFixed(2)} €</small>
+                              )}
+                            </div>
+                          </td>
+                          <td data-label="Modifier" className={styles.tableActionCell}>
+                            <button
+                              className={styles.btnModifierRdv}
+                              onClick={() => openAppointmentEditor(rdv)}
+                              title="Modifier le rendez-vous"
+                              type="button"
+                            >
+                              Modifier
+                            </button>
+                          </td>
                           <td className={styles.tableActionCell}>
                             {rdv.hasSession && (
                               <button 
@@ -706,7 +772,7 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={7} className={styles.emptyRowCell}>Aucun rendez-vous trouvé</td>
+                        <td colSpan={8} className={styles.emptyRowCell}>Aucun rendez-vous trouvé</td>
                       </tr>
                     )}
                   </tbody>
@@ -1196,7 +1262,18 @@ export default function ClientsClientWrapper({ clients }: { clients: any[] }) {
         category={selectedRdv?.presta}
         appointmentId={selectedRdv?.id ? String(selectedRdv.id) : undefined}
         clientId={selectedClientId || undefined}
-        isReadOnly={true}
+        isReadOnly={false}
+        startOnOpen={false}
+      />
+      <NewAppointmentModal
+        isOpen={isAppointmentModalOpen}
+        onClose={() => {
+          setAppointmentModalOpen(false);
+          setAppointmentToEdit(null);
+        }}
+        clients={appointmentClientOptions}
+        services={appointmentServiceOptions}
+        initialData={appointmentToEdit}
       />
     </main>
   );

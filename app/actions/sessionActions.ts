@@ -284,6 +284,13 @@ export async function getSessionModalData(clientId: string | undefined) {
         id: p.id,
         name: p.name,
         stock: `Stock ${totalStock}`,
+        categorySlug: p.ProductCategory?.slug || null,
+        categoryLabel: p.ProductCategory?.name || null,
+        categoryFamily: p.ProductCategory?.slug?.startsWith("nails-")
+          ? "NAILS"
+          : p.ProductCategory?.slug?.startsWith("lashes-")
+            ? "LASHES"
+            : null,
         checked: false
       };
     });
@@ -511,6 +518,7 @@ export async function saveLashSession(data: {
 
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/agenda");
+    revalidatePath("/dashboard/clients");
     
     return { success: true };
   } catch (error) {

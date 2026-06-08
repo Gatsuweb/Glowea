@@ -281,6 +281,18 @@
   color: #666;
 }
 
+.paymentBadge {
+  align-self: flex-start;
+  width: fit-content;
+  border: 1px solid #D9E9DE;
+  border-radius: 20px;
+  padding: 3px 9px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #176B35;
+  background: #EEF8F1;
+}
+
 .appointmentTags {
   display: flex;
   align-items: center;

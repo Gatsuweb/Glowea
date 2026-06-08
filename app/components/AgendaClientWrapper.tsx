@@ -7,6 +7,10 @@ import SessionModal from "./SessionModal";
 import PaymentModal from "./PaymentModal";
 import NewAppointmentModal from "./NewAppointmentModal";
 import { deleteAppointment, updateAppointmentStatus } from "../actions/appointmentActions";
+import {
+  getAppointmentFinancialSummary,
+  getAppointmentPaymentLabel,
+} from "../../lib/appointmentFinance";
 
 import { exportElementToPDF } from "../../lib/exportUtils";
 import { useRouter } from "next/navigation";
@@ -34,6 +38,14 @@ type AgendaAppointment = {
   endAt: string;
   status: AppointmentStatusValue;
   paymentStatus: string;
+  price?: number | null;
+  depositAmount?: number | null;
+  depositPaidAmount?: number | null;
+  paidAmount?: number | null;
+  remainingAmount?: number | null;
+  paymentMethod?: string | null;
+  stripeCheckoutSessionId?: string | null;
+  stripePaymentIntentId?: string | null;
   notes?: string;
   clientId: string;
   serviceId: string;
@@ -41,14 +53,35 @@ type AgendaAppointment = {
   service: AgendaService;
 };
 
+const CALENDAR_START_HOUR = 8;
+const CALENDAR_END_HOUR = 18;
+const SLOT_MINUTES = 30;
+const SLOT_HEIGHT = 36;
+
+type PaymentSettings = {
+  stripeConnected: boolean;
+  stripeOnboardingComplete: boolean;
+  paymentsEnabled: boolean;
+  defaultDepositAmount: number;
+  defaultDepositType: "fixed" | "percent";
+};
+
 export default function AgendaClientWrapper({ 
   appointments = [],
   clients = [],
-  services = []
+  services = [],
+  paymentSettings = {
+    stripeConnected: false,
+    stripeOnboardingComplete: false,
+    paymentsEnabled: false,
+    defaultDepositAmount: 0,
+    defaultDepositType: "fixed",
+  },
 }: { 
   appointments?: AgendaAppointment[];
   clients?: AgendaClient[];
   services?: AgendaService[];
+  paymentSettings?: PaymentSettings;
 }) {
   const router = useRouter();
  const [isSessionModalOpen, setSessionModalOpen] = useState(false);
@@ -59,6 +92,8 @@ export default function AgendaClientWrapper({
 
   const [isNewAppointmentModalOpen, setNewAppointmentModalOpen] = useState(false);
   const [appointmentToEdit, setAppointmentToEdit] = useState<AgendaAppointment | null>(null);
+  const [initialAppointmentSlot, setInitialAppointmentSlot] = useState<Date | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [actionAppointmentId, setActionAppointmentId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -75,6 +110,10 @@ export default function AgendaClientWrapper({
   // Pagination pour l'historique
   const [historyPage, setHistoryPage] = useState(1);
   const itemsPerPage = 10;
+  const canUseStripePayments =
+    paymentSettings.stripeConnected &&
+    paymentSettings.stripeOnboardingComplete &&
+    paymentSettings.paymentsEnabled;
 
   const getStartOfWeek = (date: Date) => {
     const d = new Date(date);
@@ -86,6 +125,17 @@ export default function AgendaClientWrapper({
 
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getStartOfWeek(new Date()));
   const [activeFilter, setActiveFilter] = useState("Aujourd'hui");
+
+  const calendarSlots = Array.from({ length: ((CALENDAR_END_HOUR - CALENDAR_START_HOUR) * 60) / SLOT_MINUTES + 2 }).map((_, index) => {
+    const totalMinutes = CALENDAR_START_HOUR * 60 + index * SLOT_MINUTES;
+    const hour = Math.floor(totalMinutes / 60);
+    const minute = totalMinutes % 60;
+    return {
+      hour,
+      minute,
+      label: `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`,
+    };
+  });
 
   const changeWeek = (offset: number) => {
     const newDate = new Date(currentWeekStart);
@@ -130,12 +180,12 @@ export default function AgendaClientWrapper({
     const hours = currentTime.getHours();
     const minutes = currentTime.getMinutes();
     
-    // Le calendrier commence à 8:00
-    if (hours < 8) return 0;
-    if (hours > 18) return (18 - 8 + 1) * 60; // Max (11 heures * 60px)
+    if (hours < CALENDAR_START_HOUR) return 0;
+    if (hours > CALENDAR_END_HOUR || (hours === CALENDAR_END_HOUR && minutes > SLOT_MINUTES)) {
+      return calendarSlots.length * SLOT_HEIGHT;
+    }
 
-    // 1 heure = 60px, donc 1 minute = 1px
-    return ((hours - 8) * 60) + minutes;
+    return (((hours - CALENDAR_START_HOUR) * 60) + minutes) * (SLOT_HEIGHT / SLOT_MINUTES);
   };
 
   const monthNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
@@ -194,6 +244,15 @@ export default function AgendaClientWrapper({
   };
 
   const filteredAppointments = getFilteredAppointments();
+  const weeklyAppointments = appointments
+    .filter((app) => {
+      const appDate = new Date(app.scheduledAt);
+      appDate.setHours(0, 0, 0, 0);
+      const weekEnd = new Date(currentWeekStart);
+      weekEnd.setDate(currentWeekStart.getDate() + 6);
+      return appDate >= currentWeekStart && appDate <= weekEnd;
+    })
+    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
 
   const getTodaySubtitle = () => {
     if (isHistoryView) return "HISTORIQUE DES RENDEZ-VOUS PASSÉS";
@@ -214,6 +273,13 @@ export default function AgendaClientWrapper({
     COMPLETED: "Termine",
     CANCELED: "Annule",
     NO_SHOW: "No-show",
+  };
+
+  const formatMoneyFromCents = (amount: number) => {
+    return new Intl.NumberFormat("fr-FR", {
+      style: "currency",
+      currency: "EUR",
+    }).format(amount / 100);
   };
 
   const handleStatusChange = async (appointmentId: string, nextStatus: AppointmentStatusValue) => {
@@ -254,6 +320,56 @@ export default function AgendaClientWrapper({
     }
   };
 
+  const openCreateAppointmentAt = (day: Date, hour: number, minute: number) => {
+    const scheduledAt = new Date(day);
+    scheduledAt.setHours(hour, minute, 0, 0);
+    setAppointmentToEdit(null);
+    setInitialAppointmentSlot(scheduledAt);
+    setNewAppointmentModalOpen(true);
+  };
+
+  const openEditAppointment = (appointment: AgendaAppointment) => {
+    setInitialAppointmentSlot(null);
+    setAppointmentToEdit(appointment);
+    setNewAppointmentModalOpen(true);
+  };
+
+  const showSavedToast = () => {
+    setToastMessage("Rendez-vous enregistre");
+    window.setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  const handleCreatePaymentLink = async (appointmentId: string, paymentType: "deposit" | "full") => {
+    if (!canUseStripePayments) {
+      router.push("/settings/payments");
+      return;
+    }
+
+    setActionAppointmentId(appointmentId);
+    setActionError(null);
+
+    try {
+      const response = await fetch(`/api/appointments/${appointmentId}/create-payment-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentType }),
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.url) {
+        setActionError(data.error || "Impossible de creer le lien de paiement.");
+        return;
+      }
+
+      window.location.href = data.url;
+    } catch (error) {
+      console.error(error);
+      setActionError("Une erreur inattendue est survenue.");
+    } finally {
+      setActionAppointmentId(null);
+    }
+  };
+
   return (
     <main className={styles.layout}>
       {/* Header Section */}
@@ -262,9 +378,19 @@ export default function AgendaClientWrapper({
           <h1 className={styles.title}>{isHistoryView ? "Historique" : "Mon Agenda"}</h1>
           <p className={styles.subtitle}>{getTodaySubtitle()}</p>
         </div>
+        {toastMessage && <div className={styles.toastMessage}>{toastMessage}</div>}
         <div className={styles.headerActions}>
           {!isHistoryView && (
-            <button className={styles.btnPrimary} onClick={() => setNewAppointmentModalOpen(true)}>+ Nouveau RDV</button>
+            <button
+              className={styles.btnPrimary}
+              onClick={() => {
+                setAppointmentToEdit(null);
+                setInitialAppointmentSlot(null);
+                setNewAppointmentModalOpen(true);
+              }}
+            >
+              + Nouveau RDV
+            </button>
           )}
           <button 
             className={isHistoryView ? styles.btnPrimary : styles.btnSecondary} 
@@ -319,6 +445,12 @@ export default function AgendaClientWrapper({
           const appDate = new Date(app.scheduledAt);
           const timeString = appDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
           const dateString = appDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+          const finance = getAppointmentFinancialSummary(app);
+          const paymentLabel = getAppointmentPaymentLabel(finance.paymentStatus);
+          const paymentStatus = finance.paymentStatus;
+          const priceCents = finance.priceCents;
+          const depositPaidCents = finance.depositPaidAmountCents;
+          const remainingCents = finance.remainingAmountCents;
           
           return (
             <div key={app.id} className={styles.appointmentItem}>
@@ -348,7 +480,12 @@ export default function AgendaClientWrapper({
                         <option key={value} value={value}>{label}</option>
                       ))}
                     </select>
-                    <span className={styles.tag}>{app.paymentStatus === 'PAID' ? 'Payé' : 'Non-payé'}</span>
+                    <span className={styles.paymentBadge}>{paymentLabel}</span>
+                  </div>
+                  <div className={styles.paymentSummary}>
+                    <span>
+                      Total : {formatMoneyFromCents(priceCents)} · Arrhes encaissé : {formatMoneyFromCents(depositPaidCents)} · Reste : {formatMoneyFromCents(remainingCents)}
+                    </span>
                   </div>
                   {app.notes && (
                     <div className={styles.appointmentNote}>
@@ -373,6 +510,22 @@ export default function AgendaClientWrapper({
                       AFFICHER
                     </button>
                   </div>
+                  <div className={styles.paymentActions}>
+                    <button
+                      className={styles.paymentButton}
+                      onClick={() => handleCreatePaymentLink(app.id, "deposit")}
+                      disabled={actionAppointmentId === app.id || paymentStatus === "paid" || paymentStatus === "paid_offline" || paymentStatus === "deposit_paid"}
+                    >
+                      Demander les arrhes
+                    </button>
+                    <button
+                      className={styles.paymentButtonSecondary}
+                      onClick={() => handleCreatePaymentLink(app.id, "full")}
+                      disabled={actionAppointmentId === app.id || paymentStatus === "paid" || paymentStatus === "paid_offline"}
+                    >
+                      Paiement complet
+                    </button>
+                  </div>
                   <div className={styles.bottomIcons}>
                     <button className={styles.iconBtn}>
                       <Image src="/icones/mail.svg" alt="Email" width={16} height={16} />
@@ -386,10 +539,7 @@ export default function AgendaClientWrapper({
                     </button>
                     <button 
                       className={styles.iconBtn} 
-                      onClick={() => {
-                        setAppointmentToEdit(app);
-                        setNewAppointmentModalOpen(true);
-                      }}
+                      onClick={() => openEditAppointment(app)}
                       title="Modifier"
                     >
                       <Image src="/icones/edit.svg" alt="Edit" width={16} height={16} />
@@ -484,26 +634,33 @@ export default function AgendaClientWrapper({
                   <div className={styles.currentTimeLine} style={{ top: `${getRedLinePosition()}px` }}></div>
                 )}
 
-                {/* Génération des heures de 8h à 18h */}
-                {[8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].map((hour) => (
-                  <div key={hour} className={styles.timeRow}>
-                    <div className={styles.timeLabel}>{hour}:00</div>
+                {/* Génération des créneaux de 30 minutes */}
+                {calendarSlots.map((slot) => (
+                  <div key={slot.label} className={styles.timeRow}>
+                    <div className={styles.timeLabel}>{slot.label}</div>
                     {weekDays.map((day, dayIndex) => {
-                      const dayAppointments = filteredAppointments.filter(app => {
+                      const dayAppointments = weeklyAppointments.filter(app => {
                         const appDate = new Date(app.scheduledAt);
+                        const appSlotMinute = Math.floor(appDate.getMinutes() / SLOT_MINUTES) * SLOT_MINUTES;
                         return appDate.getDate() === day.getDate() && 
                                appDate.getMonth() === day.getMonth() &&
-                               appDate.getHours() === hour;
+                               appDate.getHours() === slot.hour &&
+                               appSlotMinute === slot.minute;
                       });
 
                       return (
-                        <div key={dayIndex} className={styles.timeCell}>
+                        <div
+                          key={dayIndex}
+                          className={styles.timeCell}
+                          onClick={() => openCreateAppointmentAt(day, slot.hour, slot.minute)}
+                          title={`Creer un rendez-vous ${slot.label}`}
+                        >
                           {dayAppointments.map((app, appIndex) => {
                             const appDate = new Date(app.scheduledAt);
                             const endAt = new Date(app.endAt);
                             const durationMinutes = (endAt.getTime() - appDate.getTime()) / 60000;
-                            const topOffset = (appDate.getMinutes() / 60) * 60;
-                            const height = (durationMinutes / 60) * 60;
+                            const topOffset = ((appDate.getMinutes() - slot.minute) / SLOT_MINUTES) * SLOT_HEIGHT;
+                            const height = Math.max(28, (durationMinutes / SLOT_MINUTES) * SLOT_HEIGHT);
                             const styleClass = appIndex % 3 === 0 ? styles.event1 : (appIndex % 3 === 1 ? styles.event2 : styles.event3);
 
                             return (
@@ -511,6 +668,11 @@ export default function AgendaClientWrapper({
                                 key={app.id} 
                                 className={`${styles.eventBlock} ${styleClass}`} 
                                 style={{ top: `${topOffset}px`, height: `${height}px` }}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openEditAppointment(app);
+                                }}
+                                title={`Modifier ${app.client.name}`}
                               >
                                 <div className={styles.eventTitle}>{app.client.name.toUpperCase()}</div>
                                 <div className={styles.eventTime}>
@@ -556,6 +718,15 @@ export default function AgendaClientWrapper({
         clientName={paymentAppointmentData?.client?.name || ""}
         serviceName={paymentAppointmentData?.service?.name || ""}
         defaultAmount={paymentAppointmentData?.service?.price ? Number(paymentAppointmentData.service.price) : 0}
+        price={paymentAppointmentData?.price}
+        depositAmount={paymentAppointmentData?.depositAmount}
+        depositPaidAmount={paymentAppointmentData?.depositPaidAmount}
+        paidAmount={paymentAppointmentData?.paidAmount}
+        remainingAmount={paymentAppointmentData?.remainingAmount}
+        paymentMethod={paymentAppointmentData?.paymentMethod}
+        paymentStatus={paymentAppointmentData?.paymentStatus || "none"}
+        paymentsEnabled={canUseStripePayments}
+        mode="closeout"
       />
 
       <NewAppointmentModal 
@@ -563,10 +734,13 @@ export default function AgendaClientWrapper({
         onClose={() => {
           setNewAppointmentModalOpen(false);
           setAppointmentToEdit(null);
+          setInitialAppointmentSlot(null);
         }}
         clients={clients}
         services={services}
         initialData={appointmentToEdit}
+        initialScheduledAt={initialAppointmentSlot}
+        onSaved={showSavedToast}
       />
 
     </main>

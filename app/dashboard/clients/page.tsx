@@ -22,42 +22,48 @@ function serializeValue<T>(value: T): T {
 export default async function ClientsPage() {
   const tenantId = await getTenantId();
 
-  // Fetch all clients for this tenant
-  const clientsData = await prisma.client.findMany({
-    where: { tenantId },
-    include: {
-      Appointment: {
-        include: {
-          Service: {
-            include: { ServiceCategory: true }
+  const [clientsData, servicesData] = await Promise.all([
+    prisma.client.findMany({
+      where: { tenantId },
+      include: {
+        Appointment: {
+          include: {
+            Service: {
+              include: { ServiceCategory: true }
+            },
+            Session: true,
           },
-          Session: true,
+          orderBy: {
+            scheduledAt: "desc"
+          }
         },
-        orderBy: {
-          scheduledAt: "desc"
+        ClientAllergy: {
+          where: { isActive: true }
+        },
+        ClientNote: {
+          where: {
+            type: "GENERAL",
+            title: "Note fiche cliente",
+          },
+          orderBy: { updatedAt: "desc" },
+          take: 1,
+        },
+        ConsentDocument: {
+          orderBy: { createdAt: "desc" }
         }
       },
-      ClientAllergy: {
-        where: { isActive: true }
+      orderBy: {
+        firstName: "asc"
       },
-      ClientNote: {
-        where: {
-          type: "GENERAL",
-          title: "Note fiche cliente",
-        },
-        orderBy: { updatedAt: "desc" },
-        take: 1,
-      },
-      ConsentDocument: {
-        orderBy: { createdAt: "desc" }
-      }
-    },
-    orderBy: {
-      firstName: "asc"
-    }
-  });
+    }),
+    prisma.service.findMany({
+      where: { tenantId, isActive: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   const serializedClients = serializeValue(clientsData);
+  const serializedServices = serializeValue(servicesData);
 
-  return <ClientsClientWrapper clients={serializedClients} />;
+  return <ClientsClientWrapper clients={serializedClients} services={serializedServices} />;
 }

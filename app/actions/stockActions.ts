@@ -25,6 +25,7 @@ export async function createProduct(data: {
   desc?: string;
   price: number;
   initialStock: number;
+  alertThreshold?: number | null;
   expireAt?: Date | null;
   categoryId?: string | null;
 }) {
@@ -52,6 +53,7 @@ export async function createProduct(data: {
         name: data.name,
         notes: data.desc,
         defaultUnitCost: data.price,
+        alertThreshold: data.alertThreshold ?? null,
         productCategoryId: categoryId,
         unitType: "UNIT",
         trackingType: "UNIDOSE",
@@ -99,6 +101,7 @@ export async function updateProduct(id: string, data: {
   name: string;
   desc?: string;
   price: number;
+  alertThreshold?: number | null;
   categoryId?: string | null;
 }) {
   const TENANT_ID = await getTenantId();
@@ -120,6 +123,7 @@ export async function updateProduct(id: string, data: {
         name: data.name,
         notes: data.desc,
         defaultUnitCost: data.price,
+        alertThreshold: data.alertThreshold ?? null,
         productCategoryId: categoryId,
         updatedAt: new Date(),
       },

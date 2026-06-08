@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 
 import { prisma } from "@/lib/prisma";
+import { recordAppointmentPayment } from "@/lib/appointmentPayments";
 import {
   syncTenantFromCheckoutSession,
   syncTenantSubscription as syncStripeTenantSubscription,
@@ -62,6 +63,61 @@ async function logAndSyncTenantSubscription(subscription: Stripe.Subscription, m
   await syncStripeTenantSubscription(subscription, metadataTenantId);
 }
 
+async function syncAppointmentPaymentFromCheckoutSession(session: Stripe.Checkout.Session) {
+  const appointmentId = session.metadata?.appointmentId;
+  const tenantId = session.metadata?.tenantId;
+  const userId = session.metadata?.userId;
+  const paymentType = session.metadata?.paymentType;
+
+  if (!appointmentId || !tenantId || !userId) {
+    console.warn("[stripe:webhook] missing appointment payment metadata");
+    return;
+  }
+
+  if (paymentType !== "deposit" && paymentType !== "full" && paymentType !== "remaining") {
+    console.warn("[stripe:webhook] invalid appointment paymentType", paymentType);
+    return;
+  }
+
+  const paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id || null;
+  const amountCents = session.amount_total || session.amount_subtotal || 0;
+  if (amountCents <= 0) {
+    console.warn("[stripe:webhook] checkout session amount is zero", session.id);
+    return;
+  }
+
+  const paymentResult = await recordAppointmentPayment({
+    tenantId,
+    appointmentId,
+    amountCents,
+    paymentType:
+      paymentType === "deposit"
+        ? "deposit"
+        : paymentType === "remaining"
+          ? "remaining"
+          : "full",
+    paymentMethod: "stripe",
+    sourceLabel:
+      paymentType === "deposit"
+        ? "Arrhes Stripe"
+        : paymentType === "remaining"
+          ? "Solde restant Stripe"
+          : "Paiement complet Stripe",
+    sessionId: null,
+    externalPaymentId: paymentIntentId || session.id,
+    stripeCheckoutSessionId: session.id,
+    stripePaymentIntentId: paymentIntentId,
+    transactionDate: new Date(session.created ? session.created * 1000 : Date.now()),
+  });
+
+  if (!paymentResult.success) {
+    throw new Error(paymentResult.error);
+  }
+}
+
 export async function POST(req: NextRequest) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -94,6 +150,12 @@ export async function POST(req: NextRequest) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
+
+        if (session.metadata?.appointmentId) {
+          await syncAppointmentPaymentFromCheckoutSession(session);
+          break;
+        }
+
         const subscriptionId = typeof session.subscription === "string" ? session.subscription : null;
         const customerId = typeof session.customer === "string" ? session.customer : null;
         const tenantId = session.metadata?.tenantId || null;

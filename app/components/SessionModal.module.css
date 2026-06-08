@@ -307,6 +307,27 @@
   color: #888;
 }
 
+.copyHandBtn {
+  width: 100%;
+  margin-top: 10px;
+  border: 1px solid #E8D2D6;
+  background: white;
+  color: var(--tertiary);
+  border-radius: 8px;
+  padding: 10px 12px;
+  min-height: 40px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.copyHandBtn:hover {
+  background: #FFF5F5;
+  border-color: var(--tertiary);
+  transform: translateY(-1px);
+}
+
 /* Parameters */
 .paramGroup {
   margin-bottom: 10px;
@@ -416,6 +437,224 @@
   line-height: 1.2;
 }
 
+.productPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+}
+
+.productSearchBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #E7E2E3;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px 10px;
+}
+
+.productSearchInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  font-size: 0.92rem;
+  color: #222;
+  background: transparent;
+}
+
+.productSearchInput::placeholder {
+  color: #999;
+}
+
+.productSearchClear {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: #F5F1F2;
+  color: #666;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.productQuickFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.productQuickFilterBtn {
+  border: 1px solid #E7E2E3;
+  background: #fff;
+  color: #666;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.productQuickFilterActive {
+  background: #FCD7D1;
+  border-color: var(--tertiary);
+  color: var(--tertiary);
+}
+
+.selectedProductPanel {
+  border: 1px solid #F0ECEC;
+  border-radius: 10px;
+  background: #FCFAFA;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.selectedProductHeader,
+.productDropdownHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: #777;
+  font-weight: 600;
+}
+
+.selectedProductList,
+.productDropdownList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selectedProductItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #E8E2E3;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px 10px;
+}
+
+.selectedProductMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.selectedProductName {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #242424;
+}
+
+.selectedProductStock {
+  font-size: 0.72rem;
+  color: #888;
+}
+
+.selectedProductRemove {
+  border: none;
+  background: transparent;
+  color: var(--tertiary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.selectedProductEmpty,
+.productDropdownEmpty {
+  border: 1px dashed #E6DCDD;
+  border-radius: 10px;
+  padding: 10px;
+  color: #888;
+  font-size: 0.82rem;
+  background: #fff;
+}
+
+.productDropdown {
+  border: 1px solid #E7E2E3;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 340px;
+  overflow: hidden;
+}
+
+.productDropdownList {
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.productDropdownItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: 1px solid #EFE9EA;
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.productDropdownItem:hover {
+  border-color: #E0C8CC;
+  background: #FFF9FA;
+}
+
+.productDropdownItemSelected {
+  border-color: var(--tertiary);
+  background: #FFF2F4;
+}
+
+.productDropdownText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.productDropdownName {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #232323;
+}
+
+.productDropdownMeta {
+  font-size: 0.72rem;
+  color: #888;
+}
+
+.productDropdownAction {
+  color: var(--tertiary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.productDropdownFooter {
+  font-size: 0.72rem;
+  color: #888;
+  padding-top: 2px;
+}
+
 /* ROW 2 */
 .row2 {
   display: grid;
@@ -428,6 +667,35 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
   margin-top: 10px;
+}
+
+.eyeSyncActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 18px;
+}
+
+.eyeSyncBtn,
+.eyeSyncBtnSecondary {
+  border-radius: 8px;
+  min-height: 38px;
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.eyeSyncBtn {
+  border: none;
+  background: var(--tertiary);
+  color: white;
+}
+
+.eyeSyncBtnSecondary {
+  border: 1px solid #E8D2D6;
+  background: white;
+  color: var(--tertiary);
 }
 
 .oeilCol {
@@ -497,6 +765,124 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
+}
+
+.eyeMappingCard {
+  margin-top: 16px;
+  border: 1px solid #F0E6E8;
+  border-radius: 14px;
+  background: #FFFDFD;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.eyeMappingHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.eyeMappingHeaderLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.eyeMappingSubtitle {
+  font-size: 0.72rem;
+  color: #8A8A8A;
+}
+
+.eyeMappingCopyBtn {
+  border: 1px solid #E7DADC;
+  background: white;
+  color: var(--tertiary);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.eyeMappingPreview {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.eyeMappingVisual {
+  display: flex;
+  justify-content: center;
+}
+
+.eyeMappingZoneOverlay {
+  position: absolute;
+  inset: 0;
+}
+
+.eyeMappingZoneChip {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  min-width: 28px;
+  height: 28px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(163, 93, 104, 0.22);
+  background: #fff;
+  color: var(--tertiary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+.eyeMappingPreviewCell {
+  min-height: 34px;
+  border-radius: 10px;
+  border: 1px solid #E9E1E3;
+  background: #FAF7F8;
+  color: #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.eyeMappingZoneList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.eyeMappingZoneRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(110px, 0.8fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.eyeMappingZoneLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.eyeMappingZoneLabel strong {
+  font-size: 0.8rem;
+  color: #222;
+}
+
+.eyeMappingZoneLabel span {
+  font-size: 0.72rem;
+  color: #8A8A8A;
 }
 
 /* Form inputs in Marque */
@@ -977,6 +1363,28 @@
   .oeilSelects {
     flex-direction: column;
     gap: 12px;
+  }
+
+  .eyeMappingHeader {
+    flex-direction: column;
+  }
+
+  .eyeMappingVisual {
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
+
+  .eyeMappingPreview {
+    gap: 5px;
+  }
+
+  .eyeMappingZoneRow {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .eyeSyncActions {
+    flex-direction: column;
   }
 
   .photoGrid {

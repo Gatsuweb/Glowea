@@ -44,6 +44,17 @@
   justify-content: flex-end;
 }
 
+.toastMessage {
+  align-self: center;
+  border: 1px solid #BFE7C9;
+  background: #EEF8F1;
+  color: #176B35;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
 .btnPrimary {
   background: var(--tertiary);
   color: white;
@@ -271,6 +282,24 @@
   background: #FAFAFA;
 }
 
+.paymentBadge {
+  border: 1px solid #D9E9DE;
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #176B35;
+  background: #EEF8F1;
+}
+
+.paymentSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  color: #5f5456;
+  font-size: 0.82rem;
+}
+
 .statusSelect {
   border: 1px solid #E8D2D6;
   background: #fff;
@@ -303,6 +332,41 @@
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.paymentActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.paymentButton,
+.paymentButtonSecondary {
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-height: 38px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.paymentButton {
+  border: 0;
+  background: var(--tertiary);
+  color: #fff;
+}
+
+.paymentButtonSecondary {
+  border: 1px solid #E8D2D6;
+  background: #fff;
+  color: var(--tertiary);
+}
+
+.paymentButton:disabled,
+.paymentButtonSecondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .btnPlay {
@@ -512,7 +576,7 @@
 .timeRow {
   display: grid;
   grid-template-columns: 80px repeat(7, 1fr);
-  min-height: 60px;
+  min-height: 36px;
   border-bottom: 1px solid #F0F0F0;
   position: relative;
 }
@@ -521,9 +585,9 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding-top: 10px;
+  padding-top: 7px;
   color: #888;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   font-weight: 500;
   border-right: 1px solid #F0F0F0;
   background: #FAFAFA;
@@ -536,7 +600,7 @@
 }
 
 .timeCell:hover {
-  background: #F9F9F9;
+  background: #FFF8F9;
   cursor: pointer;
 }
 
@@ -545,12 +609,13 @@
   position: absolute;
   width: 90%;
   left: 5%;
-  padding: 8px 10px;
+  padding: 6px 8px;
   border-radius: 4px;
   font-size: 0.8rem;
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
   overflow: hidden;
   z-index: 2;
+  cursor: pointer;
 }
 
 .eventTitle {
@@ -748,6 +813,15 @@
 
   .topActions {
     width: 100%;
+  }
+
+  .paymentActions {
+    justify-content: stretch;
+  }
+
+  .paymentButton,
+  .paymentButtonSecondary {
+    flex: 1 1 150px;
   }
 
   .btnPlay {

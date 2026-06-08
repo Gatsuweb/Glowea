@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 import {
   addGalleryImage,
@@ -78,12 +78,8 @@ function createEmptyServiceDraft(): ServiceEditorState {
 
 export default function PagePubliqueClient({ initialData }: { initialData: ConfigData }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const initialTab = tabs.some((tab) => tab.id === searchParams.get("tab"))
-    ? searchParams.get("tab") as TabId
-    : "profil";
-  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+  const [activeTab, setActiveTab] = useState<TabId>("profil");
   const [profile, setProfile] = useState<ProfileState>(initialData.profile);
   const [services, setServices] = useState<ServiceEditorState[]>(() => initialData.services.map(toServiceEditorState));
   const [gallery, setGallery] = useState<GalleryState[]>(initialData.gallery);

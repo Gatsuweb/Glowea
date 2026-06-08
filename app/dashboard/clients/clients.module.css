@@ -628,6 +628,31 @@
   font-weight: 600;
 }
 
+.paymentStack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.paymentAmountCell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.paymentBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #F7F1F2;
+  color: var(--tertiary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
 .statusGreen {
   background-color: #E8F3EB;
   color: #3B8251;
@@ -695,6 +720,25 @@
 
 .btnVoirFiche:hover {
   background-color: #FCD7D1;
+}
+
+.btnModifierRdv {
+  border: 1px solid #E8D2D6;
+  background: #fff;
+  color: var(--tertiary);
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-height: 36px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.btnModifierRdv:hover {
+  background: #FFF5F5;
+  border-color: var(--tertiary);
+  transform: translateY(-1px);
 }
 
 /* =========================================

@@ -15,6 +15,7 @@ type TransactionItem = {
   category?: string | null;
   amount: number;
   type: TransactionType;
+  sourceType?: string | null;
   transactionDate: string | Date;
 };
 
@@ -167,10 +168,10 @@ export default function ComptaClient({
   };
 
   const caMois = data.transactions
-    .filter((t: TransactionItem) => t.type === "INCOME")
+    .filter((t: TransactionItem) => t.type === "INCOME" && t.sourceType === "APPOINTMENT")
     .reduce((sum: number, t: TransactionItem) => sum + t.amount, 0);
   const prevCA = data.prevTransactions
-    .filter((t: TransactionItem) => t.type === "INCOME")
+    .filter((t: TransactionItem) => t.type === "INCOME" && t.sourceType === "APPOINTMENT")
     .reduce((sum: number, t: TransactionItem) => sum + t.amount, 0);
   const caTrend = prevCA > 0 ? ((caMois - prevCA) / prevCA) * 100 : 0;
   const caTrendStr = caTrend >= 0 ? `+${caTrend.toFixed(1)}%` : `${caTrend.toFixed(1)}%`;

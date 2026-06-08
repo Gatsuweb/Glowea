@@ -13,6 +13,7 @@ type StockProduct = {
   tags: string[];
   rawPrice: number;
   count: number;
+  alertThreshold?: number | null;
   statusColor: string;
   status: string;
   price: string;
@@ -89,7 +90,10 @@ export default function StockClientWrapper({
 
   const totalValue = initialProducts.reduce((sum, p) => sum + (p.rawPrice * p.count), 0);
   const rupturesCount = initialProducts.filter(p => p.count === 0).length;
-  const alertesCount = initialProducts.filter(p => p.count > 0 && p.count <= 5).length;
+  const alertesCount = initialProducts.filter(p => {
+    const threshold = Number(p.alertThreshold ?? 5);
+    return p.count > 0 && p.count <= threshold;
+  }).length;
 
   return (
     <main className={styles.layout}>
@@ -231,17 +235,18 @@ export default function StockClientWrapper({
               </button>
             </div>
 
-            <div className={styles.prodStatus}>
-              <div className={`${styles.statusDot} ${styles[`dot${prod.statusColor}`]}`}></div>
-              <span className={styles[`text${prod.statusColor}`]}>{prod.status}</span>
-            </div>
+              <div className={styles.prodStatus}>
+                <div className={`${styles.statusDot} ${styles[`dot${prod.statusColor}`]}`}></div>
+                <span className={styles[`text${prod.statusColor}`]}>{prod.status}</span>
+              </div>
 
-            <div className={styles.prodFooter}>
-              <span>Prix/u : {prod.price}</span>
-              <span>Expire le: {prod.expire}</span>
+              <div className={styles.prodFooter}>
+                <span>Prix/u : {prod.price}</span>
+                <span>Seuil : {prod.alertThreshold ?? 5}</span>
+                <span>Expire le: {prod.expire}</span>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
       </section>
 
       {/* Mouvements */}

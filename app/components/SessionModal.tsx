@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/immutability, @typescript-eslint/no-explicit-any, @next/next/no-img-element, @typescript-eslint/no-unused-vars, react/no-unescaped-entities */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import styles from './SessionModal.module.css';
 import {
@@ -82,6 +82,99 @@ const TimerCard = ({ title, initialMinutes }: { title: string, initialMinutes: n
   );
 };
 
+const EyeMappingEditor = ({
+  title,
+  mapping,
+  onZoneChange,
+  onCopyToOtherEye,
+}: {
+  title: string;
+  mapping: LashEyeZone[];
+  onZoneChange: (zone: number, length: string) => void;
+  onCopyToOtherEye: () => void;
+}) => {
+  const previewValues = mapping.map((zone) => zone.length || "—");
+
+  return (
+    <div className={styles.eyeMappingCard}>
+      <div className={styles.eyeMappingHeader}>
+        <div className={styles.eyeMappingHeaderLeft}>
+          <div className={styles.oeilTitle}>{title}</div>
+          <span className={styles.eyeMappingSubtitle}>Affecte une longueur par zone.</span>
+        </div>
+        <button type="button" className={styles.eyeMappingCopyBtn} onClick={onCopyToOtherEye}>
+          Copier vers l'autre oeil
+        </button>
+      </div>
+
+      <div className={styles.eyeMappingVisual}>
+        <div className={styles.mappingContainer}>
+          <div className={styles.mappingImageWrapper}>
+            <Image
+              src="/modele-cils.svg"
+              alt="Modèle de cils"
+              width={220}
+              height={80}
+              style={{ objectFit: "contain" }}
+            />
+            <div className={styles.eyeMappingZoneOverlay}>
+              {mapping.map((zone, index) => (
+                <div
+                  key={`${title}-overlay-${zone.zone}`}
+                  className={styles.eyeMappingZoneChip}
+                  style={[
+                    { left: "6%", top: "56%" },
+                    { left: "19%", top: "42%" },
+                    { left: "34%", top: "30%" },
+                    { left: "50%", top: "24%" },
+                    { left: "66%", top: "30%" },
+                    { left: "81%", top: "42%" },
+                    { left: "94%", top: "56%" },
+                  ][index]}
+                  title={zone.label}
+                >
+                  {zone.length || zone.zone}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.eyeMappingPreview}>
+        {previewValues.map((value, index) => (
+          <div key={`${title}-preview-${index}`} className={styles.eyeMappingPreviewCell}>
+            {value}
+          </div>
+        ))}
+      </div>
+
+      <div className={styles.eyeMappingZoneList}>
+        {mapping.map((zone) => (
+          <div key={`${title}-zone-${zone.zone}`} className={styles.eyeMappingZoneRow}>
+            <div className={styles.eyeMappingZoneLabel}>
+              <strong>{zone.zone}</strong>
+              <span>{zone.label}</span>
+            </div>
+            <select
+              className={styles.selectInput}
+              value={zone.length || ""}
+              onChange={(event) => onZoneChange(zone.zone, event.target.value)}
+            >
+              <option value="">Aucune</option>
+              {["6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25"].map((length) => (
+                <option key={length} value={length}>
+                  {length}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 interface SessionModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -92,6 +185,7 @@ interface SessionModalProps {
   clientId?: string;
   serviceId?: string;
   isReadOnly?: boolean;
+  startOnOpen?: boolean;
   onPaymentRequest?: () => void;
 }
 
@@ -102,6 +196,213 @@ type SessionProduct = {
   name: string;
   stock: string;
   checked: boolean;
+  defaultTime?: number;
+  categorySlug?: string | null;
+  categoryLabel?: string | null;
+  categoryFamily?: string | null;
+};
+
+type ProductQuickFilter =
+  | "all"
+  | "cils"
+  | "colles"
+  | "removers"
+  | "patchs"
+  | "browlift"
+  | "rehaussement"
+  | "ongles";
+
+const PRODUCT_QUICK_FILTERS: Array<{ id: ProductQuickFilter; label: string }> = [
+  { id: "all", label: "Tous" },
+  { id: "cils", label: "Cils" },
+  { id: "colles", label: "Colles" },
+  { id: "removers", label: "Removers" },
+  { id: "patchs", label: "Patchs" },
+  { id: "browlift", label: "Browlift" },
+  { id: "rehaussement", label: "Rehaussement" },
+  { id: "ongles", label: "Ongles" },
+];
+
+const normalizeSearchValue = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const getProductQuickFilter = (product: Pick<SessionProduct, "name" | "categorySlug" | "categoryLabel" | "categoryFamily">): ProductQuickFilter => {
+  const normalizedName = normalizeSearchValue(product.name);
+  const normalizedSlug = normalizeSearchValue(product.categorySlug || "");
+  const normalizedLabel = normalizeSearchValue(product.categoryLabel || "");
+
+  if (product.categoryFamily === "NAILS" || normalizedSlug.startsWith("nails")) {
+    return "ongles";
+  }
+  if (normalizedSlug.includes("remover") || normalizedLabel.includes("remover") || normalizedName.includes("remover")) {
+    return "removers";
+  }
+  if (normalizedSlug.includes("patch") || normalizedLabel.includes("patch") || normalizedName.includes("patch") || normalizedName.includes("pad")) {
+    return "patchs";
+  }
+  if (normalizedSlug.includes("glue") || normalizedSlug.includes("colle") || normalizedLabel.includes("colle") || normalizedName.includes("colle")) {
+    return "colles";
+  }
+  if (normalizedSlug.includes("brow") || normalizedLabel.includes("brow") || normalizedName.includes("brow") || normalizedName.includes("sourcil")) {
+    return "browlift";
+  }
+  if (normalizedSlug.includes("lash lift") || normalizedSlug.includes("rehaussement") || normalizedLabel.includes("rehaussement") || normalizedName.includes("rehaussement") || normalizedName.includes("lift")) {
+    return "rehaussement";
+  }
+  return "cils";
+};
+
+const matchesProductQuickFilter = (product: SessionProduct, filter: ProductQuickFilter) => {
+  if (filter === "all") return true;
+  return getProductQuickFilter(product) === filter;
+};
+
+type LashEyeZone = {
+  zone: number;
+  label: string;
+  length: string | null;
+};
+
+const EYELASH_ZONE_DEFINITIONS: Array<{ zone: number; label: string }> = [
+  { zone: 1, label: "Coin interne" },
+  { zone: 2, label: "Intermédiaire interne" },
+  { zone: 3, label: "Milieu interne" },
+  { zone: 4, label: "Centre" },
+  { zone: 5, label: "Milieu externe" },
+  { zone: 6, label: "Intermédiaire externe" },
+  { zone: 7, label: "Coin externe" },
+];
+
+const createEmptyEyeMapping = (): LashEyeZone[] =>
+  EYELASH_ZONE_DEFINITIONS.map((zone) => ({
+    zone: zone.zone,
+    label: zone.label,
+    length: null,
+  }));
+
+const normalizeEyeMapping = (value: unknown): LashEyeZone[] => {
+  const fallback = createEmptyEyeMapping();
+  if (!Array.isArray(value)) return fallback;
+
+  if (value.length > 0 && (typeof value[0] === "string" || typeof value[0] === "number")) {
+    return deriveEyeMappingFromLengths(value.map((item) => String(item)));
+  }
+
+  const mapped = fallback.map((zone, index) => {
+    const raw = value[index] as Record<string, unknown> | string | undefined;
+    if (raw && typeof raw === "object") {
+      const zoneNumber = Number((raw as Record<string, unknown>).zone || zone.zone);
+      const label = String((raw as Record<string, unknown>).label || zone.label);
+      const lengthValue = (raw as Record<string, unknown>).length;
+      return {
+        zone: Number.isFinite(zoneNumber) ? zoneNumber : zone.zone,
+        label,
+        length: lengthValue === null || lengthValue === undefined || lengthValue === "" ? null : String(lengthValue),
+      };
+    }
+
+    if (typeof raw === "string" || typeof raw === "number") {
+      return {
+        zone: zone.zone,
+        label: zone.label,
+        length: String(raw),
+      };
+    }
+
+    return zone;
+  });
+
+  return mapped.map((zone, index) => ({
+    zone: EYELASH_ZONE_DEFINITIONS[index].zone,
+    label: EYELASH_ZONE_DEFINITIONS[index].label,
+    length: zone.length,
+  }));
+};
+
+const deriveEyeMappingFromLengths = (lengths: string[]): LashEyeZone[] => {
+  const sortedLengths = Array.from(
+    new Set(lengths.filter(Boolean).map((length) => String(length)))
+  ).sort((a, b) => Number(a) - Number(b));
+
+  const fallback = createEmptyEyeMapping();
+  if (sortedLengths.length === 0) return fallback;
+
+  const edge = sortedLengths[0];
+  const inner = sortedLengths[1] || edge;
+  const mid = sortedLengths[2] || inner;
+  const center = sortedLengths[sortedLengths.length - 1] || mid;
+  const pattern = [edge, inner, mid, center, mid, inner, edge];
+
+  return fallback.map((zone, index) => ({
+    zone: zone.zone,
+    label: zone.label,
+    length: pattern[index] || null,
+  }));
+};
+
+const deriveLegacyLengthsFromMapping = (mapping: LashEyeZone[]) =>
+  Array.from(
+    new Set(mapping.map((zone) => zone.length).filter((value): value is string => Boolean(value)))
+  ).sort((a, b) => Number(a) - Number(b));
+
+const isBrowliftCatalogProduct = (product: Pick<SessionProduct, "name" | "categorySlug" | "categoryLabel" | "categoryFamily">) => {
+  const normalizedName = normalizeSearchValue(product.name);
+  const normalizedSlug = normalizeSearchValue(product.categorySlug || "");
+  const normalizedLabel = normalizeSearchValue(product.categoryLabel || "");
+
+  return (
+    normalizedSlug.includes("brow lift") ||
+    normalizedSlug.includes("browlift") ||
+    normalizedLabel.includes("brow lift") ||
+    normalizedName.includes("brow lift") ||
+    normalizedName.includes("browlift") ||
+    normalizedName.includes("sourcil")
+  );
+};
+
+const isRehaussementCatalogProduct = (product: Pick<SessionProduct, "name" | "categorySlug" | "categoryLabel" | "categoryFamily">) => {
+  const normalizedName = normalizeSearchValue(product.name);
+  const normalizedSlug = normalizeSearchValue(product.categorySlug || "");
+  const normalizedLabel = normalizeSearchValue(product.categoryLabel || "");
+
+  return (
+    normalizedSlug.includes("lash lift") ||
+    normalizedSlug.includes("rehaussement") ||
+    normalizedLabel.includes("lash lift") ||
+    normalizedLabel.includes("rehaussement") ||
+    normalizedName.includes("lash lift") ||
+    normalizedName.includes("rehaussement") ||
+    normalizedName.includes("lift")
+  );
+};
+
+const buildTreatmentProducts = (
+  products: SessionProduct[],
+  kind: "BROWLIFT" | "LASH_LIFT",
+  currentSelection?: SessionProduct[] | null,
+  includeFullCatalog = false
+) => {
+  const matcher = kind === "BROWLIFT" ? isBrowliftCatalogProduct : isRehaussementCatalogProduct;
+  const selectionByName = new Map((currentSelection || []).map((item) => [normalizeSearchValue(item.name), item]));
+  const matchedProducts = products.filter((product) => matcher(product));
+  // Fallback to the full catalog when stock items are not categorized yet.
+  const sourceProducts = includeFullCatalog || matchedProducts.length === 0 ? products : matchedProducts;
+
+  return sourceProducts
+    .map((product) => {
+      const savedProduct = selectionByName.get(normalizeSearchValue(product.name));
+      return {
+        ...product,
+        checked: savedProduct?.checked ?? false,
+        defaultTime: savedProduct?.defaultTime ?? 5,
+      };
+    });
 };
 
 type SessionPhoto = {
@@ -135,6 +436,7 @@ export default function SessionModal({
   clientId,
   serviceId,
   isReadOnly = false,
+  startOnOpen = true,
   onPaymentRequest
 }: SessionModalProps) {
   
@@ -157,9 +459,13 @@ export default function SessionModal({
   const [remarks, setRemarks] = useState("");
 
   const [products, setProducts] = useState<SessionProduct[]>([]);
+  const [productSearch, setProductSearch] = useState("");
+  const [productQuickFilter, setProductQuickFilter] = useState<ProductQuickFilter>("all");
+  const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
   const [clientDetails, setClientDetails] = useState<any>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [photos, setPhotos] = useState<SessionPhoto[]>([]);
+  const productPickerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -167,8 +473,26 @@ export default function SessionModal({
         const initialTab = getInitialSessionTab(category);
         setActiveTab(initialTab);
         setPhotos([]);
+        setCourbure("D");
+        setEpaisseur("0.10");
+        setLongueurActives(["11", "12", "13"]);
+        setCourbureOeilG("D");
+        setCourbureOeilD("D");
+        setEpaisseurOeilG("0.10");
+        setEpaisseurOeilD("0.10");
+        setLongueurActivesOeilG(["11", "12", "13"]);
+        setLongueurActivesOeilD(["11", "12", "13"]);
+        setLeftEyeMapping(createEmptyEyeMapping());
+        setRightEyeMapping(createEmptyEyeMapping());
+        setManualEyeOverrides({
+          G: { curl: false, thickness: false, lengths: false },
+          D: { curl: false, thickness: false, lengths: false },
+        });
+        setProductSearch("");
+        setProductQuickFilter("all");
+        setIsProductDropdownOpen(false);
         setIsLoadingData(true);
-        if (!isReadOnly && appointmentId && clientId) {
+        if (!isReadOnly && startOnOpen && appointmentId && clientId) {
           await startSession({
             appointmentId,
             clientId,
@@ -179,7 +503,15 @@ export default function SessionModal({
         const res = await getSessionModalData(clientId);
         if (res.success) {
           if (res.clientInfo) setClientDetails(res.clientInfo);
-          if (res.products) setProducts(res.products);
+          if (res.products) {
+            const catalogProducts = res.products.map((product: SessionProduct) => ({
+              ...product,
+              defaultTime: product.defaultTime ?? 5,
+            }));
+            setProducts(catalogProducts);
+            setBrowliftProducts((currentSelection) => buildTreatmentProducts(catalogProducts, "BROWLIFT", currentSelection.length > 0 ? currentSelection : null, true));
+            setRehaussementProducts((currentSelection) => buildTreatmentProducts(catalogProducts, "LASH_LIFT", currentSelection.length > 0 ? currentSelection : null));
+          }
         }
         
         if (appointmentId) {
@@ -206,8 +538,58 @@ export default function SessionModal({
             if (ls.globalParamsJson) {
               const globalParams = ls.globalParamsJson as any;
               if (globalParams.typeCils) setTypeCils(globalParams.typeCils);
-              if (globalParams.longueurActivesOeilG) setLongueurActivesOeilG(globalParams.longueurActivesOeilG);
-              if (globalParams.longueurActivesOeilD) setLongueurActivesOeilD(globalParams.longueurActivesOeilD);
+              setCourbureOeilG(globalParams.courbureOeilG || ls.generalCurl || "D");
+              setCourbureOeilD(globalParams.courbureOeilD || ls.generalCurl || "D");
+              setEpaisseurOeilG(globalParams.epaisseurOeilG || ls.generalThickness || "0.10");
+              setEpaisseurOeilD(globalParams.epaisseurOeilD || ls.generalThickness || "0.10");
+              const storedLeftMapping = globalParams.leftEyeMapping || globalParams.longueurActivesOeilG;
+              const storedRightMapping = globalParams.rightEyeMapping || globalParams.longueurActivesOeilD;
+              const legacyGeneralLengths = Array.isArray(ls.generalLengthMapJson)
+                ? (ls.generalLengthMapJson as unknown as string[])
+                : [];
+
+              const nextLeftMapping = Array.isArray(storedLeftMapping)
+                ? normalizeEyeMapping(storedLeftMapping)
+                : legacyGeneralLengths.length > 0
+                  ? deriveEyeMappingFromLengths(legacyGeneralLengths)
+                  : createEmptyEyeMapping();
+              const nextRightMapping = Array.isArray(storedRightMapping)
+                ? normalizeEyeMapping(storedRightMapping)
+                : legacyGeneralLengths.length > 0
+                  ? deriveEyeMappingFromLengths(legacyGeneralLengths)
+                  : createEmptyEyeMapping();
+
+              setLeftEyeMapping(nextLeftMapping);
+              setRightEyeMapping(nextRightMapping);
+              setLongueurActivesOeilG(deriveLegacyLengthsFromMapping(nextLeftMapping));
+              setLongueurActivesOeilD(deriveLegacyLengthsFromMapping(nextRightMapping));
+              setManualEyeOverrides({
+                G: {
+                  curl: Boolean(globalParams.courbureOeilG),
+                  thickness: Boolean(globalParams.epaisseurOeilG),
+                  lengths: Array.isArray(storedLeftMapping),
+                },
+                D: {
+                  curl: Boolean(globalParams.courbureOeilD),
+                  thickness: Boolean(globalParams.epaisseurOeilD),
+                  lengths: Array.isArray(storedRightMapping),
+                },
+              });
+            } else {
+              setCourbureOeilG(ls.generalCurl || "D");
+              setCourbureOeilD(ls.generalCurl || "D");
+              setEpaisseurOeilG(ls.generalThickness || "0.10");
+              setEpaisseurOeilD(ls.generalThickness || "0.10");
+              const legacyLengths = Array.isArray(ls.generalLengthMapJson) ? ls.generalLengthMapJson as unknown as string[] : ["11", "12", "13"];
+              const derivedMapping = deriveEyeMappingFromLengths(legacyLengths);
+              setLeftEyeMapping(derivedMapping);
+              setRightEyeMapping(derivedMapping);
+              setLongueurActivesOeilG(deriveLegacyLengthsFromMapping(derivedMapping));
+              setLongueurActivesOeilD(deriveLegacyLengthsFromMapping(derivedMapping));
+              setManualEyeOverrides({
+                G: { curl: false, thickness: false, lengths: false },
+                D: { curl: false, thickness: false, lengths: false },
+              });
             }
             if (sessionRes.photos) setPhotos(sessionRes.photos);
             if (sessionRes.productUsages && res.products) {
@@ -224,9 +606,9 @@ export default function SessionModal({
             setHasTeinture(bs.tintEnabled);
             setTintColorBrowlift(bs.tintColor || "Brun foncé");
             setRemarks(bs.remarks || "");
-            if (bs.globalParamsJson) {
-              const gp = bs.globalParamsJson as any;
-              if (gp.products) setBrowliftProducts(gp.products);
+            if (res.products) {
+              const gp = (bs.globalParamsJson as any) || {};
+              setBrowliftProducts(buildTreatmentProducts(res.products, "BROWLIFT", gp.products || null, true));
             }
             if (browliftRes.photos) setPhotos(browliftRes.photos);
           }
@@ -242,6 +624,9 @@ export default function SessionModal({
             if (lls.globalParamsJson) {
               const gp = lls.globalParamsJson as any;
               if (gp.products) setRehaussementProducts(gp.products);
+            }
+            if (res.products && !(lls.globalParamsJson as any)?.products) {
+              setRehaussementProducts(buildTreatmentProducts(res.products, "LASH_LIFT"));
             }
             if (lashLiftRes.photos) setPhotos(lashLiftRes.photos);
           }
@@ -274,21 +659,11 @@ export default function SessionModal({
       }
     }
     loadData();
-  }, [isOpen, clientId, serviceId, isReadOnly, appointmentId, category]);
+  }, [isOpen, clientId, serviceId, isReadOnly, startOnOpen, appointmentId, category]);
 
-  const [browliftProducts, setBrowliftProducts] = useState([
-    { id: 101, name: "Lotion 1", stock: "Stock 1/1\nmultidose", checked: true, defaultTime: 5 },
-    { id: 102, name: "Lotion 2", stock: "Stock 1/1\nmultidose", checked: true, defaultTime: 5 },
-    { id: 103, name: "Lotion 3", stock: "Stock 1/1\nmultidose", checked: true, defaultTime: 7 },
-    { id: 104, name: "Lotion 4", stock: "Stock 4/18\nDose unique", checked: true, defaultTime: 10 },
-  ]);
+  const [browliftProducts, setBrowliftProducts] = useState<SessionProduct[]>([]);
 
-  const [rehaussementProducts, setRehaussementProducts] = useState([
-    { id: 201, name: "Colle Ultra Bond", stock: "Stock 1/1\nmultidose", checked: true, defaultTime: 5 },
-    { id: 202, name: "Primer", stock: "Stock 1/1\nmultidose", checked: true, defaultTime: 5 },
-    { id: 203, name: "Bonder", stock: "Stock 1/1\nmultidose", checked: true, defaultTime: 7 },
-    { id: 204, name: "Cils (Boite) D Curl 0.07", stock: "Stock 4/18\nDose unique", checked: true, defaultTime: 10 },
-  ]);
+  const [rehaussementProducts, setRehaussementProducts] = useState<SessionProduct[]>([]);
 
   const [hasRehaussementTeinture, setHasRehaussementTeinture] = useState(false);
   const [tintColorBrowlift, setTintColorBrowlift] = useState("Brun foncé");
@@ -311,10 +686,29 @@ export default function SessionModal({
   const [colorUsed, setColorUsed] = useState("");
   const [primerUsed, setPrimerUsed] = useState("");
 
-  const [longueurActivesOeilG, setLongueurActivesOeilG] = useState<string[]>(["9", "10", "11", "12", "13", "14"]);
-  const [longueurActivesOeilD, setLongueurActivesOeilD] = useState<string[]>(["9", "10", "11", "12", "13", "14"]);
+  const [courbureOeilG, setCourbureOeilG] = useState("D");
+  const [courbureOeilD, setCourbureOeilD] = useState("D");
+  const [epaisseurOeilG, setEpaisseurOeilG] = useState("0.10");
+  const [epaisseurOeilD, setEpaisseurOeilD] = useState("0.10");
+  const [longueurActivesOeilG, setLongueurActivesOeilG] = useState<string[]>(["11", "12", "13"]);
+  const [longueurActivesOeilD, setLongueurActivesOeilD] = useState<string[]>(["11", "12", "13"]);
+  const [leftEyeMapping, setLeftEyeMapping] = useState<LashEyeZone[]>(createEmptyEyeMapping());
+  const [rightEyeMapping, setRightEyeMapping] = useState<LashEyeZone[]>(createEmptyEyeMapping());
+  const [manualEyeOverrides, setManualEyeOverrides] = useState({
+    G: { curl: false, thickness: false, lengths: false },
+    D: { curl: false, thickness: false, lengths: false },
+  });
 
   const [hasTeinture, setHasTeinture] = useState(false);
+
+  const copyCapsulesToOtherHand = () => {
+    if (mainOngles === "gauche") {
+      setCapsulesDroite({ ...capsulesGauche });
+      return;
+    }
+
+    setCapsulesGauche({ ...capsulesDroite });
+  };
 
   const normalizeProductName = (name: string) => name
     .toLowerCase()
@@ -422,8 +816,14 @@ export default function SessionModal({
         generalLengthMapJson: longueurActives,
         globalParamsJson: {
           typeCils,
-          longueurActivesOeilG,
-          longueurActivesOeilD
+          courbureOeilG,
+          courbureOeilD,
+          epaisseurOeilG,
+          epaisseurOeilD,
+          leftEyeMapping,
+          rightEyeMapping,
+          longueurActivesOeilG: deriveLegacyLengthsFromMapping(leftEyeMapping),
+          longueurActivesOeilD: deriveLegacyLengthsFromMapping(rightEyeMapping)
         },
         remarks: remarks,
         status: saveStatus,
@@ -495,16 +895,16 @@ export default function SessionModal({
 
   if (!isOpen) return null;
 
-  const toggleProduct = (id: string | number) => {
-    setProducts(products.map(p => p.id === id ? { ...p, checked: !p.checked } : p));
+  const setProductChecked = (id: string | number, checked: boolean) => {
+    setProducts((current) => current.map((product) => (product.id === id ? { ...product, checked } : product)));
   };
 
-  const toggleBrowliftProduct = (id: number) => {
-    setBrowliftProducts(browliftProducts.map(p => p.id === id ? { ...p, checked: !p.checked } : p));
-  };
-
-  const toggleRehaussementProduct = (id: number) => {
-    setRehaussementProducts(rehaussementProducts.map(p => p.id === id ? { ...p, checked: !p.checked } : p));
+  const setTreatmentProductChecked = (
+    setter: React.Dispatch<React.SetStateAction<SessionProduct[]>>,
+    id: string | number,
+    checked: boolean
+  ) => {
+    setter((current) => current.map((product) => (product.id === id ? { ...product, checked } : product)));
   };
 
   const toggleLongueur = (l: string) => {
@@ -515,33 +915,193 @@ export default function SessionModal({
       newLongueurs = [...longueurActives, l];
     }
     setLongueurActives(newLongueurs);
-    
-    // Automatically sync with left and right eyes
-    setLongueurActivesOeilG(newLongueurs);
-    setLongueurActivesOeilD(newLongueurs);
+
+    if (!manualEyeOverrides.G.lengths) {
+      const nextMapping = deriveEyeMappingFromLengths(newLongueurs);
+      setLeftEyeMapping(nextMapping);
+      setLongueurActivesOeilG(deriveLegacyLengthsFromMapping(nextMapping));
+    }
+    if (!manualEyeOverrides.D.lengths) {
+      const nextMapping = deriveEyeMappingFromLengths(newLongueurs);
+      setRightEyeMapping(nextMapping);
+      setLongueurActivesOeilD(deriveLegacyLengthsFromMapping(nextMapping));
+    }
   };
 
   const toggleLongueurOeil = (l: string, oeil: 'G' | 'D') => {
+    setManualEyeOverrides((current) => ({
+      ...current,
+      [oeil]: { ...current[oeil], lengths: true },
+    }));
+
     if (oeil === 'G') {
-      if (longueurActivesOeilG.includes(l)) {
-        setLongueurActivesOeilG(longueurActivesOeilG.filter(item => item !== l));
-      } else {
-        setLongueurActivesOeilG([...longueurActivesOeilG, l]);
+      const nextMapping = leftEyeMapping.map((zone) => zone.length === l ? { ...zone, length: null } : zone);
+      if (!nextMapping.some((zone) => zone.length === l)) {
+        const firstEmptyZone = nextMapping.find((zone) => !zone.length);
+        if (firstEmptyZone) firstEmptyZone.length = l;
       }
+      setLeftEyeMapping([...nextMapping]);
+      setLongueurActivesOeilG(deriveLegacyLengthsFromMapping(nextMapping));
     } else {
-      if (longueurActivesOeilD.includes(l)) {
-        setLongueurActivesOeilD(longueurActivesOeilD.filter(item => item !== l));
-      } else {
-        setLongueurActivesOeilD([...longueurActivesOeilD, l]);
+      const nextMapping = rightEyeMapping.map((zone) => zone.length === l ? { ...zone, length: null } : zone);
+      if (!nextMapping.some((zone) => zone.length === l)) {
+        const firstEmptyZone = nextMapping.find((zone) => !zone.length);
+        if (firstEmptyZone) firstEmptyZone.length = l;
       }
+      setRightEyeMapping([...nextMapping]);
+      setLongueurActivesOeilD(deriveLegacyLengthsFromMapping(nextMapping));
     }
+  };
+
+  const handleGeneralCourbureChange = (value: string) => {
+    setCourbure(value);
+    if (!manualEyeOverrides.G.curl) setCourbureOeilG(value);
+    if (!manualEyeOverrides.D.curl) setCourbureOeilD(value);
+  };
+
+  const handleGeneralEpaisseurChange = (value: string) => {
+    setEpaisseur(value);
+    if (!manualEyeOverrides.G.thickness) setEpaisseurOeilG(value);
+    if (!manualEyeOverrides.D.thickness) setEpaisseurOeilD(value);
+  };
+
+  const handleEyeCourbureChange = (oeil: 'G' | 'D', value: string) => {
+    setManualEyeOverrides((current) => ({
+      ...current,
+      [oeil]: { ...current[oeil], curl: true },
+    }));
+    if (oeil === 'G') setCourbureOeilG(value);
+    else setCourbureOeilD(value);
+  };
+
+  const handleEyeEpaisseurChange = (oeil: 'G' | 'D', value: string) => {
+    setManualEyeOverrides((current) => ({
+      ...current,
+      [oeil]: { ...current[oeil], thickness: true },
+    }));
+    if (oeil === 'G') setEpaisseurOeilG(value);
+    else setEpaisseurOeilD(value);
+  };
+
+  const applyGeneralParamsToBothEyes = () => {
+    setCourbureOeilG(courbure);
+    setCourbureOeilD(courbure);
+    setEpaisseurOeilG(epaisseur);
+    setEpaisseurOeilD(epaisseur);
+    const nextMapping = deriveEyeMappingFromLengths(longueurActives);
+    setLeftEyeMapping(nextMapping);
+    setRightEyeMapping(nextMapping);
+    setLongueurActivesOeilG(deriveLegacyLengthsFromMapping(nextMapping));
+    setLongueurActivesOeilD(deriveLegacyLengthsFromMapping(nextMapping));
+    setManualEyeOverrides({
+      G: { curl: false, thickness: false, lengths: false },
+      D: { curl: false, thickness: false, lengths: false },
+    });
+  };
+
+  const setEyeMappingZone = (oeil: 'G' | 'D', zoneNumber: number, length: string) => {
+    setManualEyeOverrides((current) => ({
+      ...current,
+      [oeil]: { ...current[oeil], lengths: true },
+    }));
+
+    if (oeil === 'G') {
+      const nextMapping = leftEyeMapping.map((zone) => zone.zone === zoneNumber ? { ...zone, length: length || null } : zone);
+      setLeftEyeMapping(nextMapping);
+      setLongueurActivesOeilG(deriveLegacyLengthsFromMapping(nextMapping));
+    } else {
+      const nextMapping = rightEyeMapping.map((zone) => zone.zone === zoneNumber ? { ...zone, length: length || null } : zone);
+      setRightEyeMapping(nextMapping);
+      setLongueurActivesOeilD(deriveLegacyLengthsFromMapping(nextMapping));
+    }
+  };
+
+  const copyEyeMapping = (source: 'G' | 'D') => {
+    if (source === 'G') {
+      const nextMapping = leftEyeMapping.map((zone) => ({ ...zone }));
+      setRightEyeMapping(nextMapping);
+      setLongueurActivesOeilD(deriveLegacyLengthsFromMapping(nextMapping));
+      setManualEyeOverrides((current) => ({
+        ...current,
+        D: { ...current.D, lengths: true },
+      }));
+      return;
+    }
+
+    const nextMapping = rightEyeMapping.map((zone) => ({ ...zone }));
+    setLeftEyeMapping(nextMapping);
+    setLongueurActivesOeilG(deriveLegacyLengthsFromMapping(nextMapping));
+    setManualEyeOverrides((current) => ({
+      ...current,
+      G: { ...current.G, lengths: true },
+    }));
+  };
+
+  const selectedCatalogProducts = products.filter((product) => product.checked);
+  const selectedBrowliftProducts = browliftProducts.filter((product) => product.checked);
+  const selectedRehaussementProducts = rehaussementProducts.filter((product) => product.checked);
+
+  const filteredCatalogProducts = (() => {
+    const query = normalizeSearchValue(productSearch);
+
+    return products.filter((product) => {
+      if (!matchesProductQuickFilter(product, productQuickFilter)) return false;
+      if (!query) return true;
+
+      const haystack = normalizeSearchValue(
+        [product.name, product.stock, product.categoryLabel || "", product.categorySlug || ""].join(" ")
+      );
+
+      return haystack.includes(query);
+    });
+  })();
+
+  const filteredBrowliftProducts = (() => {
+    const query = normalizeSearchValue(productSearch);
+
+    return browliftProducts.filter((product) => {
+      if (!matchesProductQuickFilter(product, productQuickFilter)) return false;
+      if (!query) return true;
+      const haystack = normalizeSearchValue([product.name, product.stock, product.categoryLabel || "", product.categorySlug || ""].join(" "));
+      return haystack.includes(query);
+    });
+  })();
+
+  const filteredRehaussementProducts = (() => {
+    const query = normalizeSearchValue(productSearch);
+
+    return rehaussementProducts.filter((product) => {
+      if (!matchesProductQuickFilter(product, productQuickFilter)) return false;
+      if (!query) return true;
+      const haystack = normalizeSearchValue([product.name, product.stock, product.categoryLabel || "", product.categorySlug || ""].join(" "));
+      return haystack.includes(query);
+    });
+  })();
+
+  const openProductDropdown = () => setIsProductDropdownOpen(true);
+  const closeProductDropdown = () => {
+    window.setTimeout(() => {
+      if (!productPickerRef.current?.contains(document.activeElement)) {
+        setIsProductDropdownOpen(false);
+      }
+    }, 0);
+  };
+
+  const handleProductSearchChange = (value: string) => {
+    setProductSearch(value);
+    setIsProductDropdownOpen(true);
+  };
+
+  const clearProductSearch = () => {
+    setProductSearch("");
+    setIsProductDropdownOpen(true);
   };
 
   const browliftAdvice = (() => {
     const allergiesText = String(clientDetails?.allergies || "").toLowerCase();
     const hasKnownSensitivity = allergiesText && !allergiesText.includes("aucune");
     const isFirstBrowliftVisit = Number(clientDetails?.appointmentCount || 0) <= 1;
-    const selectedBrowliftSteps = browliftProducts.filter((product) => product.checked).length;
+    const selectedBrowliftSteps = selectedBrowliftProducts.length;
 
     return [
       hasKnownSensitivity
@@ -708,18 +1268,164 @@ export default function SessionModal({
               </div>
             </div>
 
-            {/* Parametres de la pose */}
+            {/* Produits Utilisés */}
             <div className={styles.card}>
-              <h3 className={styles.cardTitle}>PARAMETRE DE LA POSE</h3>
+              <h3 className={styles.cardTitle}>PRODUITS UTILISÉS</h3>
+              <p className={styles.cardSubtitle}>Le stock se mettra à jour automatiquement.</p>
               
+              {isLoadingData ? (
+                <div style={{ padding: '10px 0', color: '#888' }}>Chargement des produits...</div>
+              ) : products.length > 0 ? (
+                <div
+                  ref={productPickerRef}
+                  className={styles.productPicker}
+                  onFocusCapture={openProductDropdown}
+                  onBlurCapture={closeProductDropdown}
+                >
+                  <div className={styles.productSearchBar}>
+                    <input
+                      type="search"
+                      value={productSearch}
+                      onChange={(event) => handleProductSearchChange(event.target.value)}
+                      onFocus={openProductDropdown}
+                      placeholder="Rechercher un produit..."
+                      className={styles.productSearchInput}
+                    />
+                    {productSearch && (
+                      <button
+                        type="button"
+                        className={styles.productSearchClear}
+                        onClick={clearProductSearch}
+                        aria-label="Effacer la recherche"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+
+                  <div className={styles.productQuickFilters}>
+                    {PRODUCT_QUICK_FILTERS.map((filter) => (
+                      <button
+                        key={filter.id}
+                        type="button"
+                        className={`${styles.productQuickFilterBtn} ${productQuickFilter === filter.id ? styles.productQuickFilterActive : ""}`}
+                        onClick={() => setProductQuickFilter(filter.id)}
+                      >
+                        {filter.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className={styles.selectedProductPanel}>
+                    <div className={styles.selectedProductHeader}>
+                      <span>Produits utilisés</span>
+                      <span>{selectedCatalogProducts.length}</span>
+                    </div>
+                    {selectedCatalogProducts.length > 0 ? (
+                      <div className={styles.selectedProductList}>
+                        {selectedCatalogProducts.map((product) => (
+                          <div key={product.id} className={styles.selectedProductItem}>
+                            <div className={styles.selectedProductMeta}>
+                              <span className={styles.selectedProductName}>{product.name}</span>
+                              <span className={styles.selectedProductStock}>{product.stock}</span>
+                            </div>
+                            <button
+                              type="button"
+                              className={styles.selectedProductRemove}
+                              onClick={() => setProductChecked(product.id, false)}
+                            >
+                              Retirer
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className={styles.selectedProductEmpty}>
+                        Aucun produit sélectionné pour cette séance.
+                      </div>
+                    )}
+                  </div>
+
+                  {isProductDropdownOpen && (
+                    <div className={styles.productDropdown}>
+                      <div className={styles.productDropdownHeader}>
+                        <span>{filteredCatalogProducts.length} résultat{filteredCatalogProducts.length > 1 ? "s" : ""}</span>
+                        <span>Tapez pour affiner la recherche</span>
+                      </div>
+
+                      <div className={styles.productDropdownList}>
+                        {filteredCatalogProducts.length > 0 ? (
+                          filteredCatalogProducts.slice(0, 60).map((product) => {
+                            const isSelected = product.checked;
+                            const filterLabel = PRODUCT_QUICK_FILTERS.find((item) => item.id === getProductQuickFilter(product))?.label || "";
+
+                            return (
+                              <button
+                                key={product.id}
+                                type="button"
+                                className={`${styles.productDropdownItem} ${isSelected ? styles.productDropdownItemSelected : ""}`}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => setProductChecked(product.id, !isSelected)}
+                              >
+                                <div className={styles.productDropdownText}>
+                                  <span className={styles.productDropdownName}>{product.name}</span>
+                                  <span className={styles.productDropdownMeta}>
+                                    {filterLabel}
+                                    {filterLabel && product.stock ? " • " : ""}
+                                    {product.stock}
+                                  </span>
+                                </div>
+                                <span className={styles.productDropdownAction}>
+                                  {isSelected ? "Retirer" : "Ajouter"}
+                                </span>
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <div className={styles.productDropdownEmpty}>
+                            Aucun produit ne correspond à cette recherche.
+                          </div>
+                        )}
+                      </div>
+
+                      {filteredCatalogProducts.length > 60 && (
+                        <div className={styles.productDropdownFooter}>
+                          Affichage limité aux 60 premiers résultats. Affinez la recherche pour aller plus vite.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ padding: '10px 0', color: '#888' }}>Aucun produit en stock.</div>
+              )}
+            </div>
+          </div>
+
+          {/* ROW 2 */}
+          <div className={styles.row2}>
+            {/* Details par oeil */}
+            <div className={styles.card}>
+              <h3 className={styles.cardTitle}>Détails par oeil</h3>
+              <p className={styles.cardSubtitle}>Les paramètres peuvent différer d'un œil à l'autre. Ajustez si nécessaire.</p>
+              
+              <div className={styles.eyeSyncActions}>
+                <button type="button" className={styles.eyeSyncBtn} onClick={applyGeneralParamsToBothEyes}>
+                  Appliquer aux deux yeux
+                </button>
+                <button type="button" className={styles.eyeSyncBtnSecondary} onClick={applyGeneralParamsToBothEyes}>
+                  Reinitialiser depuis les parametres generaux
+                </button>
+              </div>
+
               <div className={styles.paramGroup}>
                 <div className={styles.paramLabel}>Courbure</div>
                 <div className={styles.paramButtons}>
                   {courbures.map(c => (
-                    <button 
-                      key={c} 
+                    <button
+                      key={c}
                       className={`${styles.paramBtn} ${courbure === c ? styles.active : ''}`}
-                      onClick={() => setCourbure(c)}
+                      onClick={() => handleGeneralCourbureChange(c)}
                     >
                       {c}
                     </button>
@@ -731,10 +1437,10 @@ export default function SessionModal({
                 <div className={styles.paramLabel}>Epaisseur</div>
                 <div className={styles.paramButtons}>
                   {epaisseurs.map(e => (
-                    <button 
-                      key={e} 
+                    <button
+                      key={e}
                       className={`${styles.paramBtn} ${epaisseur === e ? styles.active : ''}`}
-                      onClick={() => setEpaisseur(e)}
+                      onClick={() => handleGeneralEpaisseurChange(e)}
                     >
                       {e}
                     </button>
@@ -742,128 +1448,51 @@ export default function SessionModal({
                 </div>
               </div>
 
-              <div className={styles.paramGroup}>
-                <div className={styles.paramLabel}>Longueur</div>
-                <div className={styles.paramButtons}>
-                  {longueurs.map(l => (
-                    <button 
-                      key={l} 
-                      className={`${styles.paramBtn} ${longueurActives.includes(l) ? styles.active : ''}`}
-                      onClick={() => toggleLongueur(l)}
-                    >
-                      {l}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Produits Utilisés */}
-            <div className={styles.card}>
-              <h3 className={styles.cardTitle}>PRODUITS UTILISÉS</h3>
-              <p className={styles.cardSubtitle}>Le stock se mettra à jour automatiquement.</p>
-              
-              <div className={styles.productList}>
-                {isLoadingData ? (
-                  <div style={{ padding: '10px 0', color: '#888' }}>Chargement des produits...</div>
-                ) : products.length > 0 ? (
-                  products.map(p => (
-                    <div key={p.id} className={styles.productItem}>
-                      <div 
-                        className={`${styles.checkbox} ${p.checked ? styles.checked : ''}`}
-                        onClick={() => toggleProduct(p.id)}
-                      ></div>
-                      {/* Placeholder for product bottle icon */}
-                      <div style={{ width: '12px', height: '20px', background: '#333', borderRadius: '2px 2px 0 0', position: 'relative' }}>
-                        <div style={{ position: 'absolute', top: '-4px', left: '3px', width: '6px', height: '4px', background: '#FF69B4' }}></div>
-                      </div>
-                      <span className={styles.productName}>{p.name}</span>
-                      <span className={styles.productStock} style={{ whiteSpace: 'pre-line' }}>{p.stock}</span>
-                    </div>
-                  ))
-                ) : (
-                  <div style={{ padding: '10px 0', color: '#888' }}>Aucun produit en stock.</div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* ROW 2 */}
-          <div className={styles.row2}>
-            {/* Details par oeil */}
-            <div className={styles.card}>
-              <h3 className={styles.cardTitle}>Détails par oeil</h3>
-              <p className={styles.cardSubtitle}>Les paramètres peuvent différer d'un œil à l'autre. Ajustez si nécessaire.</p>
-              
               <div className={styles.oeilGrid}>
-                {/* Oeil Gauche */}
                 <div className={styles.oeilCol}>
-                  <div className={styles.oeilTitle}>OEIL G.</div>
                   <div className={styles.oeilSelects}>
                     <div className={styles.selectGroup}>
                       <label>Courbure</label>
-                      <select className={styles.selectInput} defaultValue="D">
+                      <select className={styles.selectInput} value={courbureOeilG} onChange={(event) => handleEyeCourbureChange('G', event.target.value)}>
                         {courbures.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                     <div className={styles.selectGroup}>
                       <label>Epaisseur</label>
-                      <select className={styles.selectInput} defaultValue="0.10">
+                      <select className={styles.selectInput} value={epaisseurOeilG} onChange={(event) => handleEyeEpaisseurChange('G', event.target.value)}>
                         {epaisseurs.map(e => <option key={e} value={e}>{e}</option>)}
                       </select>
                     </div>
                   </div>
-                  <div className={styles.paramGroup}>
-                    <div className={styles.paramLabel}>Longueur</div>
-                    <div className={styles.paramButtons}>
-                      {longueurs.slice(0, 14).map(l => (
-                        <button 
-                          key={l} 
-                          className={`${styles.paramBtn} ${longueurActivesOeilG.includes(l) ? styles.active : ''}`} 
-                          onClick={() => toggleLongueurOeil(l, 'G')}
-                          style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                        >
-                          {l}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <EyelashMapping selectedLengths={longueurActivesOeilG} />
+                  <EyeMappingEditor
+                    title="OEIL G."
+                    mapping={leftEyeMapping}
+                    onZoneChange={(zone, length) => setEyeMappingZone('G', zone, length)}
+                    onCopyToOtherEye={() => copyEyeMapping('G')}
+                  />
                 </div>
 
-                {/* Oeil Droit */}
                 <div className={styles.oeilCol}>
-                  <div className={styles.oeilTitle}>OEIL D.</div>
                   <div className={styles.oeilSelects}>
                     <div className={styles.selectGroup}>
                       <label>Courbure</label>
-                      <select className={styles.selectInput} defaultValue="D">
+                      <select className={styles.selectInput} value={courbureOeilD} onChange={(event) => handleEyeCourbureChange('D', event.target.value)}>
                         {courbures.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                     <div className={styles.selectGroup}>
                       <label>Epaisseur</label>
-                      <select className={styles.selectInput} defaultValue="0.10">
+                      <select className={styles.selectInput} value={epaisseurOeilD} onChange={(event) => handleEyeEpaisseurChange('D', event.target.value)}>
                         {epaisseurs.map(e => <option key={e} value={e}>{e}</option>)}
                       </select>
                     </div>
                   </div>
-                  <div className={styles.paramGroup}>
-                    <div className={styles.paramLabel}>Longueur</div>
-                    <div className={styles.paramButtons}>
-                      {longueurs.slice(0, 14).map(l => (
-                        <button 
-                          key={l} 
-                          className={`${styles.paramBtn} ${longueurActivesOeilD.includes(l) ? styles.active : ''}`} 
-                          onClick={() => toggleLongueurOeil(l, 'D')}
-                          style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                        >
-                          {l}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <EyelashMapping selectedLengths={longueurActivesOeilD} />
+                  <EyeMappingEditor
+                    title="OEIL D."
+                    mapping={rightEyeMapping}
+                    onZoneChange={(zone, length) => setEyeMappingZone('D', zone, length)}
+                    onCopyToOtherEye={() => copyEyeMapping('D')}
+                  />
                 </div>
               </div>
             </div>
@@ -980,20 +1609,125 @@ export default function SessionModal({
                 <div className={styles.card}>
                   <h3 className={styles.cardTitle}>PRODUITS UTILISÉS</h3>
                   <p className={styles.cardSubtitle}>Le stock se mettra à jour automatiquement.</p>
-                  <div className={styles.productList}>
-                    {browliftProducts.map(p => (
-                      <div key={p.id} className={styles.productItem}>
-                        <div 
-                          className={`${styles.checkbox} ${p.checked ? styles.checked : ''}`}
-                          onClick={() => toggleBrowliftProduct(p.id)}
-                        ></div>
-                        <div style={{ width: '12px', height: '20px', background: '#333', borderRadius: '2px 2px 0 0', position: 'relative' }}>
-                          <div style={{ position: 'absolute', top: '-4px', left: '3px', width: '6px', height: '4px', background: '#FF69B4' }}></div>
-                        </div>
-                        <span className={styles.productName}>{p.name}</span>
-                        <span className={styles.productStock} style={{ whiteSpace: 'pre-line' }}>{getDisplayStock(p.name, p.stock)}</span>
+                  <div
+                    ref={productPickerRef}
+                    className={styles.productPicker}
+                    onFocusCapture={openProductDropdown}
+                    onBlurCapture={closeProductDropdown}
+                  >
+                    <div className={styles.productSearchBar}>
+                      <input
+                        type="search"
+                        value={productSearch}
+                        onChange={(event) => handleProductSearchChange(event.target.value)}
+                        onFocus={openProductDropdown}
+                        placeholder="Rechercher un produit..."
+                        className={styles.productSearchInput}
+                      />
+                      {productSearch && (
+                        <button
+                          type="button"
+                          className={styles.productSearchClear}
+                          onClick={clearProductSearch}
+                          aria-label="Effacer la recherche"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+
+                    <div className={styles.productQuickFilters}>
+                      {PRODUCT_QUICK_FILTERS.map((filter) => (
+                        <button
+                          key={filter.id}
+                          type="button"
+                          className={`${styles.productQuickFilterBtn} ${productQuickFilter === filter.id ? styles.productQuickFilterActive : ""}`}
+                          onClick={() => setProductQuickFilter(filter.id)}
+                        >
+                          {filter.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className={styles.selectedProductPanel}>
+                      <div className={styles.selectedProductHeader}>
+                        <span>Produits utilisés</span>
+                        <span>{selectedBrowliftProducts.length}</span>
                       </div>
-                    ))}
+                      {selectedBrowliftProducts.length > 0 ? (
+                        <div className={styles.selectedProductList}>
+                          {selectedBrowliftProducts.map((product) => (
+                            <div key={product.id} className={styles.selectedProductItem}>
+                              <div className={styles.selectedProductMeta}>
+                                <span className={styles.selectedProductName}>{product.name}</span>
+                                <span className={styles.selectedProductStock}>{getDisplayStock(product.name, product.stock)}</span>
+                              </div>
+                              <button
+                                type="button"
+                                className={styles.selectedProductRemove}
+                                onClick={() => setTreatmentProductChecked(setBrowliftProducts, product.id, false)}
+                              >
+                                Retirer
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className={styles.selectedProductEmpty}>
+                          Aucun produit sélectionné pour cette séance.
+                        </div>
+                      )}
+                    </div>
+
+                    {isProductDropdownOpen && (
+                      <div className={styles.productDropdown}>
+                        <div className={styles.productDropdownHeader}>
+                          <span>{filteredBrowliftProducts.length} résultat{filteredBrowliftProducts.length > 1 ? "s" : ""}</span>
+                          <span>Tapez pour affiner la recherche</span>
+                        </div>
+
+                        <div className={styles.productDropdownList}>
+                          {filteredBrowliftProducts.length > 0 ? (
+                            filteredBrowliftProducts.slice(0, 60).map((product) => {
+                              const isSelected = product.checked;
+                              const filterLabel = PRODUCT_QUICK_FILTERS.find((item) => item.id === getProductQuickFilter(product))?.label || "";
+
+                              return (
+                                <button
+                                  key={product.id}
+                                  type="button"
+                                  className={`${styles.productDropdownItem} ${isSelected ? styles.productDropdownItemSelected : ""}`}
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onClick={() => setTreatmentProductChecked(setBrowliftProducts, product.id, !isSelected)}
+                                >
+                                  <div className={styles.productDropdownText}>
+                                    <span className={styles.productDropdownName}>{product.name}</span>
+                                    <span className={styles.productDropdownMeta}>
+                                      {filterLabel}
+                                      {filterLabel && product.stock ? " • " : ""}
+                                      {product.stock}
+                                    </span>
+                                  </div>
+                                  <span className={styles.productDropdownAction}>
+                                    {isSelected ? "Retirer" : "Ajouter"}
+                                  </span>
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <div className={styles.productDropdownEmpty}>
+                              Aucun produit ne correspond à cette recherche.
+                            </div>
+                          )}
+                        </div>
+
+                        {filteredBrowliftProducts.length > 60 && (
+                          <div className={styles.productDropdownFooter}>
+                            Affichage limité aux 60 premiers résultats. Affinez la recherche pour aller plus vite.
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1020,10 +1754,10 @@ export default function SessionModal({
                 <h3 className={styles.cardTitle}>TEMPS DE PAUSE</h3>
                 <p className={styles.cardSubtitle}>Indiquer le temps de pose pour chaque étapes.</p>
                 <div className={styles.timerGrid}>
-                  {browliftProducts.filter(p => p.checked).map(p => (
-                    <TimerCard key={p.id} title={p.name} initialMinutes={p.defaultTime} />
+                  {selectedBrowliftProducts.map(p => (
+                    <TimerCard key={p.id} title={p.name} initialMinutes={p.defaultTime || 5} />
                   ))}
-                  {browliftProducts.filter(p => p.checked).length === 0 && (
+                  {selectedBrowliftProducts.length === 0 && (
                     <p style={{color: '#888', fontSize: '0.9rem'}}>Sélectionnez une lotion pour configurer son temps de pause.</p>
                   )}
                 </div>
@@ -1110,20 +1844,125 @@ export default function SessionModal({
                 <div className={styles.card}>
                   <h3 className={styles.cardTitle}>PRODUITS UTILISÉS</h3>
                   <p className={styles.cardSubtitle}>Le stock se mettra à jour automatiquement.</p>
-                  <div className={styles.productList}>
-                    {rehaussementProducts.map(p => (
-                      <div key={p.id} className={styles.productItem}>
-                        <div 
-                          className={`${styles.checkbox} ${p.checked ? styles.checked : ''}`}
-                          onClick={() => toggleRehaussementProduct(p.id)}
-                        ></div>
-                        <div style={{ width: '12px', height: '20px', background: '#333', borderRadius: '2px 2px 0 0', position: 'relative' }}>
-                          <div style={{ position: 'absolute', top: '-4px', left: '3px', width: '6px', height: '4px', background: '#FF69B4' }}></div>
-                        </div>
-                        <span className={styles.productName}>{p.name}</span>
-                        <span className={styles.productStock} style={{ whiteSpace: 'pre-line' }}>{getDisplayStock(p.name, p.stock)}</span>
+                  <div
+                    ref={productPickerRef}
+                    className={styles.productPicker}
+                    onFocusCapture={openProductDropdown}
+                    onBlurCapture={closeProductDropdown}
+                  >
+                    <div className={styles.productSearchBar}>
+                      <input
+                        type="search"
+                        value={productSearch}
+                        onChange={(event) => handleProductSearchChange(event.target.value)}
+                        onFocus={openProductDropdown}
+                        placeholder="Rechercher un produit..."
+                        className={styles.productSearchInput}
+                      />
+                      {productSearch && (
+                        <button
+                          type="button"
+                          className={styles.productSearchClear}
+                          onClick={clearProductSearch}
+                          aria-label="Effacer la recherche"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+
+                    <div className={styles.productQuickFilters}>
+                      {PRODUCT_QUICK_FILTERS.map((filter) => (
+                        <button
+                          key={filter.id}
+                          type="button"
+                          className={`${styles.productQuickFilterBtn} ${productQuickFilter === filter.id ? styles.productQuickFilterActive : ""}`}
+                          onClick={() => setProductQuickFilter(filter.id)}
+                        >
+                          {filter.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className={styles.selectedProductPanel}>
+                      <div className={styles.selectedProductHeader}>
+                        <span>Produits utilisés</span>
+                        <span>{selectedRehaussementProducts.length}</span>
                       </div>
-                    ))}
+                      {selectedRehaussementProducts.length > 0 ? (
+                        <div className={styles.selectedProductList}>
+                          {selectedRehaussementProducts.map((product) => (
+                            <div key={product.id} className={styles.selectedProductItem}>
+                              <div className={styles.selectedProductMeta}>
+                                <span className={styles.selectedProductName}>{product.name}</span>
+                                <span className={styles.selectedProductStock}>{getDisplayStock(product.name, product.stock)}</span>
+                              </div>
+                              <button
+                                type="button"
+                                className={styles.selectedProductRemove}
+                                onClick={() => setTreatmentProductChecked(setRehaussementProducts, product.id, false)}
+                              >
+                                Retirer
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className={styles.selectedProductEmpty}>
+                          Aucun produit sélectionné pour cette séance.
+                        </div>
+                      )}
+                    </div>
+
+                    {isProductDropdownOpen && (
+                      <div className={styles.productDropdown}>
+                        <div className={styles.productDropdownHeader}>
+                          <span>{filteredRehaussementProducts.length} résultat{filteredRehaussementProducts.length > 1 ? "s" : ""}</span>
+                          <span>Tapez pour affiner la recherche</span>
+                        </div>
+
+                        <div className={styles.productDropdownList}>
+                          {filteredRehaussementProducts.length > 0 ? (
+                            filteredRehaussementProducts.slice(0, 60).map((product) => {
+                              const isSelected = product.checked;
+                              const filterLabel = PRODUCT_QUICK_FILTERS.find((item) => item.id === getProductQuickFilter(product))?.label || "";
+
+                              return (
+                                <button
+                                  key={product.id}
+                                  type="button"
+                                  className={`${styles.productDropdownItem} ${isSelected ? styles.productDropdownItemSelected : ""}`}
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onClick={() => setTreatmentProductChecked(setRehaussementProducts, product.id, !isSelected)}
+                                >
+                                  <div className={styles.productDropdownText}>
+                                    <span className={styles.productDropdownName}>{product.name}</span>
+                                    <span className={styles.productDropdownMeta}>
+                                      {filterLabel}
+                                      {filterLabel && product.stock ? " • " : ""}
+                                      {product.stock}
+                                    </span>
+                                  </div>
+                                  <span className={styles.productDropdownAction}>
+                                    {isSelected ? "Retirer" : "Ajouter"}
+                                  </span>
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <div className={styles.productDropdownEmpty}>
+                              Aucun produit ne correspond à cette recherche.
+                            </div>
+                          )}
+                        </div>
+
+                        {filteredRehaussementProducts.length > 60 && (
+                          <div className={styles.productDropdownFooter}>
+                            Affichage limité aux 60 premiers résultats. Affinez la recherche pour aller plus vite.
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1150,10 +1989,10 @@ export default function SessionModal({
                 <h3 className={styles.cardTitle}>TEMPS DE PAUSE</h3>
                 <p className={styles.cardSubtitle}>Indiquer le temps de pose pour chaque étapes.</p>
                 <div className={styles.timerGrid}>
-                  {rehaussementProducts.filter(p => p.checked).map((p, index) => (
-                    <TimerCard key={p.id} title={`Lotion ${index + 1}`} initialMinutes={p.defaultTime} />
+                  {selectedRehaussementProducts.map((p) => (
+                    <TimerCard key={p.id} title={p.name} initialMinutes={p.defaultTime || 5} />
                   ))}
-                  {rehaussementProducts.filter(p => p.checked).length === 0 && (
+                  {selectedRehaussementProducts.length === 0 && (
                     <p style={{color: '#888', fontSize: '0.9rem'}}>Sélectionnez un produit pour configurer son temps de pause.</p>
                   )}
                 </div>
@@ -1388,6 +2227,14 @@ export default function SessionModal({
                       Mains droite
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    className={styles.copyHandBtn}
+                    onClick={copyCapsulesToOtherHand}
+                    title={mainOngles === "gauche" ? "Copier les tailles vers la main droite" : "Copier les tailles vers la main gauche"}
+                  >
+                    Copier vers l&apos;autre main
+                  </button>
                 </div>
               </div>
 

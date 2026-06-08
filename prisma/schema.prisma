@@ -27,7 +27,15 @@ model Appointment {
   scheduledAt              DateTime
   endAt                    DateTime?
   status                   AppointmentStatus          @default(SCHEDULED)
-  paymentStatus            PaymentStatus              @default(PENDING)
+  paymentStatus            PaymentStatus              @default(none)
+  price                    Int?
+  depositAmount            Int?
+  depositPaidAmount        Int                      @default(0)
+  paidAmount               Int                      @default(0)
+  remainingAmount          Int                      @default(0)
+  paymentMethod            AppointmentPaymentMethod?
+  stripeCheckoutSessionId  String?
+  stripePaymentIntentId    String?
   source                   AppointmentSource          @default(MANUAL)
   notes                    String?
   isDraft                  Boolean                    @default(false)
@@ -404,6 +412,7 @@ model FinancialTransaction {
   tenantId        String
   appointmentId   String?
   sessionId       String?
+  externalPaymentId String?                @unique
   type            FinancialTransactionType
   sourceType      FinancialSourceType
   label           String
@@ -1022,6 +1031,11 @@ model User {
   avatarUrl                String?
   role                     UserRole                   @default(OWNER)
   tenantId                 String
+  stripeAccountId          String?
+  stripeOnboardingComplete Boolean                    @default(false)
+  paymentsEnabled          Boolean                    @default(false)
+  defaultDepositAmount     Int                        @default(0)
+  defaultDepositType       DepositType                @default(fixed)
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime
   Appointment              Appointment[]
@@ -1124,6 +1138,15 @@ enum FinancialPaymentMethod {
   OTHER
 }
 
+enum AppointmentPaymentMethod {
+  stripe
+  cash
+  paypal
+  bank_transfer
+  check
+  other
+}
+
 enum FinancialSnapshotPeriodType {
   WEEK
   MONTH
@@ -1190,6 +1213,18 @@ enum PaymentStatus {
   PAID
   UNPAID
   REFUNDED
+  none
+  deposit_pending
+  deposit_paid
+  partial_paid
+  paid
+  paid_offline
+  refunded
+}
+
+enum DepositType {
+  fixed
+  percent
 }
 
 enum ProductLotStatus {

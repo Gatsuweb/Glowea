@@ -15,9 +15,9 @@
 
 .modal {
   background: #fff;
-  border-radius: 20px;
+  border-radius: 8px;
   width: 100%;
-  max-width: 450px;
+  max-width: 560px;
   overflow: hidden;
   box-shadow: 0 10px 30px rgba(0,0,0,0.1);
   display: flex;
@@ -48,7 +48,7 @@
 .btnClose {
   background: none;
   border: none;
-  font-size: 24px;
+  font-size: 18px;
   color: #888;
   cursor: pointer;
   padding: 0;
@@ -56,6 +56,100 @@
 
 .body {
   padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.statusRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #f0e0e3;
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #fff8f9;
+}
+
+.statusRow span,
+.amountGrid span,
+.paymentLinkBox label,
+.offlineBox label {
+  color: #766c6e;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.statusRow strong {
+  color: #8B4B54;
+}
+
+.amountGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.amountGrid div {
+  border: 1px solid #eee3e5;
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.amountGrid strong {
+  color: #333;
+  font-size: 1.05rem;
+}
+
+.actionGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.paymentLinkBox,
+.offlineBox {
+  border-top: 1px solid #f0f0f0;
+  padding-top: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.paymentLinkBox input {
+  width: 100%;
+  border: 1px solid #e0d4d6;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #333;
+  font-size: 0.85rem;
+}
+
+.linkActions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.errorBox,
+.warningBox {
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
+
+.errorBox {
+  background: #fff0f2;
+  border: 1px solid #efb7c0;
+  color: #8b1e2d;
+}
+
+.warningBox {
+  background: #fff7ea;
+  border: 1px solid #f0d7a8;
+  color: #805b10;
 }
 
 .formGroup {
@@ -166,4 +260,48 @@
 .btnConfirm:disabled {
   background: #dcdcdc;
   cursor: not-allowed;
+}
+
+.btnConfirmLink,
+.btnOffline {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  padding: 12px 18px;
+  border: none;
+  background: #8B4B54;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 8px;
+  text-decoration: none;
+}
+
+.btnOffline {
+  width: 100%;
+}
+
+.btnOffline:disabled {
+  background: #dcdcdc;
+  cursor: not-allowed;
+}
+
+@media (max-width: 620px) {
+  .modal {
+    max-width: 100%;
+  }
+
+  .amountGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .footer,
+  .linkActions {
+    justify-content: stretch;
+  }
+
+  .btnCancel,
+  .btnConfirmLink {
+    flex: 1;
+  }
 }

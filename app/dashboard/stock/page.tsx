@@ -70,13 +70,14 @@ export default async function StockPage() {
     const lot = prod.ProductLot[0];
     const businessCategory = getProductCategoryBySlug(prod.ProductCategory?.slug);
     const count = lot ? Number(lot.quantityRemaining || 0) : 0;
+    const alertThreshold = prod.alertThreshold ? Number(prod.alertThreshold) : 5;
     let status = "EN STOCK";
     let statusColor = "Green";
 
     if (count === 0) {
       status = "RUPTURE";
       statusColor = "Red";
-    } else if (count <= 5) {
+    } else if (count <= alertThreshold) {
       status = "STOCK BAS";
       statusColor = "Orange";
     }
@@ -92,6 +93,7 @@ export default async function StockPage() {
       categoryFamily: businessCategory?.family || null,
       tags: businessCategory ? [businessCategory.label] : prod.ProductCategory ? [prod.ProductCategory.name] : ["Produit"],
       count,
+      alertThreshold,
       status,
       statusColor,
       price: prod.defaultUnitCost ? `${prod.defaultUnitCost.toString()}€` : "0€",

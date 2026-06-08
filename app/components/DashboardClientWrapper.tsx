@@ -7,16 +7,17 @@ import { BarChart, Bar, AreaChart, Area, ResponsiveContainer } from 'recharts';
 import styles from "../dashboard/dashboard.module.css";
 import RevenueChart from "./RevenueChart";
 import StockPie from "./StockPie";
-import SessionModal from "./SessionModal";
 import PaymentModal from "./PaymentModal";
 import NewAppointmentModal from "./NewAppointmentModal";
 import NewClientModal from "./NewClientModal";
 import SendPromoModal from "./SendPromoModal";
 import WeeklyBriefModal from "./WeeklyBriefModal";
 import InstallAppModal from "./InstallAppModal";
-import OnboardingChecklist from "./OnboardingChecklist";
 import type { SubscriptionAccess } from "../../lib/subscription";
-import type { OnboardingState } from "../actions/onboardingActions";
+import {
+  getAppointmentFinancialSummary,
+  getAppointmentPaymentLabel,
+} from "../../lib/appointmentFinance";
 
 const currencyFormatter = new Intl.NumberFormat('fr-FR', {
   style: 'currency',
@@ -59,6 +60,13 @@ type DashboardAppointment = {
   clientPhone?: string;
   serviceName: string;
   servicePrice?: number;
+  price?: number | null;
+  depositAmount?: number | null;
+  depositPaidAmount?: number | null;
+  paidAmount?: number | null;
+  remainingAmount?: number | null;
+  paymentMethod?: string | null;
+  paymentStatus?: string;
   serviceDurationMin?: number;
   documentUrl?: string;
   hasDocument?: boolean;
@@ -66,6 +74,14 @@ type DashboardAppointment = {
   isTomorrow?: boolean;
   client: ClientOption;
   service: ServiceOption;
+};
+
+type PaymentSettings = {
+  stripeConnected: boolean;
+  stripeOnboardingComplete: boolean;
+  paymentsEnabled: boolean;
+  defaultDepositAmount: number;
+  defaultDepositType: "fixed" | "percent";
 };
 
 type EditableAppointment = {
@@ -120,9 +136,15 @@ export default function DashboardClientWrapper({
   products = [],
   insights = [],
   subscriptionAccess,
+  paymentSettings = {
+    stripeConnected: false,
+    stripeOnboardingComplete: false,
+    paymentsEnabled: false,
+    defaultDepositAmount: 0,
+    defaultDepositType: "fixed",
+  },
   checkoutSuccess = false,
   checkoutSyncState = null,
-  onboarding,
 }: { 
   firstName: string; 
   lastName: string;
@@ -143,13 +165,11 @@ export default function DashboardClientWrapper({
   products?: DashboardProduct[];
   insights?: SmartInsight[];
   subscriptionAccess: SubscriptionAccess;
+  paymentSettings?: PaymentSettings;
   checkoutSuccess?: boolean;
   checkoutSyncState?: "activated" | "pending" | "error" | null;
-  onboarding?: OnboardingState;
 }) {
   const router = useRouter();
-  const [isSessionModalOpen, setSessionModalOpen] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState<DashboardAppointment | null>(null);
   const [appointmentToEdit, setAppointmentToEdit] = useState<EditableAppointment | null>(null);
   const [appointmentActionMessage, setAppointmentActionMessage] = useState<string | null>(null);
 
@@ -230,6 +250,10 @@ export default function DashboardClientWrapper({
   };
   const secondaryInsights = insights.slice(1, 4);
   const isReadOnlyAccess = !subscriptionAccess.canUseApp;
+  const canUseStripePayments =
+    paymentSettings.stripeConnected &&
+    paymentSettings.stripeOnboardingComplete &&
+    paymentSettings.paymentsEnabled;
   const todayAppointmentsCount = appointments.filter((appointment) => !appointment.isTomorrow).length;
   const limitedAccessTitle =
     subscriptionAccess.status === "PAST_DUE"
@@ -278,6 +302,10 @@ export default function DashboardClientWrapper({
       return;
     }
     router.push("/dashboard/stock");
+  };
+
+  const openAgendaPage = () => {
+    router.push("/dashboard/agenda");
   };
 
   const clearAppointmentActionMessage = () => {
@@ -361,13 +389,12 @@ export default function DashboardClientWrapper({
         </section>
       )}
 
-      {onboarding && <OnboardingChecklist onboarding={onboarding} />}
-
       {/* Welcome Section */}
       <section className={styles.welcomeSection}>
         <div className={styles.welcomeText}>
           <h1>Bienvenue {firstName} {lastName}</h1>
           <p>AUJOURD&apos;HUI - {todayAppointmentsCount} RENDEZ-VOUS</p>
+
         </div>
         <div className={styles.actionButtons}>
           <button className={styles.actionBtn} onClick={() => setWeeklyBriefOpen(true)} title="Point de la semaine">
@@ -465,85 +492,118 @@ export default function DashboardClientWrapper({
               </div>
             ) : (
               appointments.map((app) => (
-                <div key={app.id} className={styles.appointmentItem} onClick={() => { setSelectedAppointment(app); setSessionModalOpen(true); }}>
-                  <div className={styles.appointmentTime}>
-                    {app.time}
-                  </div>
-                  <div className={styles.appointmentDetails}>
-                    <div className={styles.appointmentName}>{app.clientName.toUpperCase()}</div>
-                    <div className={styles.appointmentType}>{app.serviceName}</div>
-                  </div>
-                  <div className={styles.appointmentTags}>
-                    <span
-                      className={styles.tagDemain}
-                      style={{ background: app.isTomorrow ? 'var(--secondary)' : 'var(--tertiary)' }}
-                    >
-                      {app.isTomorrow ? "DEMAIN" : "AUJOURD&apos;HUI"}
-                    </span>
-                    <div className={styles.appointmentActions}>
-                      <button
-                        type="button"
-                        className={styles.actionIcon}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleContactClient(app);
-                        }}
-                        title="Contacter la cliente"
-                        aria-label={`Contacter ${app.clientName}`}
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                          <polyline points="22,6 12,13 2,6"></polyline>
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.actionIcon}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenDocument(app);
-                        }}
-                        title={app.hasDocument ? "Ouvrir le document" : "Voir la fiche cliente"}
-                        aria-label={app.hasDocument ? `Ouvrir le document de ${app.clientName}` : `Voir la fiche de ${app.clientName}`}
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                          <polyline points="14 2 14 8 20 8"></polyline>
-                          <line x1="16" y1="13" x2="8" y2="13"></line>
-                          <line x1="16" y1="17" x2="8" y2="17"></line>
-                          <polyline points="10 9 9 9 8 9"></polyline>
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.actionIcon}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          guardMutation(() => handleEditAppointment(app));
-                        }}
-                        title="Modifier le rendez-vous"
-                        aria-label={`Modifier le rendez-vous de ${app.clientName}`}
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                        </svg>
-                      </button>
+                (() => {
+                  const finance = getAppointmentFinancialSummary(app);
+                  const paymentLabel = getAppointmentPaymentLabel(finance.paymentStatus);
+                  const remainingLabel = new Intl.NumberFormat("fr-FR", {
+                    style: "currency",
+                    currency: "EUR",
+                  }).format(finance.remainingAmountCents / 100);
+
+                  return (
+                    <div key={app.id} className={styles.appointmentItem} onClick={openAgendaPage}>
+                      <div className={styles.appointmentTime}>
+                        {app.time}
+                      </div>
+                      <div className={styles.appointmentDetails}>
+                        <div className={styles.appointmentName}>{app.clientName.toUpperCase()}</div>
+                        <div className={styles.appointmentType}>{app.serviceName}</div>
+                        <span className={styles.paymentBadge}>{paymentLabel}</span>
+                        {finance.remainingAmountCents > 0 && (
+                          <span className={styles.paymentBadge}>{remainingLabel} reste</span>
+                        )}
+                      </div>
+                      <div className={styles.appointmentTags}>
+                        <span
+                          className={styles.tagDemain}
+                          style={{ background: app.isTomorrow ? 'var(--secondary)' : 'var(--tertiary)' }}
+                        >
+                          {app.isTomorrow ? "DEMAIN" : "AUJOURD'HUI"}
+                        </span>
+                        <div className={styles.appointmentActions}>
+                          <button
+                            type="button"
+                            className={styles.actionIcon}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleContactClient(app);
+                            }}
+                            title="Contacter la cliente"
+                            aria-label={`Contacter ${app.clientName}`}
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                              <polyline points="22,6 12,13 2,6"></polyline>
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.actionIcon}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenDocument(app);
+                            }}
+                            title={app.hasDocument ? "Ouvrir le document" : "Voir la fiche cliente"}
+                            aria-label={app.hasDocument ? `Ouvrir le document de ${app.clientName}` : `Voir la fiche de ${app.clientName}`}
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                              <polyline points="14 2 14 8 20 8"></polyline>
+                              <line x1="16" y1="13" x2="8" y2="13"></line>
+                              <line x1="16" y1="17" x2="8" y2="17"></line>
+                              <polyline points="10 9 9 9 8 9"></polyline>
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.actionIcon}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              guardMutation(() => handleEditAppointment(app));
+                            }}
+                            title="Modifier le rendez-vous"
+                            aria-label={`Modifier le rendez-vous de ${app.clientName}`}
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                          </button>
+                          {canUseStripePayments && (
+                            <button
+                              type="button"
+                              className={styles.actionIcon}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPaymentAppointmentData(app);
+                                setPaymentModalOpen(true);
+                              }}
+                              title="Paiement du rendez-vous"
+                              aria-label={`Paiement du rendez-vous de ${app.clientName}`}
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+                                <line x1="2" y1="10" x2="22" y2="10"></line>
+                                <line x1="6" y1="15" x2="10" y2="15"></line>
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                        <button 
+                          className={styles.playButton}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openAgendaPage();
+                          }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 4L20 12L6 20V4Z" fill="white"/>
+                          </svg>
+                        </button>
+                      </div>
                     </div>
-                    <button 
-                      className={styles.playButton}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedAppointment(app);
-                        setSessionModalOpen(true);
-                      }}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M6 4L20 12L6 20V4Z" fill="white"/>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
+                  );
+                })()
               ))
             )}
           </div>
@@ -654,23 +714,6 @@ export default function DashboardClientWrapper({
         </div>
       </section>
 
-      <SessionModal 
-        isOpen={isSessionModalOpen} 
-        onClose={() => { setSessionModalOpen(false); setSelectedAppointment(null); }} 
-        clientName={selectedAppointment?.clientName}
-        time={selectedAppointment?.time}
-        category={selectedAppointment?.serviceName}
-        appointmentId={selectedAppointment?.id}
-        clientId={selectedAppointment?.clientId}
-        serviceId={selectedAppointment?.serviceId || undefined}
-        onPaymentRequest={() => {
-          setPaymentAppointmentData(selectedAppointment);
-          setSessionModalOpen(false);
-          setSelectedAppointment(null);
-          setPaymentModalOpen(true);
-        }}
-      />
-
       <PaymentModal
         isOpen={isPaymentModalOpen}
         onClose={() => { setPaymentModalOpen(false); setPaymentAppointmentData(null); }}
@@ -679,6 +722,15 @@ export default function DashboardClientWrapper({
         clientName={paymentAppointmentData?.clientName || ""}
         serviceName={paymentAppointmentData?.serviceName || ""}
         defaultAmount={paymentAppointmentData?.servicePrice ? Number(paymentAppointmentData.servicePrice) : 0}
+        price={paymentAppointmentData?.price}
+        depositAmount={paymentAppointmentData?.depositAmount}
+        depositPaidAmount={paymentAppointmentData?.depositPaidAmount}
+        paidAmount={paymentAppointmentData?.paidAmount}
+        remainingAmount={paymentAppointmentData?.remainingAmount}
+        paymentMethod={paymentAppointmentData?.paymentMethod}
+        paymentStatus={paymentAppointmentData?.paymentStatus || "none"}
+        paymentsEnabled={canUseStripePayments}
+        mode="closeout"
       />
 
       <NewAppointmentModal

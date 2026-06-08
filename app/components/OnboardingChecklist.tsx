@@ -7,6 +7,7 @@ import styles from "./OnboardingChecklist.module.css";
 
 export default function OnboardingChecklist({ onboarding }: { onboarding: OnboardingState }) {
   const [isHidden, setIsHidden] = useState(!onboarding.shouldShow);
+  const [isExpanded, setIsExpanded] = useState(true);
   const [isPending, startTransition] = useTransition();
   const progressPercent = Math.round((onboarding.completedCount / onboarding.totalCount) * 100);
 
@@ -21,13 +22,16 @@ export default function OnboardingChecklist({ onboarding }: { onboarding: Onboar
 
   if (onboarding.isCompleted) {
     return (
-      <section className={styles.card} role="status">
+      <section className={`${styles.card} ${styles.cardCompleted}`} role="status">
         <div className={styles.header}>
-          <div>
+          <div className={styles.headerMain}>
             <span className={styles.kicker}>Installation terminee</span>
-            <h2>Votre espace Glowea est pret.</h2>
+            <h2>Votre espace Glowea est pret</h2>
             <p>Vous pouvez maintenant gerer vos clientes, vos prestations et vos rendez-vous.</p>
           </div>
+          <button className={styles.iconButton} type="button" onClick={dismiss} disabled={isPending} aria-label="Fermer le widget">
+            ×
+          </button>
         </div>
       </section>
     );
@@ -36,19 +40,29 @@ export default function OnboardingChecklist({ onboarding }: { onboarding: Onboar
   return (
     <section className={styles.card}>
       <div className={styles.header}>
-        <div>
+        <div className={styles.headerMain}>
           <span className={styles.kicker}>Bienvenue sur Glowea</span>
-          <h2>Configurez votre espace en quelques minutes.</h2>
-          <p>Suivez ces premieres etapes pour commencer a gerer vos rendez-vous avec une base solide.</p>
+          <h2>Guide de demarrage</h2>
+          <p>Configurez votre espace en quelques minutes.</p>
         </div>
-        <button className={styles.hideButton} type="button" onClick={dismiss} disabled={isPending}>
-          Masquer pour l&apos;instant
-        </button>
+        <div className={styles.headerActions}>
+          <button
+            className={styles.iconButton}
+            type="button"
+            onClick={() => setIsExpanded((value) => !value)}
+            aria-label={isExpanded ? "Replier le guide" : "Deplier le guide"}
+          >
+            {isExpanded ? "−" : "+"}
+          </button>
+          <button className={styles.iconButton} type="button" onClick={dismiss} disabled={isPending} aria-label="Masquer le guide">
+            ×
+          </button>
+        </div>
       </div>
 
       <div className={styles.progressBlock}>
         <div className={styles.progressMeta}>
-          <strong>Progression : {onboarding.completedCount}/{onboarding.totalCount} etapes terminees</strong>
+          <strong>{onboarding.completedCount}/{onboarding.totalCount} etapes terminees</strong>
           <span>{progressPercent}%</span>
         </div>
         <div className={styles.progressTrack}>
@@ -56,7 +70,7 @@ export default function OnboardingChecklist({ onboarding }: { onboarding: Onboar
         </div>
       </div>
 
-      {onboarding.nextStep && (
+      {isExpanded && onboarding.nextStep && (
         <div className={styles.nextBanner}>
           <div>
             <span>Prochaine etape</span>
@@ -66,22 +80,24 @@ export default function OnboardingChecklist({ onboarding }: { onboarding: Onboar
         </div>
       )}
 
-      <div className={styles.stepList}>
-        {onboarding.steps.map((step) => (
-          <Link className={styles.stepItem} href={step.href} key={step.id}>
-            <span className={step.completed ? styles.checkDone : styles.checkTodo}>
-              {step.completed ? "✓" : "○"}
-            </span>
-            <div>
-              <strong>{step.title}</strong>
-              <p>{step.description}</p>
-            </div>
-            <span className={step.completed ? styles.badgeDone : styles.badgeTodo}>
-              {step.completed ? "Fait" : "A faire"}
-            </span>
-          </Link>
-        ))}
-      </div>
+      {isExpanded && (
+        <div className={styles.stepList}>
+          {onboarding.steps.map((step) => (
+            <Link className={styles.stepItem} href={step.href} key={step.id}>
+              <span className={step.completed ? styles.checkDone : styles.checkTodo}>
+                {step.completed ? "✓" : "○"}
+              </span>
+              <div className={styles.stepContent}>
+                <strong>{step.title}</strong>
+                <p>{step.description}</p>
+              </div>
+              <span className={step.completed ? styles.badgeDone : styles.badgeTodo}>
+                {step.completed ? "Fait" : "A faire"}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

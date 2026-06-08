@@ -1,9 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { auth } from "@clerk/nextjs/server";
 import prisma from "../../lib/prisma";
 import { getTenantId } from "../../lib/tenant";
 import { requireTenantMutationAccess } from "../../lib/subscription";
+import {
+  getAppointmentFinancialSummary,
+  isOfflinePaymentMethod,
+} from "../../lib/appointmentFinance";
 
 type AppointmentStatusInput =
   | "SCHEDULED"
@@ -18,6 +23,7 @@ type AppointmentMutationInput = {
   serviceId: string;
   scheduledAt: Date;
   endAt?: Date;
+  price?: number;
   notes?: string;
 };
 
@@ -38,6 +44,12 @@ function isValidDate(value: unknown): value is Date {
 function normalizeNotes(notes?: string) {
   const value = notes?.trim();
   return value ? value.slice(0, 1000) : null;
+}
+
+function normalizePrice(price?: number) {
+  if (price === undefined) return undefined;
+  if (!Number.isFinite(price) || price < 0) return 0;
+  return Math.min(Math.round(price), 100000000);
 }
 
 function isValidStatus(status: string): status is AppointmentStatusInput {
@@ -270,6 +282,7 @@ export async function markAllNotificationsRead() {
 
 export async function createAppointment(data: AppointmentMutationInput) {
   const tenantId = await getTenantId();
+  const { userId } = await auth();
   const access = await requireTenantMutationAccess(tenantId);
   if (!access.allowed) {
     return { success: false, error: access.error };
@@ -310,11 +323,16 @@ export async function createAppointment(data: AppointmentMutationInput) {
         tenantId,
         clientId: data.clientId,
         serviceId: data.serviceId,
+        createdByUserId: userId,
         scheduledAt: data.scheduledAt,
         endAt: finalEndAt,
+        price: normalizePrice(data.price),
+        depositPaidAmount: 0,
+        paidAmount: 0,
+        remainingAmount: normalizePrice(data.price) ?? 0,
         notes: normalizeNotes(data.notes),
         status: "SCHEDULED",
-        paymentStatus: "PENDING",
+        paymentStatus: "none",
         updatedAt: new Date(),
       },
     });
@@ -380,6 +398,25 @@ export async function updateAppointment(
       return { success: false, error: "Statut de rendez-vous invalide" };
     }
 
+    const existingFinance = getAppointmentFinancialSummary(existingAppointment);
+    const nextPriceCents =
+      data.price !== undefined
+        ? normalizePrice(data.price) ?? existingFinance.priceCents
+        : existingFinance.priceCents;
+    const nextDepositPaidCents = Math.min(existingFinance.depositPaidAmountCents, nextPriceCents);
+    const nextPaidAmountCents = Math.min(existingFinance.paidAmountCents, nextPriceCents);
+    const nextRemainingAmountCents = Math.max(nextPriceCents - nextPaidAmountCents, 0);
+    const nextPaymentStatus =
+      existingFinance.paymentStatus === "refunded"
+        ? "refunded"
+        : nextPaidAmountCents <= 0
+          ? (existingFinance.depositAmountCents > 0 ? "deposit_pending" : "none")
+          : nextPaidAmountCents >= nextPriceCents && nextPriceCents > 0
+            ? (isOfflinePaymentMethod(existingFinance.paymentMethod) ? "paid_offline" : "paid")
+            : nextDepositPaidCents > 0 && nextPaidAmountCents <= nextDepositPaidCents
+              ? "deposit_paid"
+              : "partial_paid";
+
     if (ACTIVE_CONFLICT_STATUSES.includes(finalStatus)) {
       const conflict = await findConflictingAppointment({
         tenantId,
@@ -401,6 +438,11 @@ export async function updateAppointment(
         serviceId: finalServiceId,
         scheduledAt: finalScheduledAt,
         endAt: finalEndAt,
+        price: data.price !== undefined ? normalizePrice(data.price) : existingAppointment.price,
+        depositPaidAmount: nextDepositPaidCents,
+        paidAmount: nextPaidAmountCents,
+        remainingAmount: nextRemainingAmountCents,
+        paymentStatus: nextPaymentStatus,
         notes: data.notes !== undefined ? normalizeNotes(data.notes) : existingAppointment.notes,
         status: finalStatus,
         cancelledAt: finalStatus === "CANCELED" ? now : null,

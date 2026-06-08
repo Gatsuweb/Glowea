@@ -3,6 +3,8 @@
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "../../lib/tenant";
+import { getAppointmentFinancialSummary, normalizeAppointmentPaymentMethod } from "../../lib/appointmentFinance";
+import { recordAppointmentPayment } from "../../lib/appointmentPayments";
 
 
 export async function processPayment(data: {
@@ -19,7 +21,7 @@ export async function processPayment(data: {
     // Verify appointment exists
     const appointment = await prisma.appointment.findFirst({
       where: { id: appointmentId, tenantId: TENANT_ID },
-      include: { Session: true }
+      include: { Session: true, Service: true }
     });
 
     if (!appointment) {
@@ -30,54 +32,35 @@ export async function processPayment(data: {
       return { success: false, error: "Cliente invalide pour ce rendez-vous" };
     }
 
-    if (appointment.paymentStatus === "PAID") {
-      return { success: false, error: "Ce rendez-vous est deja paye" };
-    }
+    const normalizedMethod = normalizeAppointmentPaymentMethod(paymentMethod) || "other";
+    const currentFinance = getAppointmentFinancialSummary(appointment);
 
-    const existingPayment = await prisma.financialTransaction.findFirst({
-      where: {
-        tenantId: TENANT_ID,
-        appointmentId,
-        type: "INCOME",
-        sourceType: "APPOINTMENT",
-      },
+    const paymentResult = await recordAppointmentPayment({
+      tenantId: TENANT_ID,
+      appointmentId,
+      amountCents: amount,
+      paymentType: "offline",
+      paymentMethod: normalizedMethod,
+      sourceLabel: `Paiement pour ${serviceName}`,
+      sessionId: appointment.Session ? appointment.Session.id : null,
+      externalPaymentId: `manual:${appointmentId}:${normalizedMethod}:${amount}`,
+      transactionDate: new Date(),
     });
 
-    if (existingPayment) {
-      return { success: false, error: "Un paiement existe deja pour ce rendez-vous" };
+    if (!paymentResult.success) {
+      return { success: false, error: paymentResult.error };
     }
 
-    // Generate transaction ID
-    const transactionId = `txn_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
-
-    // Use a Prisma transaction to ensure both payment record and appointment status update succeed together
-    await prisma.$transaction([
-      prisma.financialTransaction.create({
-        data: {
-          id: transactionId,
-          tenantId: TENANT_ID,
-          appointmentId: appointmentId,
-          sessionId: appointment.Session ? appointment.Session.id : null,
-          type: "INCOME",
-          sourceType: "APPOINTMENT",
-          label: `Paiement pour ${serviceName}`,
-          amount: amount,
-          currency: "EUR",
-          paymentMethod: paymentMethod,
-          transactionDate: new Date(),
-          updatedAt: new Date(),
-        }
-      }),
-      prisma.appointment.update({
+    if (paymentResult.remainingAmountCents <= 0 || currentFinance.remainingAmountCents <= amount) {
+      await prisma.appointment.update({
         where: { id: appointmentId },
         data: {
           status: "COMPLETED",
-          paymentStatus: "PAID",
           completedAt: new Date(),
           updatedAt: new Date(),
         }
-      })
-    ]);
+      });
+    }
 
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/agenda");

@@ -587,7 +587,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
         endAt,
         source: "ONLINE_BOOKING",
         status: "SCHEDULED",
-        paymentStatus: "PENDING",
+        paymentStatus: "none",
         notes: message ? `Reservation en ligne - ${message}` : "Reservation en ligne",
         updatedAt: new Date(),
       },

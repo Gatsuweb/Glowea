@@ -22,6 +22,7 @@ type ProductFormData = {
   desc?: string;
   rawPrice?: number;
   count?: number;
+  alertThreshold?: number | null;
   categoryId?: string | null;
   expireAt?: string | Date | null;
 };
@@ -129,6 +130,7 @@ export default function NewProductModal({
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [price, setPrice] = useState("");
+  const [alertThreshold, setAlertThreshold] = useState("");
   const [initialStock, setInitialStock] = useState("1");
   const [expireAt, setExpireAt] = useState("");
   const [family, setFamily] = useState<ProductFamily>("NAILS");
@@ -149,6 +151,7 @@ export default function NewProductModal({
       setName(initialData.name || "");
       setDesc(initialData.desc || "");
       setPrice(initialData.rawPrice?.toString() || "");
+      setAlertThreshold(initialData.alertThreshold?.toString() || "");
       setInitialStock(initialData.count?.toString() || "0");
       setCategoryId(initialData.categoryId || "");
       setFamily(selectedCategory?.family || "NAILS");
@@ -163,6 +166,7 @@ export default function NewProductModal({
       setName("");
       setDesc("");
       setPrice("");
+      setAlertThreshold("");
       setInitialStock("1");
       setExpireAt("");
       setFamily("NAILS");
@@ -215,6 +219,7 @@ export default function NewProductModal({
           name,
           desc,
           price: parseFloat(price) || 0,
+          alertThreshold: alertThreshold === "" ? null : parseFloat(alertThreshold) || 0,
           categoryId: categoryId || null,
         });
 
@@ -228,6 +233,7 @@ export default function NewProductModal({
           desc,
           price: parseFloat(price) || 0,
           initialStock: parseInt(initialStock, 10) || 0,
+          alertThreshold: alertThreshold === "" ? null : parseFloat(alertThreshold) || 0,
           expireAt: expireAt ? new Date(expireAt) : null,
           categoryId: categoryId || null,
         });
@@ -384,6 +390,17 @@ export default function NewProductModal({
                 placeholder="Ex: 3.60"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
+              />
+            </div>
+            <div className={styles.productField}>
+              <label>Seuil d&apos;alerte</label>
+              <input
+                type="number"
+                step="0.01"
+                className={styles.notesInput}
+                placeholder="Ex: 5"
+                value={alertThreshold}
+                onChange={(e) => setAlertThreshold(e.target.value)}
               />
             </div>
             {!initialData && (
