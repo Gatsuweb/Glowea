@@ -43,9 +43,9 @@ export async function GET() {
     const tenantId = await getTenantId();
     const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
 
-    if (!subscriptionAccess.canUseProFeatures) {
+    if (!subscriptionAccess.canUseApp) {
       return NextResponse.json(
-        { success: false, error: "Les templates de campagnes sont reserves a la formule Pro" },
+        { success: false, error: "Un abonnement actif est necessaire pour acceder aux templates" },
         { status: 403 }
       );
     }
@@ -77,9 +77,9 @@ export async function POST(request: Request) {
   try {
     const tenantId = await getTenantId();
     const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
-    if (!subscriptionAccess.canUseProFeatures) {
+    if (!subscriptionAccess.canUseApp) {
       return NextResponse.json(
-        { success: false, error: "Les templates de campagnes sont reserves a la formule Pro" },
+        { success: false, error: "Un abonnement actif est necessaire pour enregistrer un template" },
         { status: 403 }
       );
     }
@@ -117,9 +117,9 @@ export async function PATCH(request: Request) {
   try {
     const tenantId = await getTenantId();
     const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
-    if (!subscriptionAccess.canUseProFeatures) {
+    if (!subscriptionAccess.canUseApp) {
       return NextResponse.json(
-        { success: false, error: "Les templates de campagnes sont reserves a la formule Pro" },
+        { success: false, error: "Un abonnement actif est necessaire pour modifier un template" },
         { status: 403 }
       );
     }

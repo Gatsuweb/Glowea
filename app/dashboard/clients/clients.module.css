@@ -89,6 +89,64 @@
   accent-color: var(--tertiary);
 }
 
+.bulkActions {
+  background: #fbf5f3;
+  border: 1px solid #ead8cf;
+  border-radius: 18px;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.bulkActionsText {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: #5c4945;
+  flex-wrap: wrap;
+}
+
+.bulkActionsText strong {
+  color: var(--tertiary);
+  font-size: 1.15rem;
+}
+
+.bulkActionsText span {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.bulkActionButton,
+.bulkActionGhost {
+  min-height: 42px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 10px 14px;
+  transition: all 0.2s;
+}
+
+.bulkActionButton {
+  background: var(--tertiary);
+  border: none;
+  color: white;
+}
+
+.bulkActionButton:hover {
+  opacity: 0.92;
+}
+
+.bulkActionGhost {
+  background: white;
+  border: 1px solid #ead8cf;
+  color: #5c4945;
+}
+
+.bulkActionGhost:hover {
+  border-color: #d9bfc3;
+  color: var(--tertiary);
+}
+
 .clientList {
   display: flex;
   flex-direction: column;
@@ -112,6 +170,11 @@
 
 .clientItem:hover {
   background-color: rgba(255, 255, 255, 0.5);
+}
+
+.clientItemSelected {
+  background: #fff8f6;
+  border: 1px solid #efd6d1;
 }
 
 .clientItemActive {
@@ -143,6 +206,20 @@
   flex-shrink: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   border: 2px solid white;
+}
+
+.clientCheckbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.clientCheckbox input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--tertiary);
 }
 
 .clientInfo {
@@ -473,30 +550,113 @@
   font-weight: 400;
 }
 
-.galerieGrid {
+.projectGalleryList {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 150px 150px;
   gap: 20px;
 }
 
-.galerieMain {
-  grid-row: 1 / 3;
-  grid-column: 1 / 2;
-  background-color: white;
-  border-radius: 20px;
+.projectCard {
+  background: white;
+  border-radius: 24px;
   box-shadow: var(--box-shadow);
+  display: grid;
+  gap: 18px;
+  overflow: hidden;
+  padding: 20px;
 }
 
-.galerieItem {
-  background-color: white;
-  border-radius: 20px;
-  box-shadow: var(--box-shadow);
+.projectCardHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
 }
 
-.galerieGrid .galerieItem:nth-child(4) {
-  grid-column: 2 / 3;
-  grid-row: 2 / 3;
+.projectTitle {
+  color: #2e2e2e;
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+.projectDescription {
+  color: #7a6f6f;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.projectDate {
+  background: #f8eee8;
+  border: 1px solid #ead8cf;
+  border-radius: 999px;
+  color: var(--tertiary);
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 7px 12px;
+  white-space: nowrap;
+}
+
+.projectImages {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.projectImageCard {
+  background: #fbf6f4;
+  border: 1px solid #eedfda;
+  border-radius: 20px;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.projectImageBadge {
+  background: rgba(122, 38, 55, 0.9);
+  border-radius: 999px;
+  color: white;
+  font-size: 0.74rem;
+  font-weight: 800;
+  left: 14px;
+  letter-spacing: 0.04em;
+  padding: 7px 11px;
+  position: absolute;
+  text-transform: uppercase;
+  top: 14px;
+  z-index: 1;
+}
+
+.projectImage {
+  aspect-ratio: 4 / 3;
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.projectImagePlaceholder {
+  align-items: center;
+  aspect-ratio: 4 / 3;
+  color: #9b8d89;
+  display: flex;
+  font-size: 0.9rem;
+  justify-content: center;
+  padding: 18px;
+  text-align: center;
+}
+
+.galerieEmpty {
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  border-radius: 20px;
+  background: white;
+  box-shadow: var(--box-shadow);
+  color: #7a6f6f;
 }
 
 /* =========================================
@@ -1041,7 +1201,7 @@
     width: 280px; /* On réduit un peu la largeur de la sidebar */
     padding: 20px;
   }
-  .galerieGrid {
+  .projectImages {
     grid-template-columns: 1fr 1fr;
   }
   .headerContact {
@@ -1069,6 +1229,19 @@
     padding: 20px;
     padding-bottom: calc(120px + env(safe-area-inset-bottom));
     gap: 20px;
+  }
+
+  .projectCardHeader {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .projectDate {
+    white-space: normal;
+  }
+
+  .projectImages {
+    grid-template-columns: 1fr;
   }
 
   .mobileDirectoryToggle {

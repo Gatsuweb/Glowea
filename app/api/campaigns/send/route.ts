@@ -8,6 +8,7 @@ import {
   getBusinessName,
   getCampaignProviderMode,
   getCampaignTemplate,
+  getClientsByIds,
   getSegmentClients,
   getSendAddress,
   renderCampaignBody,
@@ -43,8 +44,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     const targetSegment = body.targetSegment;
     const templateId = typeof body.templateId === "string" ? body.templateId : "";
+    const clientIds = Array.isArray(body.clientIds) ? body.clientIds.filter((value): value is string => typeof value === "string") : [];
+    const resolvedTargetSegment = isSegment(targetSegment) ? targetSegment : "ALL";
 
-    if (!isSegment(targetSegment) || !templateId) {
+    if ((!isSegment(targetSegment) && clientIds.length === 0) || !templateId) {
       return NextResponse.json(
         { success: false, error: "Cible ou template invalide" },
         { status: 400 }
@@ -77,15 +80,15 @@ export async function POST(request: Request) {
       twilioFromNumber: twilioDiagnostics.fromNumber,
     });
 
-    if (!subscriptionAccess.canUseProFeatures) {
+    if (!subscriptionAccess.canUseApp) {
       return NextResponse.json(
-        { success: false, error: "Les campagnes sont reservees a la formule Pro" },
+        { success: false, error: "Un abonnement actif est necessaire pour envoyer une campagne" },
         { status: 403 }
       );
     }
 
     const [clients, businessName] = await Promise.all([
-      getSegmentClients(tenantId, targetSegment),
+      clientIds.length > 0 ? getClientsByIds(tenantId, clientIds) : getSegmentClients(tenantId, resolvedTargetSegment),
       getBusinessName(tenantId),
     ]);
 
@@ -107,8 +110,8 @@ export async function POST(request: Request) {
         id: `camp_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
         tenantId,
         templateId: template.id,
-        name: template.name,
-        targetSegment,
+        name: clientIds.length > 0 ? `${template.name} - selection clientes` : template.name,
+        targetSegment: clientIds.length > 0 ? "ALL" : resolvedTargetSegment,
         channel,
         customMessage: null,
         status: "DRAFT",

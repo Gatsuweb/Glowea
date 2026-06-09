@@ -6,6 +6,7 @@ import styles from "./compta.module.css";
 import SparkBarChart from "../../components/SparkBarChart";
 import { getVueEnsembleData, createTransaction, createCharge, getStatsData } from "../../actions/comptaActions";
 import { exportElementToPDF } from "../../../lib/exportUtils";
+import SendClientTemplateModal from "../../components/SendClientTemplateModal";
 
 type TransactionType = "INCOME" | "EXPENSE";
 
@@ -43,6 +44,14 @@ type DayStat = {
   level: string;
 };
 
+type RelanceCandidate = {
+  id: string;
+  firstName: string;
+  lastName: string | null;
+  email: string | null;
+  estimatedRevenue: number;
+};
+
 type StatsData = {
   rdvThisMonth: number;
   rdvTrendStr: string;
@@ -56,6 +65,8 @@ type StatsData = {
     amount: string;
     chartData: Array<{ value: number }>;
   };
+  relanceCandidates: RelanceCandidate[];
+  relancePotentialRevenue: number;
 };
 
 type DisplayTransaction = {
@@ -86,6 +97,7 @@ export default function ComptaClient({
   // States pour les Modales de Création
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [isChargeModalOpen, setIsChargeModalOpen] = useState(false);
+  const [isRelanceModalOpen, setRelanceModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form states Transaction
@@ -263,6 +275,14 @@ export default function ComptaClient({
 
   const monthFormatter = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' });
   const displayMonth = monthFormatter.format(new Date(`${filterMonth}-01`));
+  const relanceCandidates = statsData?.relanceCandidates || [];
+  const relancePotentialRevenue = statsData?.relancePotentialRevenue || 0;
+  const relanceBannerText =
+    relanceCandidates.length > 0
+      ? relanceCandidates.length === 1
+        ? `1 cliente n'a pas repris RDV depuis plus de 6 semaines. Une relance personnalisee pourrait recuperer ~${Math.round(relancePotentialRevenue)}EUR de CA.`
+        : `${relanceCandidates.length} clientes n'ont pas repris RDV depuis plus de 6 semaines. Une relance personnalisee pourrait recuperer ~${Math.round(relancePotentialRevenue)}EUR de CA.`
+      : "Aucune cliente a relancer pour le moment.";
 
   return (
     <main className={styles.layout}>
@@ -550,10 +570,15 @@ export default function ComptaClient({
 
           {/* Alert Banner */}
           <section className={styles.alertBanner}>
-            <div className={styles.alertText}>
-              3 clientes n&apos;ont pas repris RDV depuis plus de 6 semaines. Une relance personnalisee pourrait recuperer ~180EUR de CA.
-            </div>
-            <a className={styles.alertLink}>Relancer les clients concernés ↗</a>
+            <div className={styles.alertText}>{relanceBannerText}</div>
+            <button
+              type="button"
+              className={styles.alertLink}
+              onClick={() => setRelanceModalOpen(true)}
+              disabled={relanceCandidates.length === 0}
+            >
+              Relancer les clients concernés ↗
+            </button>
           </section>
         </>
       )}
@@ -1073,6 +1098,12 @@ export default function ComptaClient({
           </div>
         </div>
       )}
+
+      <SendClientTemplateModal
+        isOpen={isRelanceModalOpen}
+        onClose={() => setRelanceModalOpen(false)}
+        selectedClients={relanceCandidates}
+      />
     </main>
   );
 }

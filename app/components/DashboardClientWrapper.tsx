@@ -10,6 +10,7 @@ import StockPie from "./StockPie";
 import PaymentModal from "./PaymentModal";
 import NewAppointmentModal from "./NewAppointmentModal";
 import NewClientModal from "./NewClientModal";
+import SessionModal from "./SessionModal";
 import SendPromoModal from "./SendPromoModal";
 import WeeklyBriefModal from "./WeeklyBriefModal";
 import InstallAppModal from "./InstallAppModal";
@@ -172,6 +173,8 @@ export default function DashboardClientWrapper({
   const router = useRouter();
   const [appointmentToEdit, setAppointmentToEdit] = useState<EditableAppointment | null>(null);
   const [appointmentActionMessage, setAppointmentActionMessage] = useState<string | null>(null);
+  const [isSessionModalOpen, setSessionModalOpen] = useState(false);
+  const [selectedSessionAppointment, setSelectedSessionAppointment] = useState<DashboardAppointment | null>(null);
 
   const [isPaymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentAppointmentData, setPaymentAppointmentData] = useState<DashboardAppointment | null>(null);
@@ -279,18 +282,9 @@ export default function DashboardClientWrapper({
     action();
   };
 
-  const guardProFeature = (action: () => void) => {
-    if (!subscriptionAccess.canUseProFeatures) {
-      openPricing();
-      return;
-    }
-
-    action();
-  };
-
   const handleInsightAction = (action: InsightAction) => {
     if (action === "promo") {
-      guardProFeature(() => setSendPromoModalOpen(true));
+      guardMutation(() => setSendPromoModalOpen(true));
       return;
     }
     if (action === "brief") {
@@ -406,7 +400,7 @@ export default function DashboardClientWrapper({
           <button className={styles.actionBtn} onClick={() => guardMutation(() => setNewClientModalOpen(true))} title="Nouveau client">
             <Image src="/icones/dash_clients.svg" alt="Clients" width={24} height={24} />
           </button>
-          <button className={styles.actionBtn} onClick={() => guardProFeature(() => setSendPromoModalOpen(true))} title="Envoyer une promo">
+          <button className={styles.actionBtn} onClick={() => guardMutation(() => setSendPromoModalOpen(true))} title="Envoyer une promo">
             <Image src="/icones/dash_promo.svg" alt="Promo" width={24} height={24} />
           </button>
         </div>
@@ -501,19 +495,28 @@ export default function DashboardClientWrapper({
                   }).format(finance.remainingAmountCents / 100);
 
                   return (
-                    <div key={app.id} className={styles.appointmentItem} onClick={openAgendaPage}>
-                      <div className={styles.appointmentTime}>
-                        {app.time}
-                      </div>
-                      <div className={styles.appointmentDetails}>
-                        <div className={styles.appointmentName}>{app.clientName.toUpperCase()}</div>
-                        <div className={styles.appointmentType}>{app.serviceName}</div>
-                        <span className={styles.paymentBadge}>{paymentLabel}</span>
-                        {finance.remainingAmountCents > 0 && (
-                          <span className={styles.paymentBadge}>{remainingLabel} reste</span>
-                        )}
-                      </div>
-                      <div className={styles.appointmentTags}>
+                    <div key={app.id} className={styles.appointmentItem}>
+                      <button
+                        type="button"
+                        className={styles.appointmentMain}
+                        onClick={openAgendaPage}
+                        aria-label={`Ouvrir l'agenda pour le rendez-vous de ${app.clientName}`}
+                      >
+                        <div className={styles.appointmentTime}>
+                          {app.time}
+                        </div>
+                        <div className={styles.appointmentDetails}>
+                          <div className={styles.appointmentName}>{app.clientName.toUpperCase()}</div>
+                          <div className={styles.appointmentType}>{app.serviceName}</div>
+                          <div className={styles.appointmentMeta}>
+                            <span className={styles.paymentBadge}>{paymentLabel}</span>
+                            {finance.remainingAmountCents > 0 && (
+                              <span className={styles.paymentBadge}>{remainingLabel} reste</span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                      <div className={styles.appointmentAside}>
                         <span
                           className={styles.tagDemain}
                           style={{ background: app.isTomorrow ? 'var(--secondary)' : 'var(--tertiary)' }}
@@ -524,8 +527,7 @@ export default function DashboardClientWrapper({
                           <button
                             type="button"
                             className={styles.actionIcon}
-                            onClick={(e) => {
-                              e.stopPropagation();
+                            onClick={() => {
                               handleContactClient(app);
                             }}
                             title="Contacter la cliente"
@@ -539,8 +541,7 @@ export default function DashboardClientWrapper({
                           <button
                             type="button"
                             className={styles.actionIcon}
-                            onClick={(e) => {
-                              e.stopPropagation();
+                            onClick={() => {
                               handleOpenDocument(app);
                             }}
                             title={app.hasDocument ? "Ouvrir le document" : "Voir la fiche cliente"}
@@ -557,8 +558,7 @@ export default function DashboardClientWrapper({
                           <button
                             type="button"
                             className={styles.actionIcon}
-                            onClick={(e) => {
-                              e.stopPropagation();
+                            onClick={() => {
                               guardMutation(() => handleEditAppointment(app));
                             }}
                             title="Modifier le rendez-vous"
@@ -573,8 +573,7 @@ export default function DashboardClientWrapper({
                             <button
                               type="button"
                               className={styles.actionIcon}
-                              onClick={(e) => {
-                                e.stopPropagation();
+                              onClick={() => {
                                 setPaymentAppointmentData(app);
                                 setPaymentModalOpen(true);
                               }}
@@ -590,10 +589,11 @@ export default function DashboardClientWrapper({
                           )}
                         </div>
                         <button 
+                          type="button"
                           className={styles.playButton}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openAgendaPage();
+                          onClick={() => {
+                            setSelectedSessionAppointment(app);
+                            setSessionModalOpen(true);
                           }}
                         >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -675,7 +675,7 @@ export default function DashboardClientWrapper({
             )}
           </div>
           <div className={styles.topClientActions}>
-            <button className={styles.btnFideliser} onClick={() => guardProFeature(() => setSendPromoModalOpen(true))}>
+            <button className={styles.btnFideliser} onClick={() => guardMutation(() => setSendPromoModalOpen(true))}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
               Fidéliser avec une offre
             </button>
@@ -713,6 +713,26 @@ export default function DashboardClientWrapper({
           </div>
         </div>
       </section>
+
+      <SessionModal
+        isOpen={isSessionModalOpen}
+        onClose={() => {
+          setSessionModalOpen(false);
+          setSelectedSessionAppointment(null);
+        }}
+        clientName={selectedSessionAppointment?.client.name}
+        time={selectedSessionAppointment ? new Date(selectedSessionAppointment.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : undefined}
+        category={selectedSessionAppointment?.service.name}
+        appointmentId={selectedSessionAppointment?.id}
+        clientId={selectedSessionAppointment?.client.id}
+        serviceId={selectedSessionAppointment?.service.id}
+        onPaymentRequest={() => {
+          setPaymentAppointmentData(selectedSessionAppointment);
+          setSessionModalOpen(false);
+          setSelectedSessionAppointment(null);
+          setPaymentModalOpen(true);
+        }}
+      />
 
       <PaymentModal
         isOpen={isPaymentModalOpen}

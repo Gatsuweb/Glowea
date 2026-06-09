@@ -434,7 +434,44 @@
 .serviceReadGrid {
   display: grid;
   gap: 16px;
-  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.8fr);
+  grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.4fr) minmax(220px, 0.8fr);
+}
+
+.serviceImagePreview {
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(234, 216, 207, 0.9);
+  border-radius: 18px;
+  min-height: 220px;
+  overflow: hidden;
+}
+
+.serviceImagePreview img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.serviceImagePlaceholder {
+  align-content: center;
+  background:
+    linear-gradient(180deg, rgba(122, 38, 55, 0.08), rgba(248, 238, 232, 0.55)),
+    #fffaf6;
+  display: grid;
+  gap: 8px;
+  height: 100%;
+  justify-items: center;
+  padding: 20px;
+  text-align: center;
+}
+
+.serviceImagePlaceholder strong {
+  color: #7a2637;
+}
+
+.serviceImagePlaceholder span {
+  color: #6b5751;
+  line-height: 1.5;
 }
 
 .serviceReadBlock {
@@ -526,6 +563,14 @@
 
 .serviceEditGrid textarea {
   resize: vertical;
+}
+
+.serviceUploadTile {
+  min-height: 220px;
+}
+
+.serviceUploadTile img {
+  height: 210px;
 }
 
 .serviceToggleField {

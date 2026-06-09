@@ -48,6 +48,28 @@ export default async function ClientsPage() {
           orderBy: { updatedAt: "desc" },
           take: 1,
         },
+        ClientMedia: {
+          include: {
+            Media: {
+              include: {
+                SessionMedia: {
+                  include: {
+                    Session: {
+                      include: {
+                        Service: true,
+                        Appointment: {
+                          select: { scheduledAt: true },
+                        },
+                      },
+                    },
+                  },
+                  orderBy: { createdAt: "asc" },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+        },
         ConsentDocument: {
           orderBy: { createdAt: "desc" }
         }

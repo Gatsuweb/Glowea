@@ -148,28 +148,19 @@ export default function ProfilPage() {
   };
 
   useEffect(() => {
-    if (activeTab === "templates" && !profileData.subscription.canUseProFeatures) {
-      openPricing();
-      return;
-    }
-
     if (activeTab === "templates") {
       void loadTemplates();
     }
-  }, [activeTab, profileData.subscription.canUseProFeatures]);
+  }, [activeTab]);
 
   const openCreateTemplateModal = () => {
-    guardProFeature(() => {
-      setEditingTemplate(null);
-      setPromoModalOpen(true);
-    });
+    setEditingTemplate(null);
+    setPromoModalOpen(true);
   };
 
   const openEditTemplateModal = (template: EditableMessageTemplate) => {
-    guardProFeature(() => {
-      setEditingTemplate(template);
-      setPromoModalOpen(true);
-    });
+    setEditingTemplate(template);
+    setPromoModalOpen(true);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -180,14 +171,6 @@ export default function ProfilPage() {
   const canEdit = !isLoadingProfile && !isSaving;
   const canToggleSmsReminders = (profileData.canUseAutomaticSmsReminders || profileData.smsRemindersEnabled) && !isLoadingProfile && !isSavingSmsReminders;
   const openPricing = () => router.push("/pricing");
-  const guardProFeature = (action: () => void) => {
-    if (!profileData.subscription.canUseProFeatures) {
-      openPricing();
-      return;
-    }
-
-    action();
-  };
 
   const handleSave = async () => {
     if (!canEdit) return;
@@ -279,10 +262,6 @@ export default function ProfilPage() {
     }
 
     if (itemId === "templates") {
-      if (!profileData.subscription.canUseProFeatures) {
-        openPricing();
-        return;
-      }
       setActiveTab("templates");
       return;
     }
@@ -714,8 +693,8 @@ export default function ProfilPage() {
                 </div>
                 <div className={styles.settingActions}>
                   {!profileData.canUseAutomaticSmsReminders && (
-                    <button className={styles.btnEdit} type="button" disabled>
-                      Debloquer
+                    <button className={styles.btnEdit} type="button" onClick={openPricing}>
+                      Passer au Pro
                     </button>
                   )}
                   <button

@@ -13,7 +13,7 @@ import {
 } from "../../lib/appointmentFinance";
 
 import { exportElementToPDF } from "../../lib/exportUtils";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type AppointmentStatusValue = "SCHEDULED" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELED" | "NO_SHOW";
 
@@ -84,6 +84,7 @@ export default function AgendaClientWrapper({
   paymentSettings?: PaymentSettings;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
  const [isSessionModalOpen, setSessionModalOpen] = useState(false);
   const [selectedSessionAppointment, setSelectedSessionAppointment] = useState<AgendaAppointment | null>(null);
 
@@ -103,6 +104,27 @@ export default function AgendaClientWrapper({
     const interval = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get("payment") !== "success") return;
+
+    const refreshToken =
+      searchParams.get("session_id") ||
+      searchParams.get("appointmentId") ||
+      "stripe-payment-success";
+    const storageKey = `agenda-stripe-refresh:${refreshToken}`;
+
+    if (window.sessionStorage.getItem(storageKey) === "done") return;
+
+    window.sessionStorage.setItem(storageKey, "done");
+    router.refresh();
+
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.delete("payment");
+    nextUrl.searchParams.delete("session_id");
+    nextUrl.searchParams.delete("appointmentId");
+    window.history.replaceState({}, "", `${nextUrl.pathname}${nextUrl.search}`);
+  }, [router, searchParams]);
 
   // Obtenir le lundi de la semaine courante
   const [isHistoryView, setIsHistoryView] = useState(false);

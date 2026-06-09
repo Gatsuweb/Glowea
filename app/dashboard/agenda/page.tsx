@@ -1,6 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import AgendaClientWrapper from "../../components/AgendaClientWrapper";
 import prisma from "../../../lib/prisma";
+import { syncAppointmentPaymentFromCheckoutSessionId } from "../../../lib/stripeAppointmentSync";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,11 @@ function serializeValue<T>(value: T): T {
   );
 }
 
-export default async function AgendaPage() {
+export default async function AgendaPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ payment?: string; session_id?: string; appointmentId?: string }>;
+}) {
   const DEV_BYPASS_AUTH = process.env.NODE_ENV === "development";
   
   let user = null;
@@ -36,6 +41,18 @@ export default async function AgendaPage() {
   const { getTenantId } = await import("../../../lib/tenant");
   const tenantId = await getTenantId();
   const { userId } = await auth();
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+
+  if (resolvedSearchParams.payment === "success" && resolvedSearchParams.session_id) {
+    try {
+      await syncAppointmentPaymentFromCheckoutSessionId(
+        resolvedSearchParams.session_id,
+        resolvedSearchParams.appointmentId || null
+      );
+    } catch (error) {
+      console.error("[stripe:agenda] checkout sync failed", error);
+    }
+  }
 
   // Fetch all appointments for the tenant, to be filtered on the client side
   // (In a real app, we'd fetch only the current month or week, and fetch more via an API route when changing weeks)

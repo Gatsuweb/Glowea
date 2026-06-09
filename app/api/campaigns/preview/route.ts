@@ -7,6 +7,7 @@ import {
   getBusinessName,
   getCampaignProviderMode,
   getCampaignTemplate,
+  getClientsByIds,
   getSegmentClients,
 } from "../../../../lib/campaigns";
 
@@ -25,9 +26,9 @@ export async function POST(request: Request) {
   try {
     const tenantId = await getTenantId();
     const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
-    if (!subscriptionAccess.canUseProFeatures) {
+    if (!subscriptionAccess.canUseApp) {
       return NextResponse.json(
-        { success: false, error: "Les campagnes sont reservees a la formule Pro" },
+        { success: false, error: "Un abonnement actif est necessaire pour previsualiser une campagne" },
         { status: 403 }
       );
     }
@@ -35,8 +36,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     const targetSegment = body.targetSegment;
     const templateId = typeof body.templateId === "string" ? body.templateId : "";
+    const clientIds = Array.isArray(body.clientIds) ? body.clientIds.filter((value): value is string => typeof value === "string") : [];
+    const resolvedTargetSegment = isSegment(targetSegment) ? targetSegment : "ALL";
 
-    if (!isSegment(targetSegment) || !templateId) {
+    if ((!isSegment(targetSegment) && clientIds.length === 0) || !templateId) {
       return NextResponse.json(
         { success: false, error: "Cible ou template invalide" },
         { status: 400 }
@@ -54,7 +57,7 @@ export async function POST(request: Request) {
     const requestedChannel = isChannel(body.channel) ? body.channel : null;
     const channel = requestedChannel || (template.channel === "EMAIL" ? "EMAIL" : "SMS");
     const [clients, businessName] = await Promise.all([
-      getSegmentClients(tenantId, targetSegment),
+      clientIds.length > 0 ? getClientsByIds(tenantId, clientIds) : getSegmentClients(tenantId, resolvedTargetSegment),
       getBusinessName(tenantId),
     ]);
 

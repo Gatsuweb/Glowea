@@ -13,6 +13,7 @@ type PublicService = {
   durationMin: number;
   price: number;
   category: string;
+  imageUrl: string;
 };
 
 const fallbackGallery = [
@@ -56,6 +57,8 @@ function normalizeInstagram(value: string | null) {
 }
 
 function getServiceCardImage(service: PublicService) {
+  if (service.imageUrl) return service.imageUrl;
+
   const text = `${service.name} ${service.category} ${service.description}`.toLowerCase();
 
   if (text.includes("volume russe")) return "/volume-russe.png";
@@ -108,6 +111,7 @@ export default async function PublicProPage({ params }: { params: Promise<{ slug
     durationMin: service.durationMin || 60,
     price: service.price ? Number(service.price.toString()) : 0,
     category: service.category || "Prestation",
+    imageUrl: service.imageUrl || "",
   }));
 
   const gallery = profile.Tenant.GalleryImage.length > 0 ? profile.Tenant.GalleryImage : fallbackGallery;

@@ -72,13 +72,6 @@ export async function recordAppointmentPayment(params: RecordAppointmentPaymentP
     return { success: false as const, error: "Rendez-vous introuvable" };
   }
 
-  const current = getAppointmentFinancialSummary(appointment);
-  const remainingBefore = current.remainingAmountCents;
-  if (remainingBefore <= 0) {
-    return { success: false as const, error: "Aucun montant restant a encaisser" };
-  }
-  const appliedAmount = Math.min(amountCents, remainingBefore);
-
   const externalPaymentId = params.externalPaymentId.trim();
   const existingPayment = await prisma.financialTransaction.findFirst({
     where: {
@@ -92,6 +85,13 @@ export async function recordAppointmentPayment(params: RecordAppointmentPaymentP
   if (existingPayment) {
     return { success: true as const, skipped: true, appointmentId: appointment.id };
   }
+
+  const current = getAppointmentFinancialSummary(appointment);
+  const remainingBefore = current.remainingAmountCents;
+  if (remainingBefore <= 0) {
+    return { success: false as const, error: "Aucun montant restant a encaisser" };
+  }
+  const appliedAmount = Math.min(amountCents, remainingBefore);
 
   const nextDepositPaidAmountCents =
     params.paymentType === "deposit"

@@ -235,18 +235,42 @@
   display: flex;
   flex-direction: column;
   gap: 15px;
+  max-height: 380px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(144, 87, 96, 0.35) transparent;
+}
+
+.appointmentList::-webkit-scrollbar {
+  width: 8px;
+}
+
+.appointmentList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.appointmentList::-webkit-scrollbar-thumb {
+  background: rgba(144, 87, 96, 0.28);
+  border-radius: 999px;
+}
+
+.appointmentList::-webkit-scrollbar-thumb:hover {
+  background: rgba(144, 87, 96, 0.42);
 }
 
 .appointmentItem {
   display: flex;
-  align-items: center;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 16px;
   background: #FDFDFD;
   border-radius: 12px;
   padding: 15px 20px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.04);
   border: 1px solid #F0F0F0;
-  transition: all 0.2s ease;
-  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
 }
 
 .appointmentItem:hover {
@@ -255,25 +279,45 @@
   border-color: var(--secondary);
 }
 
+.appointmentMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.appointmentMain:focus-visible {
+  outline: 2px solid rgba(144, 87, 96, 0.35);
+  outline-offset: 6px;
+  border-radius: 10px;
+}
+
 .appointmentTime {
   font-size: 1.2rem;
   color: var(--tertiary);
   font-weight: 700;
-  margin-right: 20px;
   min-width: 50px;
 }
 
 .appointmentDetails {
-  flex-grow: 1;
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 6px;
 }
 
 .appointmentName {
   font-weight: 700;
   font-size: 0.95rem;
   color: #333;
+  line-height: 1.2;
 }
 
 .appointmentType {
@@ -281,22 +325,35 @@
   color: #666;
 }
 
+.appointmentMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
 .paymentBadge {
-  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
   width: fit-content;
   border: 1px solid #D9E9DE;
-  border-radius: 20px;
-  padding: 3px 9px;
-  font-size: 0.68rem;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.7rem;
   font-weight: 700;
   color: #176B35;
   background: #EEF8F1;
+  white-space: nowrap;
 }
 
-.appointmentTags {
+.appointmentAside {
   display: flex;
-  align-items: center;
-  gap: 15px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-direction: column;
+  flex-shrink: 0;
 }
 
 .tagDemain {
@@ -313,6 +370,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .actionIcon {
@@ -404,18 +463,6 @@
 
 .emptyStateBtn:hover {
   opacity: 0.9;
-}
-
-.appointmentActions {
-  display: flex;
-  gap: 5px;
-}
-
-.appointmentActions img {
-  width: 16px;
-  height: 16px;
-  opacity: 0.5;
-  cursor: pointer;
 }
 
 /* Stock */
@@ -801,15 +848,22 @@
   }
   .appointmentItem {
     align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 10px;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .appointmentMain {
+    width: 100%;
+    align-items: flex-start;
   }
   .appointmentDetails {
     min-width: 130px;
   }
-  .appointmentTags {
+  .appointmentAside {
     width: 100%;
-    justify-content: flex-end;
+    align-items: stretch;
     gap: 8px;
+  }
+  .appointmentActions {
+    justify-content: flex-start;
   }
 }

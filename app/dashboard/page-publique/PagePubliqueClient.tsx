@@ -4,16 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 import {
-  addGalleryImage,
   deletePublicService,
-  deleteGalleryImage,
   deleteReview,
   savePublicService,
   saveReview,
   updatePublicProfile,
   type getPublicPageConfig,
 } from "../../actions/publicPageActions";
-import { getSupabaseBrowserClient, publicStorageBucket } from "../../../lib/supabaseBrowser";
 import styles from "./pagePublique.module.css";
 
 type ConfigData = Awaited<ReturnType<typeof getPublicPageConfig>>;
@@ -31,6 +28,7 @@ const emptyService: ServiceState = {
   durationMin: 60,
   price: 0,
   category: "",
+  imageUrl: "",
   isPublic: true,
   isActive: true,
 };
@@ -76,6 +74,10 @@ function createEmptyServiceDraft(): ServiceEditorState {
   return { ...emptyService, localId: createLocalId() };
 }
 
+function createEmptyReviewDraft(): ReviewState {
+  return { ...emptyReview, createdAt: new Date().toISOString() };
+}
+
 export default function PagePubliqueClient({ initialData }: { initialData: ConfigData }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -83,7 +85,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
   const [profile, setProfile] = useState<ProfileState>(initialData.profile);
   const [services, setServices] = useState<ServiceEditorState[]>(() => initialData.services.map(toServiceEditorState));
   const [gallery, setGallery] = useState<GalleryState[]>(initialData.gallery);
-  const [reviews, setReviews] = useState<ReviewState[]>(initialData.reviews.length ? initialData.reviews : [emptyReview]);
+  const [reviews, setReviews] = useState<ReviewState[]>(initialData.reviews);
   const [editingServices, setEditingServices] = useState<Record<string, boolean>>({});
   const [serviceSnapshots, setServiceSnapshots] = useState<Record<string, ServiceState>>({});
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -126,6 +128,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
               durationMin: service.durationMin,
               price: service.price,
               category: service.category,
+              imageUrl: service.imageUrl,
               isPublic: service.isPublic,
               isActive: service.isActive,
             },
@@ -175,45 +178,27 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
     )));
   }
 
-  async function uploadFile(file: File, folder: string) {
-    const supabase = getSupabaseBrowserClient();
-    const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
-    const safeName = `${crypto.randomUUID()}.${extension}`;
-    const path = `${profile.id}/${folder}/${safeName}`;
-    const { error: uploadError } = await supabase.storage
-      .from(publicStorageBucket)
-      .upload(path, file, {
-        cacheControl: "31536000",
-        upsert: false,
-      });
-
-    if (uploadError) throw uploadError;
-
-    const { data } = supabase.storage.from(publicStorageBucket).getPublicUrl(path);
-    return data.publicUrl;
-  }
-
-  function getStoragePathFromPublicUrl(url: string) {
-    const marker = `/storage/v1/object/public/${publicStorageBucket}/`;
-    const index = url.indexOf(marker);
-    if (index === -1) return null;
-    return decodeURIComponent(url.slice(index + marker.length));
-  }
-
-  async function removeStoredFile(url: string) {
-    const path = getStoragePathFromPublicUrl(url);
-    if (!path) return;
-    const supabase = getSupabaseBrowserClient();
-    await supabase.storage.from(publicStorageBucket).remove([path]);
-  }
-
   async function handleProfileUpload(file: File | undefined, field: "coverImageUrl" | "avatarUrl") {
     if (!file) return;
     setUploadingField(field);
     setError(null);
     try {
-      const url = await uploadFile(file, field === "coverImageUrl" ? "covers" : "avatars");
-      updateProfileField(field, url);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("kind", field === "coverImageUrl" ? "cover" : "avatar");
+
+      const response = await fetch("/api/public-profile/profile-images/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const result = await response.json();
+
+      if (!result.success) {
+        setError(result.error || "Upload impossible.");
+        return;
+      }
+
+      updateProfileField(field, result.imageUrl);
       setFeedback("Image importee. Pensez a enregistrer la page.");
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Upload impossible.");
@@ -228,32 +213,79 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
     setError(null);
     try {
       const uploaded: GalleryState[] = [];
+      let failedCount = 0;
       for (const file of Array.from(files)) {
-        const imageUrl = await uploadFile(file, "gallery");
-        const result = await addGalleryImage({
-          imageUrl,
-          alt: file.name.replace(/\.[^.]+$/, ""),
-          sortOrder: gallery.length + uploaded.length + 1,
-          isPublic: true,
-        });
-        if (result.success) {
-          uploaded.push({
-            id: result.image.id,
-            imageUrl: result.image.imageUrl,
-            alt: result.image.alt || "",
-            sortOrder: result.image.sortOrder,
-            isPublic: result.image.isPublic,
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("alt", file.name.replace(/\.[^.]+$/, ""));
+
+          const response = await fetch("/api/public-profile/gallery/upload", {
+            method: "POST",
+            body: formData,
           });
+          const result = await response.json();
+
+          if (result.success) {
+            uploaded.push({
+              id: result.image.id,
+              imageUrl: result.image.imageUrl,
+              alt: result.image.alt || "",
+              sortOrder: result.image.sortOrder,
+              isPublic: result.image.isPublic,
+            });
+          } else {
+            failedCount += 1;
+          }
+        } catch {
+          failedCount += 1;
         }
       }
-      setGallery((current) => [...uploaded, ...current]);
-      setFeedback("Images ajoutees a la galerie.");
-      router.refresh();
+
+      if (uploaded.length) {
+        setGallery((current) => [...uploaded, ...current]);
+        setFeedback(
+          failedCount
+            ? `${uploaded.length} image${uploaded.length > 1 ? "s" : ""} ajoutee${uploaded.length > 1 ? "s" : ""}, ${failedCount} echec${failedCount > 1 ? "s" : ""}.`
+            : "Images ajoutees a la galerie."
+        );
+        router.refresh();
+      } else if (failedCount) {
+        setError("Upload impossible.");
+      }
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Upload impossible.");
     } finally {
       setUploadingField(null);
       if (galleryInputRef.current) galleryInputRef.current.value = "";
+    }
+  }
+
+  async function handleServiceImageUpload(index: number, file: File | undefined) {
+    if (!file) return;
+    setUploadingField(`service-image-${index}`);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/public-profile/services/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const result = await response.json();
+
+      if (!result.success) {
+        setError(result.error || "Upload impossible.");
+        return;
+      }
+
+      updateService(index, { imageUrl: result.imageUrl });
+      setFeedback("Image de prestation importee. Pensez a enregistrer la prestation.");
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Upload impossible.");
+    } finally {
+      setUploadingField(null);
     }
   }
 
@@ -283,6 +315,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
         durationMin: service.durationMin,
         price: service.price,
         category: service.category,
+        imageUrl: service.imageUrl,
         isPublic: service.isPublic,
       });
       if (!result.success) {
@@ -345,13 +378,18 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
     });
   }
 
+  function addReviewDraft() {
+    setReviews((current) => [createEmptyReviewDraft(), ...current]);
+  }
+
   function removeImage(id: string) {
     setFeedback(null);
     setError(null);
     startTransition(async () => {
-      const image = gallery.find((item) => item.id === id);
-      if (image) await removeStoredFile(image.imageUrl).catch(() => undefined);
-      const result = await deleteGalleryImage(id);
+      const response = await fetch(`/api/public-profile/gallery/${id}`, {
+        method: "DELETE",
+      });
+      const result = await response.json();
       if (!result.success) {
         setError(result.error);
         return;
@@ -363,16 +401,16 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
   }
 
   function clearProfileImage(field: "coverImageUrl" | "avatarUrl") {
-    const currentUrl = profile[field];
     updateProfileField(field, "");
-    if (currentUrl) {
-      void removeStoredFile(currentUrl).catch(() => undefined);
-    }
   }
 
-  function removeReview(id: string) {
+  function clearServiceImage(index: number) {
+    updateService(index, { imageUrl: "" });
+  }
+
+  function removeReview(index: number, id: string) {
     if (!id) {
-      setReviews((current) => current.slice(0, -1));
+      setReviews((current) => current.filter((_, reviewIndex) => reviewIndex !== index));
       return;
     }
     setFeedback(null);
@@ -557,6 +595,17 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
                       {!isEditing ? (
                         <>
                           <div className={styles.serviceReadGrid}>
+                            <div className={styles.serviceImagePreview}>
+                              {service.imageUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element -- Uploaded Supabase public URL.
+                                <img src={service.imageUrl} alt={service.name || "Illustration de la prestation"} />
+                              ) : (
+                                <div className={styles.serviceImagePlaceholder}>
+                                  <strong>Aucune image de fond</strong>
+                                  <span>Ajoutez une image pour personnaliser la card publique.</span>
+                                </div>
+                              )}
+                            </div>
                             <div className={styles.serviceReadBlock}>
                               <span className={styles.serviceReadLabel}>Description</span>
                               <p>{service.description || "Ajoutez une courte description pour rassurer et donner envie de reserver."}</p>
@@ -609,6 +658,30 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
                                 rows={4}
                               />
                             </label>
+                            <div className={`${styles.uploadGroup} ${styles.full}`}>
+                              <label className={`${styles.uploadTile} ${styles.serviceUploadTile}`}>
+                                <span>Image de fond de la card</span>
+                                {service.imageUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element -- Uploaded Supabase public URL.
+                                  <img src={service.imageUrl} alt={service.name || "Image de fond de la prestation"} />
+                                ) : (
+                                  <strong>Importer une image</strong>
+                                )}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(event) => handleServiceImageUpload(index, event.target.files?.[0])}
+                                />
+                              </label>
+                              {service.imageUrl && (
+                                <button className={styles.textButton} type="button" onClick={() => clearServiceImage(index)}>
+                                  Retirer l&apos;image
+                                </button>
+                              )}
+                              {uploadingField === `service-image-${index}` && (
+                                <p className={styles.helperText}>Upload de l&apos;image en cours...</p>
+                              )}
+                            </div>
                             <label>
                               Duree en minutes
                               <input
@@ -700,26 +773,37 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
           <article className={styles.card}>
             <div className={styles.cardHeader}>
               <div><span className={styles.kicker}>Avis clientes</span><h2>Avis visibles</h2></div>
-              <button className={styles.secondaryButton} type="button" onClick={() => setReviews((current) => [{ ...emptyReview }, ...current])}>Ajouter</button>
+              <button className={styles.secondaryButton} type="button" onClick={addReviewDraft}>Ajouter</button>
             </div>
             <div className={styles.reviewSummary}>
               <strong>{averageRating ? averageRating.toFixed(1) : "-"} / 5</strong>
               <span>{visibleReviews.length} avis visible{visibleReviews.length > 1 ? "s" : ""}</span>
             </div>
-            <div className={styles.reviewList}>
-              {reviews.map((review, index) => (
-                <div className={styles.reviewEditor} key={`${review.id || "new"}-${index}`}>
-                  <div className={styles.serviceMetaGrid}>
-                    <input value={review.authorName} onChange={(event) => updateReview(index, { authorName: event.target.value })} placeholder="Nom de la cliente" />
-                    <input type="number" min="1" max="5" value={review.rating} onChange={(event) => updateReview(index, { rating: Number(event.target.value) })} />
-                    <label className={styles.inlineCheck}><input type="checkbox" checked={review.isVisible} onChange={(event) => updateReview(index, { isVisible: event.target.checked })} />Visible</label>
-                    <button type="button" onClick={() => saveReviewAt(index)} disabled={isPending}>Enregistrer</button>
+            {reviews.length === 0 ? (
+              <div className={styles.emptyStateCard}>
+                <span className={styles.emptyStateIcon}>+</span>
+                <h3>Aucun avis pour le moment</h3>
+                <p>Ajoutez quelques retours clientes pour rassurer et enrichir votre page publique.</p>
+                <button className={styles.primaryButton} type="button" onClick={addReviewDraft}>
+                  Ajouter mon premier avis
+                </button>
+              </div>
+            ) : (
+              <div className={styles.reviewList}>
+                {reviews.map((review, index) => (
+                  <div className={styles.reviewEditor} key={`${review.id || "new"}-${index}`}>
+                    <div className={styles.serviceMetaGrid}>
+                      <input value={review.authorName} onChange={(event) => updateReview(index, { authorName: event.target.value })} placeholder="Nom de la cliente" />
+                      <input type="number" min="1" max="5" value={review.rating} onChange={(event) => updateReview(index, { rating: Number(event.target.value) })} />
+                      <label className={styles.inlineCheck}><input type="checkbox" checked={review.isVisible} onChange={(event) => updateReview(index, { isVisible: event.target.checked })} />Visible</label>
+                      <button type="button" onClick={() => saveReviewAt(index)} disabled={isPending}>Enregistrer</button>
+                    </div>
+                    <textarea value={review.comment} onChange={(event) => updateReview(index, { comment: event.target.value })} rows={3} placeholder="Commentaire" />
+                    <button className={styles.dangerButton} type="button" onClick={() => removeReview(index, review.id)} disabled={isPending}>Supprimer l&apos;avis</button>
                   </div>
-                  <textarea value={review.comment} onChange={(event) => updateReview(index, { comment: event.target.value })} rows={3} placeholder="Commentaire" />
-                  <button className={styles.dangerButton} type="button" onClick={() => removeReview(review.id)} disabled={isPending}>Supprimer l&apos;avis</button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </article>
         )}
 

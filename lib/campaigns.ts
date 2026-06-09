@@ -38,11 +38,25 @@ export const DEFAULT_CAMPAIGN_TEMPLATES = [
     body: "Bonjour {firstName}, votre rendez-vous chez {businessName} est confirme. A bientot",
   },
   {
+    name: "Confirmation de rendez-vous - Email",
+    type: "EMAIL" as const,
+    channel: "EMAIL" as const,
+    subject: "Confirmation de votre rendez-vous chez {businessName}",
+    body: "Bonjour {firstName},\n\nVotre rendez-vous chez {businessName} est bien confirme.\n\nA tres bientot,\n{businessName}",
+  },
+  {
     name: "Offre Printemps -20%",
     type: "SMS" as const,
     channel: "SMS" as const,
     subject: null,
     body: "Bonjour {firstName}, profitez de {offer} chez {businessName}. Reservez ici : {bookingLink}",
+  },
+  {
+    name: "Offre Printemps -20% - Email",
+    type: "EMAIL" as const,
+    channel: "EMAIL" as const,
+    subject: "Une offre speciale vous attend chez {businessName}",
+    body: "Bonjour {firstName},\n\nProfitez de {offer} chez {businessName}.\n\nVous pouvez reserver ici : {bookingLink}\n\nA bientot,\n{businessName}",
   },
   {
     name: "Rappel 24h Avant",
@@ -52,6 +66,13 @@ export const DEFAULT_CAMPAIGN_TEMPLATES = [
     body: "Bonjour {firstName}, petit rappel pour votre rendez-vous demain chez {businessName}. A bientot",
   },
   {
+    name: "Rappel 24h Avant - Email",
+    type: "EMAIL" as const,
+    channel: "EMAIL" as const,
+    subject: "Rappel de votre rendez-vous de demain",
+    body: "Bonjour {firstName},\n\nPetit rappel pour votre rendez-vous prevu demain chez {businessName}.\n\nA bientot,\n{businessName}",
+  },
+  {
     name: "Reactivation cliente inactive",
     type: "SMS" as const,
     channel: "SMS" as const,
@@ -59,11 +80,25 @@ export const DEFAULT_CAMPAIGN_TEMPLATES = [
     body: "Bonjour {firstName}, cela fait un moment que l'on ne vous a pas vue chez {businessName}. {offer} pour votre retour : {bookingLink}",
   },
   {
+    name: "Reactivation cliente inactive - Email",
+    type: "EMAIL" as const,
+    channel: "EMAIL" as const,
+    subject: "Cela fait longtemps que nous ne vous avons pas vue",
+    body: "Bonjour {firstName},\n\nCela fait un moment que nous ne vous avons pas vue chez {businessName}.\n\nPour votre retour, profitez de {offer} : {bookingLink}\n\nAu plaisir de vous revoir,\n{businessName}",
+  },
+  {
     name: "Remerciement apres seance",
     type: "SMS" as const,
     channel: "SMS" as const,
     subject: null,
     body: "Merci {firstName} pour votre visite chez {businessName}. A tres bientot",
+  },
+  {
+    name: "Remerciement apres seance - Email",
+    type: "EMAIL" as const,
+    channel: "EMAIL" as const,
+    subject: "Merci pour votre visite chez {businessName}",
+    body: "Bonjour {firstName},\n\nMerci pour votre visite chez {businessName}.\n\nA tres bientot,\n{businessName}",
   },
 ];
 
@@ -197,6 +232,44 @@ export async function getSegmentClients(tenantId: string, segment: CampaignTarge
     .sort((a, b) => b.revenue - a.revenue || b.visits - a.visits)
     .slice(0, 50)
     .map((entry) => entry.client);
+}
+
+export async function getClientsByIds(tenantId: string, clientIds: string[]) {
+  const uniqueClientIds = Array.from(new Set(clientIds.filter((clientId) => typeof clientId === "string" && clientId.trim())));
+  if (uniqueClientIds.length === 0) return [];
+
+  return prisma.client.findMany({
+    where: {
+      tenantId,
+      archivedAt: null,
+      id: { in: uniqueClientIds },
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      phone: true,
+      visitCount: true,
+      lastVisitAt: true,
+      Appointment: {
+        where: {
+          status: {
+            in: ["COMPLETED", "CONFIRMED", "SCHEDULED"],
+          },
+        },
+        select: {
+          scheduledAt: true,
+          status: true,
+          Service: {
+            select: {
+              price: true,
+            },
+          },
+        },
+      },
+    },
+  });
 }
 
 export function getSendAddress(client: CampaignPreviewRecipient, channel: CampaignChannel) {

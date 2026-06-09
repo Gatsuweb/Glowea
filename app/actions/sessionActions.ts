@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
+import { getSupabaseAdminClient, publicStorageBucket } from "../../lib/supabaseAdmin";
 import { getTenantId } from "../../lib/tenant";
 
 type SessionStatusInput = "DRAFT" | "COMPLETED" | "IN_PROGRESS";
@@ -18,6 +19,9 @@ type PhotoInput = {
   label: string;
   url: string;
   mimeType?: string;
+  mediaId?: string;
+  storageKey?: string;
+  sizeBytes?: number;
 };
 
 function serializeSessionProductUsage(usage: {
@@ -208,24 +212,53 @@ async function syncSessionProductUsages(
   }
 }
 
-async function syncSessionPhotos(tenantId: string, sessionId: string, photos: PhotoInput[] | undefined) {
+async function removeStoredSessionMedia(storageKey: string | null | undefined) {
+  if (!storageKey) return;
+  const supabase = getSupabaseAdminClient();
+  await supabase.storage.from(publicStorageBucket).remove([storageKey]).catch(() => undefined);
+}
+
+async function syncSessionPhotos(
+  tenantId: string,
+  sessionId: string,
+  clientId: string,
+  photos: PhotoInput[] | undefined
+) {
   if (!photos) return;
 
   const validPhotos = photos.filter((photo) => photo.url && photo.label);
+  const existingSessionMedia = await prisma.sessionMedia.findMany({
+    where: { sessionId },
+    include: { Media: true },
+  });
+  const nextMediaIds = new Set(validPhotos.map((photo) => photo.mediaId).filter((mediaId): mediaId is string => Boolean(mediaId)));
 
   await prisma.sessionMedia.deleteMany({
     where: { sessionId },
   });
 
   for (const photo of validPhotos) {
-    const media = await prisma.media.create({
-      data: {
-        id: `med_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`,
-        tenantId,
-        url: photo.url,
-        mimeType: photo.mimeType || null,
-      },
-    });
+    let media = photo.mediaId
+      ? await prisma.media.findFirst({
+          where: {
+            id: photo.mediaId,
+            tenantId,
+          },
+        })
+      : null;
+
+    if (!media) {
+      media = await prisma.media.create({
+        data: {
+          id: `med_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`,
+          tenantId,
+          url: photo.url,
+          storageKey: photo.storageKey || null,
+          mimeType: photo.mimeType || null,
+          sizeBytes: Number.isFinite(Number(photo.sizeBytes)) ? Number(photo.sizeBytes) : null,
+        },
+      });
+    }
 
     await prisma.sessionMedia.create({
       data: {
@@ -235,6 +268,50 @@ async function syncSessionPhotos(tenantId: string, sessionId: string, photos: Ph
         label: photo.label,
       },
     });
+
+    await prisma.clientMedia.upsert({
+      where: {
+        clientId_mediaId: {
+          clientId,
+          mediaId: media.id,
+        },
+      },
+      update: {
+        label: photo.label,
+      },
+      create: {
+        id: `cmed_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+        clientId,
+        mediaId: media.id,
+        label: photo.label,
+      },
+    });
+  }
+
+  const removedMedia = existingSessionMedia.filter((item) => !nextMediaIds.has(item.mediaId));
+  for (const item of removedMedia) {
+    const otherSessionLinks = await prisma.sessionMedia.count({
+      where: {
+        mediaId: item.mediaId,
+        sessionId: { not: sessionId },
+      },
+    });
+
+    if (otherSessionLinks === 0) {
+      await prisma.clientMedia.deleteMany({
+        where: {
+          clientId,
+          mediaId: item.mediaId,
+        },
+      });
+      await prisma.media.deleteMany({
+        where: {
+          id: item.mediaId,
+          tenantId,
+        },
+      });
+      await removeStoredSessionMedia(item.Media.storageKey);
+    }
   }
 }
 
@@ -344,7 +421,9 @@ export async function getLashSessionByAppointmentId(appointmentId: string) {
         success: true, 
         lashSession: serializeSessionSnapshot(session.LashSession),
         photos: session.SessionMedia.map((item) => ({
+          mediaId: item.Media.id,
           label: item.label || "Photo",
+          storageKey: item.Media.storageKey || undefined,
           url: item.Media.url,
           mimeType: item.Media.mimeType || undefined,
         })),
@@ -376,7 +455,9 @@ export async function getBrowliftSessionByAppointmentId(appointmentId: string) {
         success: true, 
         browliftSession: serializeSessionSnapshot(session.BrowliftSession),
         photos: session.SessionMedia.map((item) => ({
+          mediaId: item.Media.id,
           label: item.label || "Photo",
+          storageKey: item.Media.storageKey || undefined,
           url: item.Media.url,
           mimeType: item.Media.mimeType || undefined,
         })),
@@ -408,7 +489,9 @@ export async function getLashLiftSessionByAppointmentId(appointmentId: string) {
         success: true, 
         lashLiftSession: serializeSessionSnapshot(session.LashLiftSession),
         photos: session.SessionMedia.map((item) => ({
+          mediaId: item.Media.id,
           label: item.label || "Photo",
+          storageKey: item.Media.storageKey || undefined,
           url: item.Media.url,
           mimeType: item.Media.mimeType || undefined,
         })),
@@ -440,7 +523,9 @@ export async function getNailSessionByAppointmentId(appointmentId: string) {
         success: true, 
         nailSession: serializeSessionSnapshot(session.NailSession),
         photos: session.SessionMedia.map((item) => ({
+          mediaId: item.Media.id,
           label: item.label || "Photo",
+          storageKey: item.Media.storageKey || undefined,
           url: item.Media.url,
           mimeType: item.Media.mimeType || undefined,
         })),
@@ -514,7 +599,7 @@ export async function saveLashSession(data: {
     });
 
     await syncSessionProductUsages(TENANT_ID, session.id, data.productUsages, sessionStatus === "COMPLETED");
-    await syncSessionPhotos(TENANT_ID, session.id, data.photos);
+    await syncSessionPhotos(TENANT_ID, session.id, data.clientId, data.photos);
 
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/agenda");
@@ -567,7 +652,7 @@ export async function saveBrowliftSession(data: {
     });
 
     await syncSessionProductUsages(TENANT_ID, session.id, data.productUsages, sessionStatus === "COMPLETED");
-    await syncSessionPhotos(TENANT_ID, session.id, data.photos);
+    await syncSessionPhotos(TENANT_ID, session.id, data.clientId, data.photos);
 
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/agenda");
@@ -618,7 +703,7 @@ export async function saveLashLiftSession(data: {
     });
 
     await syncSessionProductUsages(TENANT_ID, session.id, data.productUsages, sessionStatus === "COMPLETED");
-    await syncSessionPhotos(TENANT_ID, session.id, data.photos);
+    await syncSessionPhotos(TENANT_ID, session.id, data.clientId, data.photos);
 
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/agenda");
@@ -687,7 +772,7 @@ export async function saveNailSession(data: {
     });
 
     await syncSessionProductUsages(TENANT_ID, session.id, data.productUsages, sessionStatus === "COMPLETED");
-    await syncSessionPhotos(TENANT_ID, session.id, data.photos);
+    await syncSessionPhotos(TENANT_ID, session.id, data.clientId, data.photos);
 
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/agenda");

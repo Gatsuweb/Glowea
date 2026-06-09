@@ -42,6 +42,40 @@ STRIPE_APPLICATION_FEE_PERCENT=2
 
 Les montants sont en centimes cote API Stripe. Par exemple `100` signifie `1,00 EUR`.
 
+## Supabase Storage
+
+Le bucket public utilise pour la page publique est :
+
+```text
+glowea-public
+```
+
+Variables necessaires :
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+```
+
+Le script SQL de creation et de policies est disponible ici :
+
+```text
+supabase/glowea-public-storage.sql
+```
+
+Les images sont stockees avec le `tenantId` dans le premier segment du chemin :
+
+```text
+glowea-public/{tenantId}/gallery/{filename}
+```
+
+Important :
+- la lecture publique est autorisee pour afficher les images sur la page publique ;
+- l'upload galerie publique passe par la route serveur `/api/public-profile/gallery/upload` protegee par Clerk ;
+- la suppression galerie publique passe par la route serveur `/api/public-profile/gallery/[id]` ;
+- `SUPABASE_SERVICE_ROLE_KEY` ne doit jamais etre exposee cote client ;
+- le bucket peut rester public uniquement pour la lecture.
+
 ## Acceder aux parametres paiements
 
 La page de configuration est :

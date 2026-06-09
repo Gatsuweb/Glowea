@@ -816,6 +816,7 @@ model Service {
   durationMin       Int?
   price             Decimal?         @db.Decimal(10, 2)
   category          String?
+  imageUrl          String?
   isPublic          Boolean          @default(true)
   isActive          Boolean          @default(true)
   color             String?

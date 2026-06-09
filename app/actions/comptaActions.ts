@@ -255,6 +255,39 @@ export async function getStatsData(monthString: string) {
       }
     });
 
+    const clientsForFollowUp = await prisma.client.findMany({
+      where: {
+        tenantId: TENANT_ID,
+        archivedAt: null,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        Appointment: {
+          where: {
+            status: {
+              in: ["COMPLETED", "CONFIRMED", "SCHEDULED"],
+            },
+          },
+          select: {
+            scheduledAt: true,
+            status: true,
+            price: true,
+            Service: {
+              select: {
+                price: true,
+              },
+            },
+          },
+          orderBy: {
+            scheduledAt: "desc",
+          },
+        },
+      },
+    });
+
     const incomeTransactions = await prisma.financialTransaction.findMany({
       where: {
         tenantId: TENANT_ID,
@@ -374,6 +407,52 @@ export async function getStatsData(monthString: string) {
       chartData: weeklyTotals.map(val => ({ value: val }))
     };
 
+    const now = new Date();
+    const inactiveCutoff = new Date();
+    inactiveCutoff.setDate(inactiveCutoff.getDate() - 42);
+
+    const relanceCandidates = clientsForFollowUp
+      .map((client) => {
+        const upcomingAppointment = client.Appointment.find((appointment) =>
+          ["CONFIRMED", "SCHEDULED"].includes(appointment.status) &&
+          new Date(appointment.scheduledAt) >= now
+        );
+        const lastCompletedAppointment = client.Appointment.find(
+          (appointment) => appointment.status === "COMPLETED"
+        );
+
+        if (upcomingAppointment || !lastCompletedAppointment) {
+          return null;
+        }
+
+        const lastVisitDate = new Date(lastCompletedAppointment.scheduledAt);
+        if (lastVisitDate >= inactiveCutoff) {
+          return null;
+        }
+
+        const estimatedRevenue = Number(
+          lastCompletedAppointment.price ??
+            lastCompletedAppointment.Service?.price ??
+            0
+        );
+
+        return {
+          id: client.id,
+          firstName: client.firstName,
+          lastName: client.lastName,
+          email: client.email,
+          estimatedRevenue,
+        };
+      })
+      .filter((client): client is NonNullable<typeof client> => Boolean(client))
+      .sort((a, b) => b.estimatedRevenue - a.estimatedRevenue)
+      .slice(0, 12);
+
+    const relancePotentialRevenue = relanceCandidates.reduce(
+      (sum, client) => sum + client.estimatedRevenue,
+      0
+    );
+
     return { 
       success: true, 
       data: {
@@ -384,7 +463,9 @@ export async function getStatsData(monthString: string) {
         topClients,
         maxClientAmount,
         daysData,
-        meilleureSemaine
+        meilleureSemaine,
+        relanceCandidates,
+        relancePotentialRevenue
       }
     };
 

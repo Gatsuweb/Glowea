@@ -409,6 +409,11 @@ type SessionPhoto = {
   label: string;
   url: string;
   mimeType?: string;
+  mediaId?: string;
+  storageKey?: string;
+  sizeBytes?: number;
+  file?: File;
+  previewUrl?: string;
 };
 
 const getInitialSessionTab = (category?: string) => {
@@ -465,6 +470,7 @@ export default function SessionModal({
   const [clientDetails, setClientDetails] = useState<any>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [photos, setPhotos] = useState<SessionPhoto[]>([]);
+  const [isSavingSession, setIsSavingSession] = useState(false);
   const productPickerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -472,7 +478,12 @@ export default function SessionModal({
       if (isOpen) {
         const initialTab = getInitialSessionTab(category);
         setActiveTab(initialTab);
-        setPhotos([]);
+        setPhotos((current) => {
+          current.forEach((photo) => {
+            if (photo.previewUrl) URL.revokeObjectURL(photo.previewUrl);
+          });
+          return [];
+        });
         setCourbure("D");
         setEpaisseur("0.10");
         setLongueurActives(["11", "12", "13"]);
@@ -756,16 +767,25 @@ export default function SessionModal({
 
   const handlePhotoChange = (label: string, file: File | null) => {
     if (!file) return;
+    const previewUrl = URL.createObjectURL(file);
+    setPhotos((current) => {
+      const existing = current.find((photo) => photo.label === label);
+      if (existing?.previewUrl) {
+        URL.revokeObjectURL(existing.previewUrl);
+      }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const url = String(reader.result || "");
-      setPhotos((current) => [
+      return [
         ...current.filter((photo) => photo.label !== label),
-        { label, url, mimeType: file.type },
-      ]);
-    };
-    reader.readAsDataURL(file);
+        {
+          label,
+          url: previewUrl,
+          mimeType: file.type,
+          file,
+          previewUrl,
+          sizeBytes: file.size,
+        },
+      ];
+    });
   };
 
   const getPhoto = (label: string) => photos.find((photo) => photo.label === label);
@@ -792,104 +812,156 @@ export default function SessionModal({
     );
   };
 
+  const uploadPendingPhotos = async () => {
+    const uploadedPhotos: SessionPhoto[] = [];
+
+    for (const photo of photos) {
+      if (!photo.file) {
+        uploadedPhotos.push({
+          label: photo.label,
+          url: photo.url,
+          mimeType: photo.mimeType,
+          mediaId: photo.mediaId,
+          storageKey: photo.storageKey,
+          sizeBytes: photo.sizeBytes,
+        });
+        continue;
+      }
+
+      const formData = new FormData();
+      formData.append("file", photo.file);
+      formData.append("clientId", clientId || "");
+      formData.append("appointmentId", appointmentId || "");
+
+      const response = await fetch("/api/sessions/photos/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Upload photo impossible.");
+      }
+
+      uploadedPhotos.push({
+        label: photo.label,
+        url: result.photo.url,
+        mimeType: result.photo.mimeType,
+        storageKey: result.photo.storageKey,
+        sizeBytes: result.photo.sizeBytes,
+      });
+    }
+
+    return uploadedPhotos;
+  };
+
   const handleSave = async (isDraft: boolean) => {
     if (!appointmentId || !clientId) {
       onClose();
       return;
     }
 
+    setIsSavingSession(true);
     const saveStatus = isDraft ? "DRAFT" : "COMPLETED";
     let res;
+    try {
+      const preparedPhotos = await uploadPendingPhotos();
 
-    if (activeTab === "Cils") {
-      res = await saveLashSession({
-        appointmentId,
-        clientId,
-        serviceId,
-        prestationType: technique,
-        poseName: poseName,
-        lashBrand: lashBrand,
-        lashReference: lashReference,
-        glueUsed: products.find(p => p.checked && p.name.includes('Colle'))?.name || "",
-        generalCurl: courbure,
-        generalThickness: epaisseur,
-        generalLengthMapJson: longueurActives,
-        globalParamsJson: {
-          typeCils,
-          courbureOeilG,
-          courbureOeilD,
-          epaisseurOeilG,
-          epaisseurOeilD,
-          leftEyeMapping,
-          rightEyeMapping,
-          longueurActivesOeilG: deriveLegacyLengthsFromMapping(leftEyeMapping),
-          longueurActivesOeilD: deriveLegacyLengthsFromMapping(rightEyeMapping)
-        },
-        remarks: remarks,
-        status: saveStatus,
-        productUsages: getSelectedProductUsages(),
-        photos,
-      });
-    } else if (activeTab === "Browlift") {
-      res = await saveBrowliftSession({
-        appointmentId,
-        clientId,
-        serviceId,
-        tintEnabled: hasTeinture,
-        tintColor: tintColorBrowlift,
-        globalParamsJson: { products: browliftProducts },
-        remarks: remarks,
-        status: saveStatus,
-        productUsages: getSelectedProductUsages(),
-        photos,
-      });
-    } else if (activeTab === "Rehaussement de cils") {
-      res = await saveLashLiftSession({
-        appointmentId,
-        clientId,
-        serviceId,
-        tintEnabled: hasRehaussementTeinture,
-        tintColor: tintColorRehaussement,
-        globalParamsJson: { products: rehaussementProducts },
-        remarks: remarks,
-        status: saveStatus,
-        productUsages: getSelectedProductUsages(),
-        photos,
-      });
-    } else if (activeTab === "Ongles") {
-      res = await saveNailSession({
-        appointmentId,
-        clientId,
-        serviceId,
-        prestationType: prestationOngles,
-        poseType: typePoseOngles,
-        shape: formeOngles,
-        size: taillePoseOngles,
-        baseUsed: baseUsed,
-        gelUsed: gelUsed,
-        colorUsed: colorUsed,
-        primerUsed: primerUsed,
-        globalParamsJson: { mainOngles, capsulesGauche, capsulesDroite },
-        remarks: remarks,
-        status: saveStatus,
-        productUsages: getSelectedProductUsages(),
-        photos,
-      });
-    }
-
-    if (res?.success) {
-      if (isDraft) {
-        alert("Brouillon enregistré avec succès.");
-        onClose();
-      } else {
-        if (onPaymentRequest) {
-          onPaymentRequest();
-        } else {
-          onClose();
-        }
+      if (activeTab === "Cils") {
+        res = await saveLashSession({
+          appointmentId,
+          clientId,
+          serviceId,
+          prestationType: technique,
+          poseName: poseName,
+          lashBrand: lashBrand,
+          lashReference: lashReference,
+          glueUsed: products.find(p => p.checked && p.name.includes('Colle'))?.name || "",
+          generalCurl: courbure,
+          generalThickness: epaisseur,
+          generalLengthMapJson: longueurActives,
+          globalParamsJson: {
+            typeCils,
+            courbureOeilG,
+            courbureOeilD,
+            epaisseurOeilG,
+            epaisseurOeilD,
+            leftEyeMapping,
+            rightEyeMapping,
+            longueurActivesOeilG: deriveLegacyLengthsFromMapping(leftEyeMapping),
+            longueurActivesOeilD: deriveLegacyLengthsFromMapping(rightEyeMapping)
+          },
+          remarks: remarks,
+          status: saveStatus,
+          productUsages: getSelectedProductUsages(),
+          photos: preparedPhotos,
+        });
+      } else if (activeTab === "Browlift") {
+        res = await saveBrowliftSession({
+          appointmentId,
+          clientId,
+          serviceId,
+          tintEnabled: hasTeinture,
+          tintColor: tintColorBrowlift,
+          globalParamsJson: { products: browliftProducts },
+          remarks: remarks,
+          status: saveStatus,
+          productUsages: getSelectedProductUsages(),
+          photos: preparedPhotos,
+        });
+      } else if (activeTab === "Rehaussement de cils") {
+        res = await saveLashLiftSession({
+          appointmentId,
+          clientId,
+          serviceId,
+          tintEnabled: hasRehaussementTeinture,
+          tintColor: tintColorRehaussement,
+          globalParamsJson: { products: rehaussementProducts },
+          remarks: remarks,
+          status: saveStatus,
+          productUsages: getSelectedProductUsages(),
+          photos: preparedPhotos,
+        });
+      } else if (activeTab === "Ongles") {
+        res = await saveNailSession({
+          appointmentId,
+          clientId,
+          serviceId,
+          prestationType: prestationOngles,
+          poseType: typePoseOngles,
+          shape: formeOngles,
+          size: taillePoseOngles,
+          baseUsed: baseUsed,
+          gelUsed: gelUsed,
+          colorUsed: colorUsed,
+          primerUsed: primerUsed,
+          globalParamsJson: { mainOngles, capsulesGauche, capsulesDroite },
+          remarks: remarks,
+          status: saveStatus,
+          productUsages: getSelectedProductUsages(),
+          photos: preparedPhotos,
+        });
       }
-    } else {
-      alert(res?.error || "Erreur lors de la sauvegarde");
+
+      if (res?.success) {
+        setPhotos(preparedPhotos);
+        if (isDraft) {
+          alert("Brouillon enregistré avec succès.");
+          onClose();
+        } else {
+          if (onPaymentRequest) {
+            onPaymentRequest();
+          } else {
+            onClose();
+          }
+        }
+      } else {
+        alert(res?.error || "Erreur lors de la sauvegarde");
+      }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Erreur lors de la sauvegarde");
+    } finally {
+      setIsSavingSession(false);
     }
   };
 
@@ -1222,7 +1294,10 @@ export default function SessionModal({
 
         {/* Scrollable Content */}
         <div className={styles.content}>
-          <div style={{ pointerEvents: isReadOnly ? 'none' : 'auto' }}>
+          <div
+            className={styles.panelContent}
+            style={{ pointerEvents: isReadOnly ? 'none' : 'auto' }}
+          >
           {activeTab === 'Cils' && (
             <>
               {/* ROW 1 */}
@@ -1265,6 +1340,39 @@ export default function SessionModal({
                 >
                   Préfaits
                 </button>
+              </div>
+            </div>
+
+            {/* Marque */}
+            <div className={styles.card}>
+              <h3 className={styles.cardTitle}>MARQUE DES CILS UTILISÉS</h3>
+              <div className={styles.inputGroup}>
+                <label>Marque / Gamme :</label>
+                <input 
+                  type="text" 
+                  className={styles.textInput} 
+                  value={lashBrand} 
+                  onChange={e => setLashBrand(e.target.value)} 
+                />
+              </div>
+              <div className={styles.inputGroup}>
+                <label>Référence (optionnelle):</label>
+                <input 
+                  type="text" 
+                  className={styles.textInput} 
+                  value={lashReference} 
+                  onChange={e => setLashReference(e.target.value)} 
+                />
+              </div>
+              
+              <h3 className={styles.cardTitle} style={{ marginTop: '20px' }}>NOM DE LA POSE</h3>
+              <div className={styles.inputGroup}>
+                <input 
+                  type="text" 
+                  className={styles.textInput} 
+                  value={poseName} 
+                  onChange={e => setPoseName(e.target.value)} 
+                />
               </div>
             </div>
 
@@ -1494,39 +1602,6 @@ export default function SessionModal({
                     onCopyToOtherEye={() => copyEyeMapping('D')}
                   />
                 </div>
-              </div>
-            </div>
-
-            {/* Marque */}
-            <div className={styles.card}>
-              <h3 className={styles.cardTitle}>MARQUE DES CILS UTILISÉS</h3>
-              <div className={styles.inputGroup}>
-                <label>Marque / Gamme :</label>
-                <input 
-                  type="text" 
-                  className={styles.textInput} 
-                  value={lashBrand} 
-                  onChange={e => setLashBrand(e.target.value)} 
-                />
-              </div>
-              <div className={styles.inputGroup}>
-                <label>Référence (optionnelle):</label>
-                <input 
-                  type="text" 
-                  className={styles.textInput} 
-                  value={lashReference} 
-                  onChange={e => setLashReference(e.target.value)} 
-                />
-              </div>
-              
-              <h3 className={styles.cardTitle} style={{ marginTop: '20px' }}>NOM DE LA POSE</h3>
-              <div className={styles.inputGroup}>
-                <input 
-                  type="text" 
-                  className={styles.textInput} 
-                  value={poseName} 
-                  onChange={e => setPoseName(e.target.value)} 
-                />
               </div>
             </div>
           </div>
@@ -2376,8 +2451,12 @@ export default function SessionModal({
           <div className={styles.footer}>
             <button className={styles.btnCancel} onClick={onClose}>Fermer</button>
             <div className={styles.footerRight}>
-              <button className={styles.btnDraft} onClick={() => handleSave(true)}>Enregistrer le brouillon</button>
-              <button className={styles.btnEnd} onClick={() => handleSave(false)}>Terminer la session</button>
+              <button className={styles.btnDraft} onClick={() => handleSave(true)} disabled={isSavingSession}>
+                {isSavingSession ? "Enregistrement..." : "Enregistrer le brouillon"}
+              </button>
+              <button className={styles.btnEnd} onClick={() => handleSave(false)} disabled={isSavingSession}>
+                {isSavingSession ? "Enregistrement..." : "Terminer la session"}
+              </button>
             </div>
           </div>
         )}

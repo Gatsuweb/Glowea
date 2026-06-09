@@ -437,6 +437,11 @@
   color: #5BB339;
 }
 
+.transIcon svg {
+  width: 16px;
+  height: 16px;
+}
+
 .transIconRed {
   width: 40px;
   height: 40px;
@@ -840,11 +845,21 @@
 }
 
 .alertLink {
+  appearance: none;
+  background: transparent;
+  border: none;
   color: #8B4B54;
   text-decoration: underline;
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
+  padding: 0;
+}
+
+.alertLink:disabled {
+  cursor: default;
+  opacity: 0.55;
+  text-decoration: none;
 }
 
 @media (max-width: 900px) {

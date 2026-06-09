@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import styles from "../dashboard/clients/clients.module.css";
 import SessionModal from "./SessionModal";
 import NewAppointmentModal from "./NewAppointmentModal";
+import SendClientTemplateModal from "./SendClientTemplateModal";
 import { getConsent, saveConsent, type ConsentSnapshot } from "../actions/consentActions";
 import { updateClientProfile } from "../actions/clientActions";
 import {
@@ -48,6 +49,98 @@ const emptyConsentData: ConsentState = {
   dateSigned: "",
 };
 
+function normalizeGalleryLabel(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function getSessionCategoryLabel(category: string | null | undefined) {
+  switch (category) {
+    case "LASH":
+      return "Cils";
+    case "BROWLIFT":
+      return "Browlift";
+    case "LASH_LIFT":
+      return "Rehaussement de cils";
+    case "NAILS":
+      return "Ongles";
+    default:
+      return "Projet";
+  }
+}
+
+function formatProjectDate(value: string | Date | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
+function buildClientGalleryProjects(clientMedia: any[]) {
+  const projects = new Map<string, any>();
+
+  clientMedia.forEach((item: any, index: number) => {
+    const sessionLink = item?.Media?.SessionMedia?.[0];
+    const session = sessionLink?.Session;
+    const label = item?.label || sessionLink?.label || "Photo";
+    const normalizedLabel = normalizeGalleryLabel(label);
+    const role = normalizedLabel.includes("avant")
+      ? "before"
+      : normalizedLabel.includes("apres") || normalizedLabel.includes("après")
+        ? "after"
+        : "other";
+    const projectId = session?.id || `media-${item.id || index}`;
+
+    if (!projects.has(projectId)) {
+      const title = session?.Service?.name || session?.title || getSessionCategoryLabel(session?.category);
+      const description = session?.generalNotes || "";
+      const dateValue = session?.Appointment?.scheduledAt || item?.createdAt || item?.Media?.SessionMedia?.[0]?.createdAt || null;
+
+      projects.set(projectId, {
+        id: projectId,
+        title,
+        description,
+        createdAt: dateValue,
+        before: null,
+        after: null,
+        other: [],
+        orderValue: dateValue ? new Date(dateValue).getTime() : Date.now() - index,
+      });
+    }
+
+    const project = projects.get(projectId);
+    const image = {
+      url: item?.Media?.url,
+      alt: label || "Photo cliente",
+      label,
+    };
+
+    if (role === "before" && !project.before) {
+      project.before = image;
+    } else if (role === "after" && !project.after) {
+      project.after = image;
+    } else {
+      project.other.push(image);
+    }
+  });
+
+  return Array.from(projects.values())
+    .map((project) => ({
+      ...project,
+      before: project.before || project.other[0] || null,
+      after: project.after || project.other[1] || project.other[0] || null,
+    }))
+    .filter((project) => project.before || project.after)
+    .sort((a, b) => b.orderValue - a.orderValue);
+}
+
 export default function ClientsClientWrapper({ clients, services = [] }: { clients: any[]; services?: any[] }) {
   const searchParams = useSearchParams();
   const [clientList, setClientList] = useState<any[]>(clients);
@@ -63,6 +156,8 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   const [selectedClientId, setSelectedClientId] = useState<string | null>(
     searchParams.get("clientId") || (clientList.length > 0 ? clientList[0].id : null)
   );
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
+  const [isSendTemplateModalOpen, setSendTemplateModalOpen] = useState(false);
 
   useEffect(() => {
     const clientIdParam = searchParams.get("clientId");
@@ -75,6 +170,10 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
       setActiveTab(tabParam);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    setSelectedClientIds((current) => current.filter((clientId) => clientList.some((client) => client.id === clientId)));
+  }, [clientList]);
 
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -173,9 +272,13 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
     const fullName = `${c.firstName} ${c.lastName || ''}`.toLowerCase();
     return fullName.includes(searchQuery.toLowerCase());
   });
+  const selectedClientsForAction = clientList.filter((client) => selectedClientIds.includes(client.id));
+  const allFilteredSelected = filteredClients.length > 0 && filteredClients.every((client) => selectedClientIds.includes(client.id));
 
   const selectedClient = clientList.find(c => c.id === selectedClientId) || null;
   const selectedClientNote = selectedClient?.ClientNote?.[0]?.content || "";
+  const selectedClientMedia = selectedClient?.ClientMedia || [];
+  const galleryProjects = buildClientGalleryProjects(selectedClientMedia);
   const selectedClientDisplayName = selectedClient
     ? `${selectedClient.firstName} ${selectedClient.lastName || ""}`.trim()
     : "Aucun client sélectionné";
@@ -290,6 +393,30 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
     setIsEditingContact(false);
     setIsEditingHealth(false);
     setClientError(null);
+  };
+
+  const toggleClientSelection = (clientId: string) => {
+    setSelectedClientIds((current) => (
+      current.includes(clientId)
+        ? current.filter((id) => id !== clientId)
+        : [...current, clientId]
+    ));
+  };
+
+  const toggleSelectAllFiltered = () => {
+    setSelectedClientIds((current) => {
+      if (allFilteredSelected) {
+        return current.filter((id) => !filteredClients.some((client) => client.id === id));
+      }
+
+      const next = new Set(current);
+      filteredClients.forEach((client) => next.add(client.id));
+      return Array.from(next);
+    });
+  };
+
+  const clearSelectedClients = () => {
+    setSelectedClientIds([]);
   };
 
   // Calculs pour le client sélectionné
@@ -407,20 +534,54 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
         </div>
 
         <label className={styles.selectAll}>
-          <input type="checkbox" />
+          <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAllFiltered} />
           Tout sélectionner
         </label>
+
+        {selectedClientIds.length > 0 && (
+          <div className={styles.bulkActions}>
+            <div className={styles.bulkActionsText}>
+              <strong>{selectedClientIds.length}</strong>
+              <span>cliente{selectedClientIds.length > 1 ? "s" : ""} sélectionnée{selectedClientIds.length > 1 ? "s" : ""}</span>
+            </div>
+            <button
+              type="button"
+              className={styles.bulkActionButton}
+              onClick={() => setSendTemplateModalOpen(true)}
+            >
+              Envoyer un template mail
+            </button>
+            <button
+              type="button"
+              className={styles.bulkActionGhost}
+              onClick={clearSelectedClients}
+            >
+              Effacer
+            </button>
+          </div>
+        )}
 
         <div className={styles.clientList}>
           {filteredClients.map(client => (
             <div 
               key={client.id} 
-              className={`${styles.clientItem} ${client.id === selectedClientId ? styles.clientItemActive : ''}`}
+              className={`${styles.clientItem} ${client.id === selectedClientId ? styles.clientItemActive : ''} ${selectedClientIds.includes(client.id) ? styles.clientItemSelected : ''}`}
               onClick={() => {
                 setSelectedClientId(client.id);
                 setIsMobileDirectoryOpen(false);
               }}
             >
+              <label
+                className={styles.clientCheckbox}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedClientIds.includes(client.id)}
+                  onChange={() => toggleClientSelection(client.id)}
+                  aria-label={`Sélectionner ${client.firstName} ${client.lastName || ""}`.trim()}
+                />
+              </label>
               <div className={styles.clientAvatar}>
                 {client.firstName.charAt(0).toUpperCase()}
               </div>
@@ -674,20 +835,66 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
             {/* Galerie des projets */}
             <div className={styles.galerieHeader}>
               <h3 className={styles.galerieTitle}>Galerie des projets</h3>
-              <button className={styles.iconBtn} style={{ borderColor: 'transparent' }}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                </svg>
-              </button>
             </div>
             
-            <div className={styles.galerieGrid}>
-              <div className={styles.galerieMain}></div>
-              <div className={styles.galerieItem}></div>
-              <div className={styles.galerieItem}></div>
-              <div className={styles.galerieItem}></div>
-              <div className={styles.galerieItem}></div>
+            <div className={styles.projectGalleryList}>
+              {galleryProjects.length > 0 ? (
+                galleryProjects.map((project: any) => (
+                  <article className={styles.projectCard} key={project.id}>
+                    <div className={styles.projectCardHeader}>
+                      <div>
+                        <h4 className={styles.projectTitle}>{project.title || "Projet cliente"}</h4>
+                        {project.description ? (
+                          <p className={styles.projectDescription}>{project.description}</p>
+                        ) : (
+                          <p className={styles.projectDescription}>Portfolio avant/apres de la seance cliente.</p>
+                        )}
+                      </div>
+                      {project.createdAt && (
+                        <span className={styles.projectDate}>{formatProjectDate(project.createdAt)}</span>
+                      )}
+                    </div>
+
+                    <div className={styles.projectImages}>
+                      <div className={styles.projectImageCard}>
+                        <span className={styles.projectImageBadge}>Avant</span>
+                        {project.before ? (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={project.before.url}
+                              alt={project.before.alt || "Photo avant"}
+                              className={styles.projectImage}
+                            />
+                          </>
+                        ) : (
+                          <div className={styles.projectImagePlaceholder}>Photo avant non renseignee</div>
+                        )}
+                      </div>
+
+                      <div className={styles.projectImageCard}>
+                        <span className={styles.projectImageBadge}>Apres</span>
+                        {project.after ? (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={project.after.url}
+                              alt={project.after.alt || "Photo apres"}
+                              className={styles.projectImage}
+                            />
+                          </>
+                        ) : (
+                          <div className={styles.projectImagePlaceholder}>Photo apres non renseignee</div>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className={styles.galerieEmpty}>
+                  Les photos prises pendant les séances apparaîtront ici sur la fiche cliente.
+                </div>
+              )}
             </div>
           </>
         )}
@@ -1253,6 +1460,12 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
           </div>
         )}
       </section>
+
+      <SendClientTemplateModal
+        isOpen={isSendTemplateModalOpen}
+        onClose={() => setSendTemplateModalOpen(false)}
+        selectedClients={selectedClientsForAction}
+      />
 
       <SessionModal 
         isOpen={isSessionModalOpen}

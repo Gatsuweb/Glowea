@@ -138,6 +138,12 @@ export async function POST(
       },
     ],
     payment_intent_data: {
+      metadata: {
+        appointmentId,
+        tenantId,
+        userId,
+        paymentType,
+      },
       transfer_data: {
         destination: user.stripeAccountId,
       },
@@ -149,7 +155,7 @@ export async function POST(
       userId,
       paymentType,
     },
-    success_url: `${appUrl}/dashboard/agenda?payment=success&appointmentId=${appointmentId}`,
+    success_url: `${appUrl}/dashboard/agenda?payment=success&appointmentId=${appointmentId}&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/dashboard/agenda?payment=cancel&appointmentId=${appointmentId}`,
   });
 

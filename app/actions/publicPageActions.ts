@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
+import { getStoragePathFromPublicUrl, getSupabaseAdminClient, publicStorageBucket } from "../../lib/supabaseAdmin";
 import { getSubscriptionAccessFromTenant, getTenantSubscriptionAccess } from "../../lib/subscription";
 import { getTenantId } from "../../lib/tenant";
 
@@ -31,6 +32,7 @@ export type PublicServiceInput = {
   durationMin: number;
   price: number;
   category: string;
+  imageUrl: string;
   isPublic: boolean;
 };
 
@@ -97,6 +99,14 @@ function toDuration(value: unknown) {
   return Math.min(480, Math.max(15, Math.round(duration)));
 }
 
+async function removeStoredPublicFile(url: string | null | undefined) {
+  if (!url) return;
+  const storagePath = getStoragePathFromPublicUrl(url);
+  if (!storagePath) return;
+  const supabase = getSupabaseAdminClient();
+  await supabase.storage.from(publicStorageBucket).remove([storagePath]).catch(() => undefined);
+}
+
 function serviceToDto(service: {
   id: string;
   name: string;
@@ -104,6 +114,7 @@ function serviceToDto(service: {
   durationMin: number | null;
   price: { toString: () => string } | null;
   category: string | null;
+  imageUrl: string | null;
   isPublic: boolean;
   isActive: boolean;
 }) {
@@ -114,6 +125,7 @@ function serviceToDto(service: {
     durationMin: service.durationMin || 60,
     price: service.price ? Number(service.price.toString()) : 0,
     category: service.category || "",
+    imageUrl: service.imageUrl || "",
     isPublic: service.isPublic,
     isActive: service.isActive,
   };
@@ -201,6 +213,7 @@ export async function getPublicPageConfig() {
     publicPath: `/pro/${profile.slug}`,
     profile: {
       id: profile.id,
+      tenantId: profile.tenantId,
       slug: profile.slug,
       isPublished: profile.isPublished,
       businessName: profile.businessName || "",
@@ -286,6 +299,14 @@ export async function updatePublicProfile(input: PublicProfileInput) {
     },
   });
 
+  if (existing?.coverImageUrl && existing.coverImageUrl !== profile.coverImageUrl) {
+    await removeStoredPublicFile(existing.coverImageUrl);
+  }
+
+  if (existing?.avatarUrl && existing.avatarUrl !== profile.avatarUrl) {
+    await removeStoredPublicFile(existing.avatarUrl);
+  }
+
   if (existing?.slug && existing.slug !== profile.slug) revalidatePath(`/pro/${existing.slug}`);
   revalidatePath(`/pro/${profile.slug}`);
   revalidatePath("/dashboard/page-publique");
@@ -304,12 +325,20 @@ export async function savePublicService(input: PublicServiceInput) {
   const name = safeString(input.name, 140);
   if (!name) return { success: false as const, error: "Le nom de la prestation est obligatoire." };
 
+  const existingService = input.id
+    ? await prisma.service.findFirst({
+        where: { id: input.id, tenantId },
+        select: { imageUrl: true },
+      })
+    : null;
+
   const data = {
     name,
     description: safeString(input.description, 600) || null,
     durationMin: toDuration(input.durationMin),
     price: toMoney(input.price),
     category: safeString(input.category, 120) || null,
+    imageUrl: safeUrl(input.imageUrl) || null,
     isPublic: Boolean(input.isPublic),
     updatedAt: new Date(),
   };
@@ -326,6 +355,10 @@ export async function savePublicService(input: PublicServiceInput) {
           ...data,
         },
       });
+
+  if (existingService?.imageUrl && existingService.imageUrl !== service.imageUrl) {
+    await removeStoredPublicFile(existingService.imageUrl);
+  }
 
   const profile = await prisma.publicProfile.findUnique({ where: { tenantId }, select: { slug: true } });
   if (profile) revalidatePath(`/pro/${profile.slug}`);
@@ -347,6 +380,11 @@ export async function deletePublicService(id: string) {
     return { success: false as const, error: "Prestation introuvable." };
   }
 
+  const existingService = await prisma.service.findFirst({
+    where: { id, tenantId },
+    select: { imageUrl: true },
+  });
+
   await prisma.service.update({
     where: { id, tenantId },
     data: {
@@ -355,6 +393,8 @@ export async function deletePublicService(id: string) {
       updatedAt: new Date(),
     },
   });
+
+  await removeStoredPublicFile(existingService?.imageUrl);
 
   const profile = await prisma.publicProfile.findUnique({ where: { tenantId }, select: { slug: true } });
   if (profile) revalidatePath(`/pro/${profile.slug}`);
