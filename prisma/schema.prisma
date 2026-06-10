@@ -7,15 +7,22 @@ datasource db {
 }
 
 model AgendaSettings {
-  id                         String   @id
-  tenantId                   String   @unique
+  id                         String      @id
+  tenantId                   String      @unique
   workingDaysJson            Json?
   openingHoursJson           Json?
   defaultAppointmentDuration Int?
-  bufferMin                  Int?     @default(0)
-  createdAt                  DateTime @default(now())
+  bufferMin                  Int?        @default(0)
+  minBookingNoticeMin        Int         @default(1440)
+  slotIntervalMin            Int         @default(30)
+  depositsEnabled            Boolean     @default(false)
+  depositsRequired           Boolean     @default(false)
+  depositAmount              Int         @default(0)
+  depositType                DepositType @default(fixed)
+  pendingBookingTtlMin       Int         @default(15)
+  createdAt                  DateTime    @default(now())
   updatedAt                  DateTime
-  Tenant                     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  Tenant                     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model Appointment {
@@ -30,9 +37,9 @@ model Appointment {
   paymentStatus            PaymentStatus              @default(none)
   price                    Int?
   depositAmount            Int?
-  depositPaidAmount        Int                      @default(0)
-  paidAmount               Int                      @default(0)
-  remainingAmount          Int                      @default(0)
+  depositPaidAmount        Int                        @default(0)
+  paidAmount               Int                        @default(0)
+  remainingAmount          Int                        @default(0)
   paymentMethod            AppointmentPaymentMethod?
   stripeCheckoutSessionId  String?
   stripePaymentIntentId    String?
@@ -41,6 +48,7 @@ model Appointment {
   isDraft                  Boolean                    @default(false)
   cancelledAt              DateTime?
   completedAt              DateTime?
+  expiresAt                DateTime?
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime
   Client                   Client                     @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -63,6 +71,24 @@ model Appointment {
   @@index([tenantId])
   @@index([tenantId, scheduledAt])
   @@index([tenantId, status])
+  @@index([tenantId, expiresAt])
+}
+
+model AvailabilityException {
+  id        String                    @id
+  tenantId  String
+  type      AvailabilityExceptionType @default(OTHER)
+  title     String?
+  startAt   DateTime
+  endAt     DateTime
+  allDay    Boolean                   @default(false)
+  notes     String?
+  createdAt DateTime                  @default(now())
+  updatedAt DateTime
+  Tenant    Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, startAt, endAt])
 }
 
 model AppointmentAttachment {
@@ -408,25 +434,25 @@ model FinancialSnapshot {
 }
 
 model FinancialTransaction {
-  id              String                   @id
-  tenantId        String
-  appointmentId   String?
-  sessionId       String?
-  externalPaymentId String?                @unique
-  type            FinancialTransactionType
-  sourceType      FinancialSourceType
-  label           String
-  amount          Decimal                  @db.Decimal(10, 2)
-  currency        String                   @default("EUR")
-  paymentMethod   FinancialPaymentMethod?
-  category        String?
-  transactionDate DateTime
-  notes           String?
-  createdAt       DateTime                 @default(now())
-  updatedAt       DateTime
-  Appointment     Appointment?             @relation(fields: [appointmentId], references: [id])
-  Session         Session?                 @relation(fields: [sessionId], references: [id])
-  Tenant          Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                String                   @id
+  tenantId          String
+  appointmentId     String?
+  sessionId         String?
+  externalPaymentId String?                  @unique
+  type              FinancialTransactionType
+  sourceType        FinancialSourceType
+  label             String
+  amount            Decimal                  @db.Decimal(10, 2)
+  currency          String                   @default("EUR")
+  paymentMethod     FinancialPaymentMethod?
+  category          String?
+  transactionDate   DateTime
+  notes             String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime
+  Appointment       Appointment?             @relation(fields: [appointmentId], references: [id])
+  Session           Session?                 @relation(fields: [sessionId], references: [id])
+  Tenant            Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([appointmentId])
   @@index([sessionId])
@@ -988,6 +1014,7 @@ model Tenant {
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime
   AgendaSettings         AgendaSettings?
+  AvailabilityException  AvailabilityException[]
   Appointment            Appointment[]
   AppointmentReminder    AppointmentReminder[]
   AppointmentReminderLog AppointmentReminderLog[]
@@ -1075,11 +1102,21 @@ enum AppointmentSource {
 
 enum AppointmentStatus {
   SCHEDULED
+  PENDING_PAYMENT
   CONFIRMED
   IN_PROGRESS
   COMPLETED
   CANCELED
+  EXPIRED
   NO_SHOW
+}
+
+enum AvailabilityExceptionType {
+  VACATION
+  ABSENCE
+  PERSONAL_APPOINTMENT
+  TRAINING
+  OTHER
 }
 
 enum BillingProvider {

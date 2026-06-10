@@ -1,12 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
+import { getDepositAmountCents, assertPublicSlotAvailable } from "../../lib/bookingAvailability";
 import prisma from "../../lib/prisma";
+import { stripe } from "../../lib/stripe";
 import { getStoragePathFromPublicUrl, getSupabaseAdminClient, publicStorageBucket } from "../../lib/supabaseAdmin";
 import { getSubscriptionAccessFromTenant, getTenantSubscriptionAccess } from "../../lib/subscription";
 import { getTenantId } from "../../lib/tenant";
-
-const ACTIVE_BOOKING_STATUSES = ["SCHEDULED", "CONFIRMED", "IN_PROGRESS"] as const;
 
 export type PublicProfileInput = {
   isPublished: boolean;
@@ -51,6 +52,38 @@ export type ReviewInput = {
   isVisible: boolean;
 };
 
+export type DayScheduleInput = {
+  isOpen: boolean;
+  start: string;
+  end: string;
+  breaks: Array<{
+    start: string;
+    end: string;
+  }>;
+};
+
+export type BookingSettingsInput = {
+  days: DayScheduleInput[];
+  minBookingNoticeMin: number;
+  slotIntervalMin: number;
+  bufferMin: number;
+  depositsEnabled: boolean;
+  depositsRequired: boolean;
+  depositAmount: number;
+  depositType: "fixed" | "percent";
+  pendingBookingTtlMin: number;
+};
+
+export type AvailabilityExceptionInput = {
+  id?: string;
+  type: "VACATION" | "ABSENCE" | "PERSONAL_APPOINTMENT" | "TRAINING" | "OTHER";
+  title: string;
+  startAt: string;
+  endAt: string;
+  allDay: boolean;
+  notes: string;
+};
+
 export type PublicBookingInput = {
   slug: string;
   serviceId: string;
@@ -60,6 +93,7 @@ export type PublicBookingInput = {
   lastName: string;
   phone: string;
   email: string;
+  instagram?: string;
   message?: string;
 };
 
@@ -97,6 +131,107 @@ function toDuration(value: unknown) {
   const duration = Number(value || 60);
   if (!Number.isFinite(duration)) return 60;
   return Math.min(480, Math.max(15, Math.round(duration)));
+}
+
+function toInt(value: unknown, fallback: number, min: number, max: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(parsed)));
+}
+
+function isValidTime(value: unknown) {
+  if (typeof value !== "string") return false;
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function toCents(value: { toString: () => string } | number | null | undefined) {
+  if (value === null || value === undefined) return 0;
+  const amount = typeof value === "number" ? value : Number(value.toString());
+  if (!Number.isFinite(amount) || amount < 0) return 0;
+  return Math.round(amount * 100);
+}
+
+function getApplicationFeeAmount(amount: number) {
+  const fixedFee = Number(process.env.STRIPE_APPLICATION_FEE_AMOUNT || 0);
+  if (Number.isFinite(fixedFee) && fixedFee > 0) {
+    return Math.min(Math.round(fixedFee), amount);
+  }
+
+  const feePercent = Number(process.env.STRIPE_APPLICATION_FEE_PERCENT || 0);
+  if (!Number.isFinite(feePercent) || feePercent <= 0) return undefined;
+
+  return Math.min(Math.round(amount * (feePercent / 100)), amount);
+}
+
+const defaultBookingDays: DayScheduleInput[] = [
+  { isOpen: false, start: "09:00", end: "18:00", breaks: [] },
+  { isOpen: true, start: "09:00", end: "18:00", breaks: [] },
+  { isOpen: true, start: "09:00", end: "18:00", breaks: [] },
+  { isOpen: true, start: "09:00", end: "18:00", breaks: [] },
+  { isOpen: true, start: "09:00", end: "18:00", breaks: [] },
+  { isOpen: true, start: "09:00", end: "18:00", breaks: [] },
+  { isOpen: true, start: "09:00", end: "18:00", breaks: [] },
+];
+
+function timeToMinutes(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function normalizeDaySchedule(day: Partial<DayScheduleInput> | undefined, fallback: DayScheduleInput): DayScheduleInput {
+  const start = isValidTime(day?.start) ? day?.start || fallback.start : fallback.start;
+  const end = isValidTime(day?.end) ? day?.end || fallback.end : fallback.end;
+  const safeEnd = timeToMinutes(end) > timeToMinutes(start) ? end : fallback.end;
+  const breaks = Array.isArray(day?.breaks)
+    ? day.breaks
+        .map((item) => ({
+          start: isValidTime(item?.start) ? item.start : "",
+          end: isValidTime(item?.end) ? item.end : "",
+        }))
+        .filter((item) => item.start && item.end && timeToMinutes(item.end) > timeToMinutes(item.start))
+        .slice(0, 6)
+    : [];
+
+  return {
+    isOpen: Boolean(day?.isOpen),
+    start,
+    end: safeEnd,
+    breaks,
+  };
+}
+
+function normalizeBookingDays(value: unknown): DayScheduleInput[] {
+  const source = Array.isArray(value) ? value : [];
+  return defaultBookingDays.map((fallback, index) => normalizeDaySchedule(source[index] as Partial<DayScheduleInput> | undefined, fallback));
+}
+
+function agendaSettingsToDto(settings: {
+  openingHoursJson: unknown;
+  minBookingNoticeMin: number;
+  slotIntervalMin: number;
+  bufferMin: number | null;
+  depositsEnabled: boolean;
+  depositsRequired: boolean;
+  depositAmount: number;
+  depositType: "fixed" | "percent";
+  pendingBookingTtlMin: number;
+} | null) {
+  return {
+    days: normalizeBookingDays(settings?.openingHoursJson),
+    minBookingNoticeMin: settings?.minBookingNoticeMin ?? 1440,
+    slotIntervalMin: settings?.slotIntervalMin ?? 30,
+    bufferMin: settings?.bufferMin ?? 0,
+    depositsEnabled: Boolean(settings?.depositsEnabled),
+    depositsRequired: Boolean(settings?.depositsRequired),
+    depositAmount: settings?.depositAmount ?? 0,
+    depositType: settings?.depositType === "percent" ? "percent" as const : "fixed" as const,
+    pendingBookingTtlMin: settings?.pendingBookingTtlMin ?? 15,
+  };
+}
+
+function normalizeExceptionDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 async function removeStoredPublicFile(url: string | null | undefined) {
@@ -191,7 +326,7 @@ export async function getPublicPageConfig() {
   const tenantId = await getTenantId();
   const { tenant, profile } = await ensurePublicProfile(tenantId);
   const access = getSubscriptionAccessFromTenant(tenant);
-  const [services, gallery, reviews] = await Promise.all([
+  const [services, gallery, reviews, agendaSettings, availabilityExceptions] = await Promise.all([
     prisma.service.findMany({
       where: { tenantId, isActive: true },
       orderBy: { name: "asc" },
@@ -203,6 +338,14 @@ export async function getPublicPageConfig() {
     prisma.review.findMany({
       where: { tenantId },
       orderBy: { createdAt: "desc" },
+    }),
+    prisma.agendaSettings.findUnique({
+      where: { tenantId },
+    }),
+    prisma.availabilityException.findMany({
+      where: { tenantId },
+      orderBy: { startAt: "asc" },
+      take: 100,
     }),
   ]);
 
@@ -244,6 +387,16 @@ export async function getPublicPageConfig() {
       comment: review.comment,
       isVisible: review.isVisible,
       createdAt: review.createdAt.toISOString(),
+    })),
+    bookingSettings: agendaSettingsToDto(agendaSettings),
+    availabilityExceptions: availabilityExceptions.map((item) => ({
+      id: item.id,
+      type: item.type,
+      title: item.title || "",
+      startAt: item.startAt.toISOString(),
+      endAt: item.endAt.toISOString(),
+      allDay: item.allDay,
+      notes: item.notes || "",
     })),
   };
 }
@@ -312,6 +465,139 @@ export async function updatePublicProfile(input: PublicProfileInput) {
   revalidatePath("/dashboard/page-publique");
 
   return { success: true as const, profile };
+}
+
+export async function saveBookingSettings(input: BookingSettingsInput) {
+  const tenantId = await getTenantId();
+  const access = await getTenantSubscriptionAccess(tenantId);
+
+  if (!access.canUsePublicPage) {
+    return { success: false as const, error: "La page publique est disponible avec Glowea Pro." };
+  }
+
+  const days = normalizeBookingDays(input.days);
+  const slotIntervalMin = toInt(input.slotIntervalMin, 30, 5, 240);
+  const bufferMin = toInt(input.bufferMin, 0, 0, 240);
+  const minBookingNoticeMin = toInt(input.minBookingNoticeMin, 1440, 0, 525600);
+  const pendingBookingTtlMin = toInt(input.pendingBookingTtlMin, 15, 1, 120);
+  const depositType = input.depositType === "percent" ? "percent" : "fixed";
+  const maxDeposit = depositType === "percent" ? 100 : 100000000;
+  const depositAmount = toInt(input.depositAmount, 0, 0, maxDeposit);
+
+  const settings = await prisma.agendaSettings.upsert({
+    where: { tenantId },
+    create: {
+      id: `ags_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+      tenantId,
+      openingHoursJson: days,
+      workingDaysJson: days.map((day) => day.isOpen),
+      bufferMin,
+      minBookingNoticeMin,
+      slotIntervalMin,
+      depositsEnabled: Boolean(input.depositsEnabled),
+      depositsRequired: Boolean(input.depositsEnabled && input.depositsRequired),
+      depositAmount,
+      depositType,
+      pendingBookingTtlMin,
+      updatedAt: new Date(),
+    },
+    update: {
+      openingHoursJson: days,
+      workingDaysJson: days.map((day) => day.isOpen),
+      bufferMin,
+      minBookingNoticeMin,
+      slotIntervalMin,
+      depositsEnabled: Boolean(input.depositsEnabled),
+      depositsRequired: Boolean(input.depositsEnabled && input.depositsRequired),
+      depositAmount,
+      depositType,
+      pendingBookingTtlMin,
+      updatedAt: new Date(),
+    },
+  });
+
+  const profile = await prisma.publicProfile.findUnique({ where: { tenantId }, select: { slug: true } });
+  if (profile) revalidatePath(`/pro/${profile.slug}`);
+  revalidatePath("/dashboard/page-publique");
+
+  return { success: true as const, bookingSettings: agendaSettingsToDto(settings) };
+}
+
+export async function saveAvailabilityException(input: AvailabilityExceptionInput) {
+  const tenantId = await getTenantId();
+  const access = await getTenantSubscriptionAccess(tenantId);
+
+  if (!access.canUsePublicPage) {
+    return { success: false as const, error: "La page publique est disponible avec Glowea Pro." };
+  }
+
+  const startAt = normalizeExceptionDate(input.startAt);
+  const endAt = normalizeExceptionDate(input.endAt);
+  if (!startAt || !endAt || endAt <= startAt) {
+    return { success: false as const, error: "La periode d'indisponibilite est invalide." };
+  }
+
+  const type = ["VACATION", "ABSENCE", "PERSONAL_APPOINTMENT", "TRAINING", "OTHER"].includes(input.type)
+    ? input.type
+    : "OTHER";
+  const data = {
+    type,
+    title: safeString(input.title, 160) || null,
+    startAt,
+    endAt,
+    allDay: Boolean(input.allDay),
+    notes: safeString(input.notes, 500) || null,
+    updatedAt: new Date(),
+  };
+
+  const availabilityException = input.id
+    ? await prisma.availabilityException.update({
+        where: { id: input.id, tenantId },
+        data,
+      })
+    : await prisma.availabilityException.create({
+        data: {
+          id: `avx_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+          tenantId,
+          ...data,
+        },
+      });
+
+  const profile = await prisma.publicProfile.findUnique({ where: { tenantId }, select: { slug: true } });
+  if (profile) revalidatePath(`/pro/${profile.slug}`);
+  revalidatePath("/dashboard/page-publique");
+
+  return {
+    success: true as const,
+    exception: {
+      id: availabilityException.id,
+      type: availabilityException.type,
+      title: availabilityException.title || "",
+      startAt: availabilityException.startAt.toISOString(),
+      endAt: availabilityException.endAt.toISOString(),
+      allDay: availabilityException.allDay,
+      notes: availabilityException.notes || "",
+    },
+  };
+}
+
+export async function deleteAvailabilityException(id: string) {
+  const tenantId = await getTenantId();
+  const access = await getTenantSubscriptionAccess(tenantId);
+
+  if (!access.canUsePublicPage) {
+    return { success: false as const, error: "La page publique est disponible avec Glowea Pro." };
+  }
+
+  await prisma.availabilityException.delete({
+    where: { id, tenantId },
+  });
+
+  const profile = await prisma.publicProfile.findUnique({ where: { tenantId }, select: { slug: true } });
+  if (profile) revalidatePath(`/pro/${profile.slug}`);
+  revalidatePath("/dashboard/page-publique");
+
+  return { success: true as const };
 }
 
 export async function savePublicService(input: PublicServiceInput) {
@@ -527,6 +813,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
   const lastName = safeString(input.lastName, 80);
   const phone = safeString(input.phone, 60);
   const email = safeString(input.email, 180).toLowerCase();
+  const instagram = safeString(input.instagram, 80);
   const message = safeString(input.message, 1000);
 
   if (!firstName || !phone) {
@@ -554,99 +841,205 @@ export async function createPublicBooking(input: PublicBookingInput) {
       isActive: true,
       isPublic: true,
     },
-    select: { id: true, durationMin: true, name: true },
+    select: { id: true, durationMin: true, name: true, price: true },
   });
 
   if (!service) {
     return { success: false as const, error: "Cette prestation n'est plus disponible." };
   }
 
-  const conflict = await prisma.appointment.findFirst({
-    where: {
-      tenantId: profile.tenantId,
-      scheduledAt,
-      status: { in: [...ACTIVE_BOOKING_STATUSES] },
-    },
-    select: { id: true },
-  });
-
-  if (conflict) {
-    return { success: false as const, error: "Ce creneau vient d'etre reserve. Choisissez un autre horaire." };
-  }
-
   const endAt = new Date(scheduledAt.getTime() + (service.durationMin || 60) * 60000);
   const clientFullName = `${firstName} ${lastName}`.trim() || firstName;
   const timeLabel = scheduledAt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
   const dateLabel = scheduledAt.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" });
+  const priceCents = toCents(service.price);
 
-  const appointment = await prisma.$transaction(async (tx) => {
-    const existingClient = await tx.client.findFirst({
-      where: {
+  try {
+    const reservation = await prisma.$transaction(async (tx) => {
+      const availability = await assertPublicSlotAvailable({
+        tx,
         tenantId: profile.tenantId,
-        archivedAt: null,
-        OR: [
-          email ? { email } : undefined,
-          phone ? { phone } : undefined,
-        ].filter(Boolean) as Array<{ email: string } | { phone: string }>,
-      },
-      select: { id: true },
-    });
-
-    const client = existingClient
-      ? await tx.client.update({
-          where: { id: existingClient.id },
-          data: {
-            firstName,
-            lastName: lastName || null,
-            fullName: `${firstName} ${lastName}`.trim(),
-            email: email || null,
-            phone,
-            updatedAt: new Date(),
-          },
-        })
-      : await tx.client.create({
-          data: {
-            id: `cli_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
-            tenantId: profile.tenantId,
-            firstName,
-            lastName: lastName || null,
-            fullName: `${firstName} ${lastName}`.trim(),
-            email: email || null,
-            phone,
-            updatedAt: new Date(),
-          },
-        });
-
-    const appointment = await tx.appointment.create({
-      data: {
-        id: `app_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
-        tenantId: profile.tenantId,
-        clientId: client.id,
         serviceId: service.id,
         scheduledAt,
         endAt,
-        source: "ONLINE_BOOKING",
-        status: "SCHEDULED",
-        paymentStatus: "none",
-        notes: message ? `Reservation en ligne - ${message}` : "Reservation en ligne",
+      });
+
+      if (!availability.success) {
+        throw new Error(availability.error);
+      }
+
+      const depositAmount = getDepositAmountCents({
+        priceCents,
+        bookingSettings: availability.bookingSettings,
+      });
+      const requiresDeposit = availability.bookingSettings.depositsRequired && depositAmount > 0;
+      const expiresAt = requiresDeposit
+        ? new Date(Date.now() + availability.bookingSettings.pendingBookingTtlMin * 60000)
+        : null;
+
+      const existingClient = await tx.client.findFirst({
+        where: {
+          tenantId: profile.tenantId,
+          archivedAt: null,
+          OR: [
+            email ? { email } : undefined,
+            phone ? { phone } : undefined,
+          ].filter(Boolean) as Array<{ email: string } | { phone: string }>,
+        },
+        select: { id: true },
+      });
+
+      const client = existingClient
+        ? await tx.client.update({
+            where: { id: existingClient.id },
+            data: {
+              firstName,
+              lastName: lastName || null,
+              fullName: `${firstName} ${lastName}`.trim(),
+              email: email || null,
+              phone,
+              instagram: instagram || null,
+              updatedAt: new Date(),
+            },
+          })
+        : await tx.client.create({
+            data: {
+              id: `cli_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+              tenantId: profile.tenantId,
+              firstName,
+              lastName: lastName || null,
+              fullName: `${firstName} ${lastName}`.trim(),
+              email: email || null,
+              phone,
+              instagram: instagram || null,
+              updatedAt: new Date(),
+            },
+          });
+
+      const appointment = await tx.appointment.create({
+        data: {
+          id: `app_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+          tenantId: profile.tenantId,
+          clientId: client.id,
+          serviceId: service.id,
+          scheduledAt,
+          endAt,
+          source: "ONLINE_BOOKING",
+          status: requiresDeposit ? "PENDING_PAYMENT" : "CONFIRMED",
+          paymentStatus: requiresDeposit ? "deposit_pending" : "none",
+          price: priceCents,
+          depositAmount,
+          depositPaidAmount: 0,
+          paidAmount: 0,
+          remainingAmount: priceCents,
+          expiresAt,
+          notes: message ? `Reservation en ligne - ${message}` : "Reservation en ligne",
+          updatedAt: new Date(),
+        },
+      });
+
+      await tx.notification.create({
+        data: {
+          id: `not_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+          tenantId: profile.tenantId,
+          clientId: client.id,
+          appointmentId: appointment.id,
+          type: "OTHER",
+          title: "Nouveau rendez-vous via la page publique",
+          body: `${clientFullName} a reserve ${service.name} le ${dateLabel} a ${timeLabel}.`,
+        },
+      });
+
+      return { appointment, client, bookingSettings: availability.bookingSettings, depositAmount, requiresDeposit };
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
+
+  let checkoutUrl: string | null = null;
+
+  if (reservation.requiresDeposit) {
+    const paymentUser = await prisma.user.findFirst({
+      where: {
+        tenantId: profile.tenantId,
+        stripeAccountId: { not: null },
+        paymentsEnabled: true,
+      },
+      select: {
+        id: true,
+        stripeAccountId: true,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    if (!paymentUser?.stripeAccountId) {
+      await prisma.appointment.update({
+        where: { id: reservation.appointment.id },
+        data: {
+          status: "EXPIRED",
+          paymentStatus: "none",
+          expiresAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+      return { success: false as const, error: "Le paiement en ligne n'est pas encore configure pour cette page." };
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || "";
+    const origin = appUrl.startsWith("http") ? appUrl : appUrl ? `https://${appUrl}` : "";
+    if (!origin) {
+      return { success: false as const, error: "Configuration de paiement incomplete." };
+    }
+
+    const applicationFeeAmount = getApplicationFeeAmount(reservation.depositAmount);
+    const checkoutSession = await stripe.checkout.sessions.create({
+      mode: "payment",
+      payment_method_types: ["card"],
+      customer_email: email || undefined,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: "eur",
+            unit_amount: reservation.depositAmount,
+            product_data: {
+              name: `Arrhes - ${service.name}`,
+              description: `${clientFullName} - ${dateLabel} a ${timeLabel}`,
+            },
+          },
+        },
+      ],
+      payment_intent_data: {
+        metadata: {
+          appointmentId: reservation.appointment.id,
+          tenantId: profile.tenantId,
+          userId: paymentUser.id,
+          paymentType: "deposit",
+        },
+        transfer_data: {
+          destination: paymentUser.stripeAccountId,
+        },
+        ...(applicationFeeAmount ? { application_fee_amount: applicationFeeAmount } : {}),
+      },
+      metadata: {
+        appointmentId: reservation.appointment.id,
+        tenantId: profile.tenantId,
+        userId: paymentUser.id,
+        paymentType: "deposit",
+      },
+      success_url: `${origin}/pro/${profile.slug}?booking=success&appointmentId=${reservation.appointment.id}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/pro/${profile.slug}?booking=cancel&appointmentId=${reservation.appointment.id}`,
+    });
+
+    await prisma.appointment.update({
+      where: { id: reservation.appointment.id },
+      data: {
+        stripeCheckoutSessionId: checkoutSession.id,
         updatedAt: new Date(),
       },
     });
 
-    await tx.notification.create({
-      data: {
-        id: `not_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
-        tenantId: profile.tenantId,
-        clientId: client.id,
-        appointmentId: appointment.id,
-        type: "OTHER",
-        title: "Nouveau rendez-vous via la page publique",
-        body: `${clientFullName} a reserve ${service.name} le ${dateLabel} a ${timeLabel}.`,
-      },
-    });
-
-    return appointment;
-  });
+    checkoutUrl = checkoutSession.url;
+  }
 
   revalidatePath("/dashboard/agenda");
   revalidatePath("/dashboard");
@@ -654,8 +1047,15 @@ export async function createPublicBooking(input: PublicBookingInput) {
 
   return {
     success: true as const,
-    appointmentId: appointment.id,
+    appointmentId: reservation.appointment.id,
     serviceName: service.name,
-    scheduledAt: appointment.scheduledAt.toISOString(),
+    scheduledAt: reservation.appointment.scheduledAt.toISOString(),
+    requiresPayment: reservation.requiresDeposit,
+    checkoutUrl,
   };
+  } catch (error) {
+    console.error("Error creating public booking:", error);
+    const message = error instanceof Error && error.message ? error.message : "Ce creneau vient d'etre reserve. Choisissez un autre horaire.";
+    return { success: false as const, error: message };
+  }
 }

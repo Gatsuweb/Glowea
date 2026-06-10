@@ -26,6 +26,25 @@ const currencyFormatter = new Intl.NumberFormat('fr-FR', {
   maximumFractionDigits: 0,
 });
 
+function getPaymentBadgeClass(status: string | undefined, stylesMap: Record<string, string>) {
+  switch (status) {
+    case "deposit_pending":
+      return stylesMap.paymentBadgeDepositPending;
+    case "deposit_paid":
+      return stylesMap.paymentBadgeDepositPaid;
+    case "partial_paid":
+      return stylesMap.paymentBadgePartialPaid;
+    case "paid":
+      return stylesMap.paymentBadgePaid;
+    case "paid_offline":
+      return stylesMap.paymentBadgePaidOffline;
+    case "refunded":
+      return stylesMap.paymentBadgeRefunded;
+    default:
+      return stylesMap.paymentBadgeNeutral;
+  }
+}
+
 type InsightAction = "promo" | "brief" | "stock" | "appointment";
 
 type SmartInsight = {
@@ -489,6 +508,7 @@ export default function DashboardClientWrapper({
                 (() => {
                   const finance = getAppointmentFinancialSummary(app);
                   const paymentLabel = getAppointmentPaymentLabel(finance.paymentStatus);
+                  const paymentBadgeClass = getPaymentBadgeClass(finance.paymentStatus, styles);
                   const remainingLabel = new Intl.NumberFormat("fr-FR", {
                     style: "currency",
                     currency: "EUR",
@@ -509,9 +529,9 @@ export default function DashboardClientWrapper({
                           <div className={styles.appointmentName}>{app.clientName.toUpperCase()}</div>
                           <div className={styles.appointmentType}>{app.serviceName}</div>
                           <div className={styles.appointmentMeta}>
-                            <span className={styles.paymentBadge}>{paymentLabel}</span>
+                            <span className={`${styles.paymentBadge} ${paymentBadgeClass}`}>{paymentLabel}</span>
                             {finance.remainingAmountCents > 0 && (
-                              <span className={styles.paymentBadge}>{remainingLabel} reste</span>
+                              <span className={`${styles.paymentBadge} ${styles.paymentBadgeRemaining}`}>{remainingLabel} reste</span>
                             )}
                           </div>
                         </div>

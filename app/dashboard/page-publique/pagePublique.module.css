@@ -565,6 +565,188 @@
   resize: vertical;
 }
 
+.reservationGrid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+}
+
+.reservationPanel {
+  background: linear-gradient(180deg, rgba(255, 252, 248, 0.98), rgba(255, 248, 243, 0.94));
+  border: 1px solid rgba(109, 60, 66, 0.1);
+  border-radius: 20px;
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+
+.panelHeader {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.panelHeader h3 {
+  color: #3a2827;
+  font-family: var(--font-serif);
+  font-size: 1.45rem;
+  font-weight: 400;
+  margin: 0;
+}
+
+.weekList {
+  display: grid;
+  gap: 12px;
+}
+
+.dayRow {
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(234, 216, 207, 0.9);
+  border-radius: 16px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.dayMain {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(140px, 0.8fr) minmax(220px, 1fr);
+}
+
+.dayToggle {
+  align-items: center;
+  color: #3a2827;
+  display: inline-flex;
+  font-weight: 900;
+  gap: 9px;
+}
+
+.timeInputs,
+.breakRow {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+.breakList {
+  display: grid;
+  gap: 8px;
+  padding-left: 28px;
+}
+
+.breakRow {
+  grid-template-columns: auto 110px 110px auto;
+}
+
+.breakRow span {
+  color: #9b5363;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.breakRow button,
+.exceptionActions button {
+  background: #fffaf6;
+  border: 1px solid #cdb7aa;
+  border-radius: 10px;
+  color: #6b3944;
+  cursor: pointer;
+  font-weight: 900;
+  min-height: 38px;
+  padding: 7px 10px;
+}
+
+.settingsGrid,
+.exceptionEditor {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settingsGrid label,
+.exceptionEditor label {
+  color: #5b4741;
+  display: grid;
+  gap: 8px;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.settingsGrid input,
+.settingsGrid select,
+.exceptionEditor input,
+.exceptionEditor select,
+.exceptionEditor textarea,
+.timeInputs input,
+.breakRow input {
+  background: #fffaf6;
+  border: 1px solid #ead8cf;
+  border-radius: 12px;
+  color: #3a2827;
+  font: inherit;
+  min-height: 42px;
+  padding: 9px 11px;
+  width: 100%;
+}
+
+.settingsGrid input:disabled,
+.settingsGrid select:disabled,
+.timeInputs input:disabled {
+  opacity: 0.55;
+}
+
+.exceptionEditor textarea {
+  resize: vertical;
+}
+
+.depositBox {
+  border-top: 1px solid #ead8cf;
+  display: grid;
+  gap: 14px;
+  padding-top: 16px;
+}
+
+.exceptionList {
+  display: grid;
+  gap: 10px;
+}
+
+.exceptionItem {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(234, 216, 207, 0.9);
+  border-radius: 16px;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.exceptionItem div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.exceptionItem strong {
+  color: #3a2827;
+}
+
+.exceptionItem span {
+  color: #6b5751;
+  font-size: 0.9rem;
+}
+
+.exceptionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .serviceUploadTile {
   min-height: 220px;
 }
@@ -924,6 +1106,10 @@
   .galleryAdd,
   .galleryGrid,
   .imageUploadGrid,
+  .reservationGrid,
+  .dayMain,
+  .settingsGrid,
+  .exceptionEditor,
   .previewStats,
   .previewServices {
     grid-template-columns: 1fr;
@@ -944,9 +1130,25 @@
 
   .cardHeader,
   .serviceTopRow,
-  .serviceCardHeader {
+  .serviceCardHeader,
+  .panelHeader,
+  .exceptionItem {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .breakList {
+    padding-left: 0;
+  }
+
+  .breakRow,
+  .timeInputs {
+    grid-template-columns: 1fr;
+  }
+
+  .exceptionActions,
+  .exceptionActions button {
+    width: 100%;
   }
 
   .serviceCard {

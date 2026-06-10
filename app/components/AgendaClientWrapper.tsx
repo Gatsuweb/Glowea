@@ -15,7 +15,7 @@ import {
 import { exportElementToPDF } from "../../lib/exportUtils";
 import { useRouter, useSearchParams } from "next/navigation";
 
-type AppointmentStatusValue = "SCHEDULED" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELED" | "NO_SHOW";
+type AppointmentStatusValue = "SCHEDULED" | "PENDING_PAYMENT" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELED" | "EXPIRED" | "NO_SHOW";
 
 type AgendaClient = {
   id: string;
@@ -57,6 +57,25 @@ const CALENDAR_START_HOUR = 8;
 const CALENDAR_END_HOUR = 18;
 const SLOT_MINUTES = 30;
 const SLOT_HEIGHT = 36;
+
+function getPaymentBadgeClass(status: string | undefined, stylesMap: Record<string, string>) {
+  switch (status) {
+    case "deposit_pending":
+      return stylesMap.paymentBadgeDepositPending;
+    case "deposit_paid":
+      return stylesMap.paymentBadgeDepositPaid;
+    case "partial_paid":
+      return stylesMap.paymentBadgePartialPaid;
+    case "paid":
+      return stylesMap.paymentBadgePaid;
+    case "paid_offline":
+      return stylesMap.paymentBadgePaidOffline;
+    case "refunded":
+      return stylesMap.paymentBadgeRefunded;
+    default:
+      return stylesMap.paymentBadgeNeutral;
+  }
+}
 
 type PaymentSettings = {
   stripeConnected: boolean;
@@ -290,10 +309,12 @@ export default function AgendaClientWrapper({
 
   const statusLabels: Record<string, string> = {
     SCHEDULED: "Planifie",
+    PENDING_PAYMENT: "Attente paiement",
     CONFIRMED: "Confirme",
     IN_PROGRESS: "En cours",
     COMPLETED: "Termine",
     CANCELED: "Annule",
+    EXPIRED: "Expire",
     NO_SHOW: "No-show",
   };
 
@@ -470,6 +491,7 @@ export default function AgendaClientWrapper({
           const finance = getAppointmentFinancialSummary(app);
           const paymentLabel = getAppointmentPaymentLabel(finance.paymentStatus);
           const paymentStatus = finance.paymentStatus;
+          const paymentBadgeClass = getPaymentBadgeClass(paymentStatus, styles);
           const priceCents = finance.priceCents;
           const depositPaidCents = finance.depositPaidAmountCents;
           const remainingCents = finance.remainingAmountCents;
@@ -502,7 +524,7 @@ export default function AgendaClientWrapper({
                         <option key={value} value={value}>{label}</option>
                       ))}
                     </select>
-                    <span className={styles.paymentBadge}>{paymentLabel}</span>
+                    <span className={`${styles.paymentBadge} ${paymentBadgeClass}`}>{paymentLabel}</span>
                   </div>
                   <div className={styles.paymentSummary}>
                     <span>

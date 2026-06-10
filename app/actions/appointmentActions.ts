@@ -12,10 +12,12 @@ import {
 
 type AppointmentStatusInput =
   | "SCHEDULED"
+  | "PENDING_PAYMENT"
   | "CONFIRMED"
   | "IN_PROGRESS"
   | "COMPLETED"
   | "CANCELED"
+  | "EXPIRED"
   | "NO_SHOW";
 
 type AppointmentMutationInput = {
@@ -53,7 +55,11 @@ function normalizePrice(price?: number) {
 }
 
 function isValidStatus(status: string): status is AppointmentStatusInput {
-  return ["SCHEDULED", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELED", "NO_SHOW"].includes(status);
+  return ["SCHEDULED", "PENDING_PAYMENT", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELED", "EXPIRED", "NO_SHOW"].includes(status);
+}
+
+function statusCanConflict(status: AppointmentStatusInput) {
+  return ACTIVE_CONFLICT_STATUSES.includes(status) || status === "PENDING_PAYMENT";
 }
 
 function revalidateAgendaViews() {
@@ -134,7 +140,13 @@ async function findConflictingAppointment(params: {
     where: {
       tenantId: params.tenantId,
       id: params.excludeAppointmentId ? { not: params.excludeAppointmentId } : undefined,
-      status: { in: ACTIVE_CONFLICT_STATUSES },
+      OR: [
+        { status: { in: ACTIVE_CONFLICT_STATUSES } },
+        {
+          status: "PENDING_PAYMENT",
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+      ],
       scheduledAt: { gte: dayStart, lte: dayEnd },
     },
     include: {
@@ -417,7 +429,7 @@ export async function updateAppointment(
               ? "deposit_paid"
               : "partial_paid";
 
-    if (ACTIVE_CONFLICT_STATUSES.includes(finalStatus)) {
+    if (statusCanConflict(finalStatus)) {
       const conflict = await findConflictingAppointment({
         tenantId,
         scheduledAt: finalScheduledAt,

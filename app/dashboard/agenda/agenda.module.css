@@ -283,13 +283,55 @@
 }
 
 .paymentBadge {
-  border: 1px solid #D9E9DE;
+  border: 1px solid #e7dde0;
   border-radius: 20px;
   padding: 4px 12px;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #176B35;
-  background: #EEF8F1;
+  color: #6f5b60;
+  background: #f7f1f3;
+}
+
+.paymentBadgeNeutral {
+  color: #6f5b60;
+  background: #f7f1f3;
+  border-color: #e7dde0;
+}
+
+.paymentBadgeDepositPending {
+  color: #9a5a17;
+  background: #fff3df;
+  border-color: #f1d2a4;
+}
+
+.paymentBadgeDepositPaid {
+  color: #176b35;
+  background: #eef8f1;
+  border-color: #d9e9de;
+}
+
+.paymentBadgePartialPaid {
+  color: #8f6a11;
+  background: #fff7d9;
+  border-color: #ecd995;
+}
+
+.paymentBadgePaid {
+  color: #146c43;
+  background: #e7f7ef;
+  border-color: #cde8d9;
+}
+
+.paymentBadgePaidOffline {
+  color: #2f5f8f;
+  background: #edf5ff;
+  border-color: #cfe0f5;
+}
+
+.paymentBadgeRefunded {
+  color: #8b3d4d;
+  background: #fdecef;
+  border-color: #efc8d0;
 }
 
 .paymentSummary {

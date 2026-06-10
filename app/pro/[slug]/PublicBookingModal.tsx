@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { createPublicBooking } from "../../actions/publicPageActions";
 import styles from "./publicProfile.module.css";
@@ -12,7 +12,16 @@ type BookingService = {
   price: number;
 };
 
-const timeSlots = ["09:00", "10:30", "12:00", "14:00", "15:30", "17:00"];
+type AvailabilitySlot = {
+  time: string;
+  startAt: string;
+  endAt: string;
+};
+
+type BookingSettings = {
+  depositsEnabled: boolean;
+  depositsRequired: boolean;
+};
 
 function getToday() {
   return new Date().toISOString().slice(0, 10);
@@ -39,11 +48,17 @@ export default function PublicBookingModal({
   const [isPending, startTransition] = useTransition();
   const [serviceId, setServiceId] = useState(initialServiceId || services[0]?.id || "");
   const [date, setDate] = useState(getToday());
-  const [time, setTime] = useState(timeSlots[0]);
+  const [time, setTime] = useState("");
+  const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [slotError, setSlotError] = useState<string | null>(null);
+  const [bookingSettings, setBookingSettings] = useState<BookingSettings | null>(null);
+  const [depositAmount, setDepositAmount] = useState(0);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [instagram, setInstagram] = useState("");
   const [message, setMessage] = useState("");
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -51,6 +66,51 @@ export default function PublicBookingModal({
     () => services.find((service) => service.id === serviceId),
     [serviceId, services]
   );
+
+  const remainingAmount = Math.max(((selectedService?.price || 0) * 100) - depositAmount, 0);
+
+  function formatMoneyFromCents(amount: number) {
+    return new Intl.NumberFormat("fr-FR", {
+      style: "currency",
+      currency: "EUR",
+    }).format(amount / 100);
+  }
+
+  useEffect(() => {
+    if (!isOpen || !serviceId || !date) return;
+
+    const controller = new AbortController();
+
+    async function loadSlots() {
+      setIsLoadingSlots(true);
+      setSlotError(null);
+
+      try {
+        const response = await fetch(`/api/public-booking/${encodeURIComponent(slug)}/availability?serviceId=${encodeURIComponent(serviceId)}&date=${encodeURIComponent(date)}`, {
+          signal: controller.signal,
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || "Impossible de charger les creneaux.");
+        }
+        setSlots(data.slots || []);
+        setBookingSettings(data.bookingSettings || null);
+        setDepositAmount(Number(data.depositAmount || 0));
+        setTime(data.slots?.[0]?.time || "");
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setSlots([]);
+        setTime("");
+        setSlotError(error instanceof Error ? error.message : "Impossible de charger les creneaux.");
+      } finally {
+        if (!controller.signal.aborted) setIsLoadingSlots(false);
+      }
+    }
+
+    void loadSlots();
+
+    return () => controller.abort();
+  }, [date, isOpen, serviceId, slug]);
 
   function submitBooking(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -66,6 +126,7 @@ export default function PublicBookingModal({
         lastName,
         phone,
         email,
+        instagram,
         message,
       });
 
@@ -82,7 +143,12 @@ export default function PublicBookingModal({
       setLastName("");
       setPhone("");
       setEmail("");
+      setInstagram("");
       setMessage("");
+
+      if (result.checkoutUrl) {
+        window.location.href = result.checkoutUrl;
+      }
     });
   }
 
@@ -126,7 +192,10 @@ export default function PublicBookingModal({
               {selectedService && (
                 <div className={styles.selectedService}>
                   <span>{selectedService.name}</span>
-                  <strong>{selectedService.durationMin} min</strong>
+                  <strong>
+                    {selectedService.durationMin} min
+                    {selectedService.price ? ` - ${formatMoneyFromCents(selectedService.price * 100)}` : ""}
+                  </strong>
                 </div>
               )}
 
@@ -137,13 +206,19 @@ export default function PublicBookingModal({
                 </label>
                 <label>
                   Heure
-                  <select value={time} onChange={(event) => setTime(event.target.value)} required>
-                    {timeSlots.map((slot) => (
-                      <option key={slot} value={slot}>{slot}</option>
+                  <select value={time} onChange={(event) => setTime(event.target.value)} required disabled={isLoadingSlots || slots.length === 0}>
+                    {slots.map((slot) => (
+                      <option key={slot.startAt} value={slot.time}>{slot.time}</option>
                     ))}
                   </select>
                 </label>
               </div>
+
+              {isLoadingSlots && <div className={styles.modalInfo}>Chargement des creneaux disponibles...</div>}
+              {!isLoadingSlots && slotError && <div className={styles.modalError}>{slotError}</div>}
+              {!isLoadingSlots && !slotError && slots.length === 0 && (
+                <div className={styles.modalInfo}>Aucun creneau disponible pour cette date.</div>
+              )}
 
               <div className={styles.formSplit}>
                 <label>
@@ -168,9 +243,22 @@ export default function PublicBookingModal({
               </div>
 
               <label>
+                Instagram optionnel
+                <input value={instagram} onChange={(event) => setInstagram(event.target.value)} placeholder="@votrecompte" />
+              </label>
+
+              <label>
                 Message optionnel
                 <textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={4} />
               </label>
+
+              {bookingSettings?.depositsEnabled && depositAmount > 0 && (
+                <div className={styles.paymentSummary}>
+                  <span>Arrhes {bookingSettings.depositsRequired ? "obligatoires" : "optionnelles"}</span>
+                  <strong>{formatMoneyFromCents(depositAmount)}</strong>
+                  <small>Reste a payer sur place : {formatMoneyFromCents(remainingAmount)}</small>
+                </div>
+              )}
 
               {feedback && (
                 <div className={feedback.type === "success" ? styles.modalSuccess : styles.modalError}>
@@ -178,8 +266,8 @@ export default function PublicBookingModal({
                 </div>
               )}
 
-              <button className={styles.submitButton} type="submit" disabled={isPending || !serviceId}>
-                {isPending ? "Envoi..." : "Confirmer la demande"}
+              <button className={styles.submitButton} type="submit" disabled={isPending || !serviceId || !time}>
+                {isPending ? "Envoi..." : bookingSettings?.depositsRequired ? "Continuer vers le paiement" : "Confirmer la reservation"}
               </button>
             </form>
           </div>

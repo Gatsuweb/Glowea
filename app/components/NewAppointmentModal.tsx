@@ -26,7 +26,7 @@ type AppointmentInitialData = {
   id: string;
   scheduledAt: string | Date;
   endAt?: string | Date | null;
-  status?: "SCHEDULED" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELED" | "NO_SHOW";
+  status?: "SCHEDULED" | "PENDING_PAYMENT" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELED" | "EXPIRED" | "NO_SHOW";
   price?: number | null;
   notes?: string | null;
   client?: ClientOption | null;
@@ -71,7 +71,7 @@ export default function NewAppointmentModal({
   const [notes, setNotes] = useState('');
   const [durationMin, setDurationMin] = useState('60');
   const [priceEuros, setPriceEuros] = useState('0');
-  const [status, setStatus] = useState<"SCHEDULED" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELED" | "NO_SHOW">("SCHEDULED");
+  const [status, setStatus] = useState<"SCHEDULED" | "PENDING_PAYMENT" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELED" | "EXPIRED" | "NO_SHOW">("SCHEDULED");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localServices, setLocalServices] = useState(services);
   const [error, setError] = useState<string | null>(null);
@@ -365,10 +365,12 @@ export default function NewAppointmentModal({
                 Statut
                 <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
                   <option value="SCHEDULED">Planifie</option>
+                  <option value="PENDING_PAYMENT">Attente paiement</option>
                   <option value="CONFIRMED">Confirme</option>
                   <option value="IN_PROGRESS">En cours</option>
                   <option value="COMPLETED">Termine</option>
                   <option value="CANCELED">Annule</option>
+                  <option value="EXPIRED">Expire</option>
                   <option value="NO_SHOW">No-show</option>
                 </select>
               </label>

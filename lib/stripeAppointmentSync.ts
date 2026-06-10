@@ -74,6 +74,20 @@ export async function syncAppointmentPaymentFromCheckoutSession(session: Stripe.
     };
   }
 
+  await prisma.appointment.updateMany({
+    where: {
+      id: appointmentId,
+      tenantId,
+      status: "PENDING_PAYMENT",
+      paymentStatus: { in: ["deposit_paid", "paid", "paid_offline"] },
+    },
+    data: {
+      status: "CONFIRMED",
+      expiresAt: null,
+      updatedAt: new Date(),
+    },
+  });
+
   return {
     success: true as const,
     appointmentId,

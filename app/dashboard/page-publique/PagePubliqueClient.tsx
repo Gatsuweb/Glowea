@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 import {
+  deleteAvailabilityException,
   deletePublicService,
   deleteReview,
+  saveAvailabilityException,
+  saveBookingSettings,
   savePublicService,
   saveReview,
   updatePublicProfile,
@@ -18,7 +21,10 @@ type ProfileState = ConfigData["profile"];
 type ServiceState = ConfigData["services"][number];
 type GalleryState = ConfigData["gallery"][number];
 type ReviewState = ConfigData["reviews"][number];
-type TabId = "profil" | "prestations" | "galerie" | "avis" | "apercu";
+type BookingSettingsState = ConfigData["bookingSettings"];
+type BookingDayState = BookingSettingsState["days"][number];
+type AvailabilityExceptionState = ConfigData["availabilityExceptions"][number];
+type TabId = "profil" | "prestations" | "reservations" | "galerie" | "avis" | "apercu";
 type ServiceEditorState = ServiceState & { localId: string };
 
 const emptyService: ServiceState = {
@@ -45,10 +51,21 @@ const emptyReview: ReviewState = {
 const tabs: Array<{ id: TabId; label: string }> = [
   { id: "profil", label: "Profil" },
   { id: "prestations", label: "Prestations" },
+  { id: "reservations", label: "Horaires & Reservations" },
   { id: "galerie", label: "Galerie" },
   { id: "avis", label: "Avis" },
   { id: "apercu", label: "Apercu" },
 ];
+
+const dayLabels = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+
+const exceptionLabels: Record<AvailabilityExceptionState["type"], string> = {
+  VACATION: "Conge",
+  ABSENCE: "Absence",
+  PERSONAL_APPOINTMENT: "Rendez-vous personnel",
+  TRAINING: "Formation",
+  OTHER: "Autre",
+};
 
 function formatPrice(value: number) {
   if (!value) return "Sur devis";
@@ -78,6 +95,30 @@ function createEmptyReviewDraft(): ReviewState {
   return { ...emptyReview, createdAt: new Date().toISOString() };
 }
 
+function toDatetimeLocal(value: string | Date) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function createEmptyExceptionDraft(): AvailabilityExceptionState {
+  const start = new Date();
+  start.setDate(start.getDate() + 1);
+  start.setHours(9, 0, 0, 0);
+  const end = new Date(start);
+  end.setHours(18, 0, 0, 0);
+  return {
+    id: "",
+    type: "OTHER",
+    title: "",
+    startAt: start.toISOString(),
+    endAt: end.toISOString(),
+    allDay: false,
+    notes: "",
+  };
+}
+
 export default function PagePubliqueClient({ initialData }: { initialData: ConfigData }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -86,6 +127,9 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
   const [services, setServices] = useState<ServiceEditorState[]>(() => initialData.services.map(toServiceEditorState));
   const [gallery, setGallery] = useState<GalleryState[]>(initialData.gallery);
   const [reviews, setReviews] = useState<ReviewState[]>(initialData.reviews);
+  const [bookingSettings, setBookingSettings] = useState<BookingSettingsState>(initialData.bookingSettings);
+  const [availabilityExceptions, setAvailabilityExceptions] = useState<AvailabilityExceptionState[]>(initialData.availabilityExceptions);
+  const [exceptionDraft, setExceptionDraft] = useState<AvailabilityExceptionState>(() => createEmptyExceptionDraft());
   const [editingServices, setEditingServices] = useState<Record<string, boolean>>({});
   const [serviceSnapshots, setServiceSnapshots] = useState<Record<string, ServiceState>>({});
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -176,6 +220,56 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
     setReviews((current) => current.map((review, reviewIndex) => (
       reviewIndex === index ? { ...review, ...patch } : review
     )));
+  }
+
+  function updateBookingField<K extends keyof BookingSettingsState>(key: K, value: BookingSettingsState[K]) {
+    setBookingSettings((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateBookingDay(index: number, patch: Partial<BookingDayState>) {
+    setBookingSettings((current) => ({
+      ...current,
+      days: current.days.map((day, dayIndex) => (
+        dayIndex === index ? { ...day, ...patch } : day
+      )),
+    }));
+  }
+
+  function updateBookingBreak(dayIndex: number, breakIndex: number, key: "start" | "end", value: string) {
+    setBookingSettings((current) => ({
+      ...current,
+      days: current.days.map((day, currentDayIndex) => {
+        if (currentDayIndex !== dayIndex) return day;
+        return {
+          ...day,
+          breaks: day.breaks.map((pause, currentBreakIndex) => (
+            currentBreakIndex === breakIndex ? { ...pause, [key]: value } : pause
+          )),
+        };
+      }),
+    }));
+  }
+
+  function addBookingBreak(dayIndex: number) {
+    setBookingSettings((current) => ({
+      ...current,
+      days: current.days.map((day, currentDayIndex) => (
+        currentDayIndex === dayIndex
+          ? { ...day, breaks: [...day.breaks, { start: "12:00", end: "13:00" }] }
+          : day
+      )),
+    }));
+  }
+
+  function removeBookingBreak(dayIndex: number, breakIndex: number) {
+    setBookingSettings((current) => ({
+      ...current,
+      days: current.days.map((day, currentDayIndex) => (
+        currentDayIndex === dayIndex
+          ? { ...day, breaks: day.breaks.filter((_, currentBreakIndex) => currentBreakIndex !== breakIndex) }
+          : day
+      )),
+    }));
   }
 
   async function handleProfileUpload(file: File | undefined, field: "coverImageUrl" | "avatarUrl") {
@@ -299,6 +393,84 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
         return;
       }
       setFeedback("Page publique mise a jour.");
+      router.refresh();
+    });
+  }
+
+  function saveReservationSettings() {
+    setFeedback(null);
+    setError(null);
+    startTransition(async () => {
+      const result = await saveBookingSettings(bookingSettings);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      setBookingSettings(result.bookingSettings);
+      setFeedback("Horaires et reservations enregistres.");
+      router.refresh();
+    });
+  }
+
+  function saveException() {
+    setFeedback(null);
+    setError(null);
+    startTransition(async () => {
+      const result = await saveAvailabilityException({
+        ...exceptionDraft,
+        id: exceptionDraft.id || undefined,
+      });
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      setAvailabilityExceptions((current) => {
+        const exists = current.some((item) => item.id === result.exception.id);
+        return exists
+          ? current.map((item) => item.id === result.exception.id ? result.exception : item)
+          : [...current, result.exception].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+      });
+      setExceptionDraft(createEmptyExceptionDraft());
+      setFeedback("Indisponibilite enregistree.");
+      router.refresh();
+    });
+  }
+
+  function editException(item: AvailabilityExceptionState) {
+    setExceptionDraft(item);
+    setFeedback(null);
+    setError(null);
+  }
+
+  function toggleExceptionAllDay(checked: boolean) {
+    setExceptionDraft((current) => {
+      if (!checked) return { ...current, allDay: false };
+      const start = new Date(current.startAt);
+      if (Number.isNaN(start.getTime())) return { ...current, allDay: true };
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setHours(23, 59, 0, 0);
+      return {
+        ...current,
+        allDay: true,
+        startAt: start.toISOString(),
+        endAt: end.toISOString(),
+      };
+    });
+  }
+
+  function removeException(id: string) {
+    setFeedback(null);
+    setError(null);
+    startTransition(async () => {
+      const result = await deleteAvailabilityException(id);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      setAvailabilityExceptions((current) => current.filter((item) => item.id !== id));
+      if (exceptionDraft.id === id) setExceptionDraft(createEmptyExceptionDraft());
+      setFeedback("Indisponibilite supprimee.");
       router.refresh();
     });
   }
@@ -745,6 +917,293 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
                 })}
               </div>
             )}
+          </article>
+        )}
+
+        {activeTab === "reservations" && (
+          <article className={styles.card}>
+            <div className={styles.cardHeader}>
+              <div>
+                <span className={styles.kicker}>Horaires & Reservations</span>
+                <h2>Disponibilites publiques</h2>
+                <p className={styles.sectionDescription}>Ces regles determinent les creneaux proposes sur votre page publique.</p>
+              </div>
+              <button className={styles.primaryButton} type="button" onClick={saveReservationSettings} disabled={isPending}>
+                {isPending ? "Enregistrement..." : "Enregistrer"}
+              </button>
+            </div>
+
+            <div className={styles.reservationGrid}>
+              <section className={styles.reservationPanel}>
+                <div className={styles.panelHeader}>
+                  <h3>Horaires de travail</h3>
+                </div>
+                <div className={styles.weekList}>
+                  {bookingSettings.days.map((day, dayIndex) => (
+                    <div className={styles.dayRow} key={dayLabels[dayIndex]}>
+                      <div className={styles.dayMain}>
+                        <label className={styles.dayToggle}>
+                          <input
+                            type="checkbox"
+                            checked={day.isOpen}
+                            onChange={(event) => updateBookingDay(dayIndex, { isOpen: event.target.checked })}
+                          />
+                          <span>{dayLabels[dayIndex]}</span>
+                        </label>
+                        <div className={styles.timeInputs}>
+                          <input
+                            type="time"
+                            value={day.start}
+                            disabled={!day.isOpen}
+                            onChange={(event) => updateBookingDay(dayIndex, { start: event.target.value })}
+                          />
+                          <span>-</span>
+                          <input
+                            type="time"
+                            value={day.end}
+                            disabled={!day.isOpen}
+                            onChange={(event) => updateBookingDay(dayIndex, { end: event.target.value })}
+                          />
+                        </div>
+                      </div>
+
+                      {day.isOpen && (
+                        <div className={styles.breakList}>
+                          {day.breaks.map((pause, breakIndex) => (
+                            <div className={styles.breakRow} key={`${dayLabels[dayIndex]}-${breakIndex}`}>
+                              <span>Pause</span>
+                              <input
+                                type="time"
+                                value={pause.start}
+                                onChange={(event) => updateBookingBreak(dayIndex, breakIndex, "start", event.target.value)}
+                              />
+                              <input
+                                type="time"
+                                value={pause.end}
+                                onChange={(event) => updateBookingBreak(dayIndex, breakIndex, "end", event.target.value)}
+                              />
+                              <button type="button" onClick={() => removeBookingBreak(dayIndex, breakIndex)}>Retirer</button>
+                            </div>
+                          ))}
+                          <button className={styles.textButton} type="button" onClick={() => addBookingBreak(dayIndex)}>
+                            Ajouter une pause
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className={styles.reservationPanel}>
+                <div className={styles.panelHeader}>
+                  <h3>Regles de reservation</h3>
+                </div>
+                <div className={styles.settingsGrid}>
+                  <label>
+                    Delai minimum avant reservation
+                    <select
+                      value={bookingSettings.minBookingNoticeMin}
+                      onChange={(event) => updateBookingField("minBookingNoticeMin", Number(event.target.value))}
+                    >
+                      <option value={0}>Aucun</option>
+                      <option value={120}>2 h</option>
+                      <option value={360}>6 h</option>
+                      <option value={720}>12 h</option>
+                      <option value={1440}>24 h</option>
+                      <option value={2880}>48 h</option>
+                    </select>
+                  </label>
+                  <label>
+                    Intervalle des creneaux
+                    <select
+                      value={bookingSettings.slotIntervalMin}
+                      onChange={(event) => updateBookingField("slotIntervalMin", Number(event.target.value))}
+                    >
+                      <option value={15}>15 min</option>
+                      <option value={30}>30 min</option>
+                      <option value={45}>45 min</option>
+                      <option value={60}>60 min</option>
+                    </select>
+                  </label>
+                  <label>
+                    Temps tampon entre deux rendez-vous
+                    <select
+                      value={bookingSettings.bufferMin}
+                      onChange={(event) => updateBookingField("bufferMin", Number(event.target.value))}
+                    >
+                      <option value={0}>0 min</option>
+                      <option value={15}>15 min</option>
+                      <option value={30}>30 min</option>
+                      <option value={45}>45 min</option>
+                      <option value={60}>60 min</option>
+                    </select>
+                  </label>
+                  <label>
+                    Expiration paiement en attente
+                    <select
+                      value={bookingSettings.pendingBookingTtlMin}
+                      onChange={(event) => updateBookingField("pendingBookingTtlMin", Number(event.target.value))}
+                    >
+                      <option value={10}>10 min</option>
+                      <option value={15}>15 min</option>
+                      <option value={20}>20 min</option>
+                      <option value={30}>30 min</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className={styles.depositBox}>
+                  <label className={styles.serviceToggleControl}>
+                    <input
+                      className={styles.serviceToggleInput}
+                      type="checkbox"
+                      checked={bookingSettings.depositsEnabled}
+                      onChange={(event) => updateBookingField("depositsEnabled", event.target.checked)}
+                    />
+                    <span className={styles.serviceToggleSwitch} aria-hidden="true">
+                      <span className={styles.serviceToggleThumb}></span>
+                    </span>
+                    <span className={styles.serviceToggleText}>
+                      <strong>Activer les arrhes</strong>
+                      <small>Affiche et calcule un montant d&apos;arrhes sur la reservation publique.</small>
+                    </span>
+                  </label>
+
+                  <label className={styles.inlineCheck}>
+                    <input
+                      type="checkbox"
+                      checked={bookingSettings.depositsRequired}
+                      disabled={!bookingSettings.depositsEnabled}
+                      onChange={(event) => updateBookingField("depositsRequired", event.target.checked)}
+                    />
+                    Arrhes obligatoires pour reserver
+                  </label>
+
+                  <div className={styles.settingsGrid}>
+                    <label>
+                      Type d&apos;arrhes
+                      <select
+                        value={bookingSettings.depositType}
+                        disabled={!bookingSettings.depositsEnabled}
+                        onChange={(event) => updateBookingField("depositType", event.target.value as BookingSettingsState["depositType"])}
+                      >
+                        <option value="fixed">Montant fixe</option>
+                        <option value="percent">Pourcentage</option>
+                      </select>
+                    </label>
+                    <label>
+                      {bookingSettings.depositType === "fixed" ? "Montant en euros" : "Pourcentage"}
+                      <input
+                        type="number"
+                        min="0"
+                        step={bookingSettings.depositType === "fixed" ? "0.01" : "1"}
+                        max={bookingSettings.depositType === "percent" ? "100" : undefined}
+                        value={bookingSettings.depositType === "fixed" ? bookingSettings.depositAmount / 100 : bookingSettings.depositAmount}
+                        disabled={!bookingSettings.depositsEnabled}
+                        onChange={(event) => updateBookingField(
+                          "depositAmount",
+                          bookingSettings.depositType === "fixed"
+                            ? Math.round(Number(event.target.value) * 100)
+                            : Number(event.target.value)
+                        )}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <section className={styles.reservationPanel}>
+              <div className={styles.panelHeader}>
+                <h3>Indisponibilites exceptionnelles</h3>
+                {exceptionDraft.id && (
+                  <button className={styles.secondaryButton} type="button" onClick={() => setExceptionDraft(createEmptyExceptionDraft())}>
+                    Nouveau blocage
+                  </button>
+                )}
+              </div>
+
+              <div className={styles.exceptionEditor}>
+                <label>
+                  Motif
+                  <select
+                    value={exceptionDraft.type}
+                    onChange={(event) => setExceptionDraft((current) => ({ ...current, type: event.target.value as AvailabilityExceptionState["type"] }))}
+                  >
+                    {Object.entries(exceptionLabels).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Titre
+                  <input
+                    value={exceptionDraft.title}
+                    onChange={(event) => setExceptionDraft((current) => ({ ...current, title: event.target.value }))}
+                    placeholder="Conges, formation..."
+                  />
+                </label>
+                <label>
+                  Debut
+                  <input
+                    type="datetime-local"
+                    value={toDatetimeLocal(exceptionDraft.startAt)}
+                    onChange={(event) => setExceptionDraft((current) => ({ ...current, startAt: new Date(event.target.value).toISOString() }))}
+                  />
+                </label>
+                <label>
+                  Fin
+                  <input
+                    type="datetime-local"
+                    value={toDatetimeLocal(exceptionDraft.endAt)}
+                    onChange={(event) => setExceptionDraft((current) => ({ ...current, endAt: new Date(event.target.value).toISOString() }))}
+                  />
+                </label>
+                <label className={styles.inlineCheck}>
+                  <input
+                    type="checkbox"
+                    checked={exceptionDraft.allDay}
+                    onChange={(event) => toggleExceptionAllDay(event.target.checked)}
+                  />
+                  Journee complete
+                </label>
+                <label className={styles.full}>
+                  Notes
+                  <textarea
+                    value={exceptionDraft.notes}
+                    onChange={(event) => setExceptionDraft((current) => ({ ...current, notes: event.target.value }))}
+                    rows={3}
+                  />
+                </label>
+              </div>
+
+              <button className={styles.primaryButton} type="button" onClick={saveException} disabled={isPending}>
+                {exceptionDraft.id ? "Enregistrer le blocage" : "Ajouter le blocage"}
+              </button>
+
+              <div className={styles.exceptionList}>
+                {availabilityExceptions.length === 0 && (
+                  <p className={styles.emptyText}>Aucune indisponibilite exceptionnelle.</p>
+                )}
+                {availabilityExceptions.map((item) => (
+                  <div className={styles.exceptionItem} key={item.id}>
+                    <div>
+                      <strong>{item.title || exceptionLabels[item.type]}</strong>
+                      <span>
+                        {new Date(item.startAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+                        {" - "}
+                        {new Date(item.endAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+                      </span>
+                    </div>
+                    <div className={styles.exceptionActions}>
+                      <button type="button" onClick={() => editException(item)}>Modifier</button>
+                      <button type="button" onClick={() => removeException(item.id)} disabled={isPending}>Supprimer</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
           </article>
         )}
 
