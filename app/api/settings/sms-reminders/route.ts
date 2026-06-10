@@ -31,7 +31,7 @@ export async function PATCH(request: Request) {
 
   if (typeof enabled !== "boolean") {
     return NextResponse.json(
-      { success: false, error: "Le champ enabled doit etre un booleen" },
+      { success: false, error: "Le champ enabled doit être un booléen" },
       { status: 400 }
     );
   }

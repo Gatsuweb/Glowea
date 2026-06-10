@@ -822,7 +822,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
 
   const scheduledAt = new Date(`${safeString(input.date, 10)}T${safeString(input.time, 5)}:00`);
   if (Number.isNaN(scheduledAt.getTime()) || scheduledAt < new Date()) {
-    return { success: false as const, error: "Choisissez un creneau a venir." };
+    return { success: false as const, error: "Choisissez un créneau à venir." };
   }
 
   const profile = await prisma.publicProfile.findUnique({
@@ -1055,7 +1055,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
   };
   } catch (error) {
     console.error("Error creating public booking:", error);
-    const message = error instanceof Error && error.message ? error.message : "Ce creneau vient d'etre reserve. Choisissez un autre horaire.";
+    const message = error instanceof Error && error.message ? error.message : "Ce cr?neau vient d'?tre r?serv?. Choisissez un autre horaire.";
     return { success: false as const, error: message };
   }
 }

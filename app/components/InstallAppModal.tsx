@@ -96,7 +96,7 @@ export default function InstallAppModal({ isOpen, onClose }: InstallAppModalProp
         <div className={styles.successBox}>
           <div className={styles.appIcon}>G</div>
           <div className={styles.successText}>
-            <h3>C&apos;est pret !</h3>
+            <h3>C&apos;est prêt !</h3>
             <p>Retrouvez Glowea sur votre ecran d&apos;accueil.</p>
           </div>
           <div className={styles.heartIcon}>

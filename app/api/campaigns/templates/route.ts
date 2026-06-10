@@ -107,7 +107,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Error creating campaign template:", error);
     return NextResponse.json(
-      { success: false, error: "Impossible de creer le template" },
+      { success: false, error: "Impossible de cr?er le template" },
       { status: 500 }
     );
   }

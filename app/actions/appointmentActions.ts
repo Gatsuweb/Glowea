@@ -167,7 +167,7 @@ async function findConflictingAppointment(params: {
 }
 
 function formatConflictMessage(conflict: Awaited<ReturnType<typeof findConflictingAppointment>>) {
-  if (!conflict) return "Ce creneau est deja occupe";
+  if (!conflict) return "Ce créneau est déjà occupé";
 
   const clientName = `${conflict.Client?.firstName || ""} ${conflict.Client?.lastName || ""}`.trim() || "une cliente";
   const time = conflict.scheduledAt.toLocaleTimeString("fr-FR", {
@@ -175,7 +175,7 @@ function formatConflictMessage(conflict: Awaited<ReturnType<typeof findConflicti
     minute: "2-digit",
   });
 
-  return `Conflit horaire : ${clientName} a deja un rendez-vous a ${time}`;
+  return `Conflit horaire : ${clientName} a déjà un rendez-vous à ${time}`;
 }
 
 async function cancelPendingReminders(tenantId: string, appointmentId: string) {
@@ -316,7 +316,7 @@ export async function createAppointment(data: AppointmentMutationInput) {
 
     const finalEndAt = getAppointmentEndAt(data.scheduledAt, data.endAt, owned.service.durationMin);
     if (finalEndAt <= data.scheduledAt) {
-      return { success: false, error: "L'heure de fin doit etre apres l'heure de debut" };
+      return { success: false, error: "L'heure de fin doit être après l'heure de début" };
     }
 
     const conflict = await findConflictingAppointment({
@@ -359,7 +359,7 @@ export async function createAppointment(data: AppointmentMutationInput) {
     return { success: true, appointment };
   } catch (error) {
     console.error("Error creating appointment:", error);
-    return { success: false, error: "Erreur lors de la creation du rendez-vous" };
+    return { success: false, error: "Erreur lors de la création du rendez-vous" };
   }
 }
 
@@ -402,7 +402,7 @@ export async function updateAppointment(
 
     const finalEndAt = getAppointmentEndAt(finalScheduledAt, data.endAt, owned.service.durationMin);
     if (finalEndAt <= finalScheduledAt) {
-      return { success: false, error: "L'heure de fin doit etre apres l'heure de debut" };
+      return { success: false, error: "L'heure de fin doit être après l'heure de début" };
     }
 
     const finalStatus = data.status || existingAppointment.status;

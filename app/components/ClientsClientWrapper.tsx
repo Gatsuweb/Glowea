@@ -847,7 +847,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                         {project.description ? (
                           <p className={styles.projectDescription}>{project.description}</p>
                         ) : (
-                          <p className={styles.projectDescription}>Portfolio avant/apres de la seance cliente.</p>
+                          <p className={styles.projectDescription}>Portfolio avant/après de la séance cliente.</p>
                         )}
                       </div>
                       {project.createdAt && (
@@ -879,12 +879,12 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={project.after.url}
-                              alt={project.after.alt || "Photo apres"}
+                              alt={project.after.alt || "Photo après"}
                               className={styles.projectImage}
                             />
                           </>
                         ) : (
-                          <div className={styles.projectImagePlaceholder}>Photo apres non renseignee</div>
+                          <div className={styles.projectImagePlaceholder}>Photo après non renseignee</div>
                         )}
                       </div>
                     </div>
@@ -1164,7 +1164,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                 </label>
                 <div className={styles.consentRow}>
                   <div className={styles.consentRowText}>
-                    <h4>Publication avant/apres</h4>
+                    <h4>Publication avant/après</h4>
                     <p>Autorise l&apos;utilisation de photos ou videos du resultat sur les reseaux sociaux.</p>
                   </div>
                   <div className={`${styles.toggleWrapper} ${isEditingConsent ? styles.toggleWrapperEditable : ""}`} onClick={() => isEditingConsent && setConsentData({ ...consentData, mediaConsent: !consentData.mediaConsent })}>

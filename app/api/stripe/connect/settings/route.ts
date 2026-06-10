@@ -30,7 +30,7 @@ export async function PATCH(req: Request) {
   const defaultDepositAmount = normalizeDepositAmount(body.defaultDepositAmount);
 
   if (defaultDepositType === "percent" && defaultDepositAmount > 100) {
-    return NextResponse.json({ error: "Le pourcentage d'arrhes doit etre compris entre 0 et 100." }, { status: 400 });
+    return NextResponse.json({ error: "Le pourcentage d'arrhes doit être compris entre 0 et 100." }, { status: 400 });
   }
 
   const user = await prisma.user.findFirst({

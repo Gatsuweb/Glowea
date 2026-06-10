@@ -400,7 +400,7 @@ export default function AgendaClientWrapper({
       const data = await response.json();
 
       if (!response.ok || !data.url) {
-        setActionError(data.error || "Impossible de creer le lien de paiement.");
+        setActionError(data.error || "Impossible de cr?er le lien de paiement.");
         return;
       }
 
@@ -697,7 +697,7 @@ export default function AgendaClientWrapper({
                           key={dayIndex}
                           className={styles.timeCell}
                           onClick={() => openCreateAppointmentAt(day, slot.hour, slot.minute)}
-                          title={`Creer un rendez-vous ${slot.label}`}
+                          title={`Cr?er un rendez-vous ${slot.label}`}
                         >
                           {dayAppointments.map((app, appIndex) => {
                             const appDate = new Date(app.scheduledAt);

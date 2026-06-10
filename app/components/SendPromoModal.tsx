@@ -175,7 +175,7 @@ export default function SendPromoModal({ isOpen, onClose }: SendPromoModalProps)
       if (!data.success) throw new Error(data.error || "Envoi impossible");
 
       const details = data.errorSummary ? ` Raison : ${data.errorSummary}` : "";
-      const resultMessage = `${isMockMode ? "Simulation terminee" : "Campagne traitee"} : ${data.sentCount || 0} envoyee(s), ${data.failedCount || 0} echec(s), ${data.skippedCount || 0} ignoree(s).${details}`;
+      const resultMessage = `${isMockMode ? "Simulation terminée" : "Campagne traitée"} : ${data.sentCount || 0} envoyée(s), ${data.failedCount || 0} échec(s), ${data.skippedCount || 0} ignorée(s).${details}`;
       if ((data.failedCount || 0) > 0 && (data.sentCount || 0) === 0) {
         setError(resultMessage);
       } else {

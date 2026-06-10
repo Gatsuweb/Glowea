@@ -25,9 +25,9 @@ export default function OnboardingChecklist({ onboarding }: { onboarding: Onboar
       <section className={`${styles.card} ${styles.cardCompleted}`} role="status">
         <div className={styles.header}>
           <div className={styles.headerMain}>
-            <span className={styles.kicker}>Installation terminee</span>
-            <h2>Votre espace Glowea est pret</h2>
-            <p>Vous pouvez maintenant gerer vos clientes, vos prestations et vos rendez-vous.</p>
+            <span className={styles.kicker}>Installation terminée</span>
+            <h2>Votre espace Glowea est prêt</h2>
+            <p>Vous pouvez maintenant gérer vos clientes, vos prestations et vos rendez-vous.</p>
           </div>
           <button className={styles.iconButton} type="button" onClick={dismiss} disabled={isPending} aria-label="Fermer le widget">
             ×

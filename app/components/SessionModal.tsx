@@ -1183,7 +1183,7 @@ export default function SessionModal({
         ? "Avec teinture : nettoyer parfaitement la zone avant application et garder une intensite legerement plus douce sur une premiere visite pour eviter un rendu trop marque."
         : "Sans teinture : soigner particulierement le brossage final et la fixation pour que la ligne reste nette, lumineuse et harmonieuse.",
       isFirstBrowliftVisit
-        ? "Premiere visite : privilegier un resultat souple et photographier l'avant/apres pour ajuster le protocole au prochain rendez-vous."
+        ? "Première visite : privilégier un résultat souple et photographier l'avant/après pour ajuster le protocole au prochain rendez-vous."
         : selectedBrowliftSteps < 3
           ? "Pensez a verifier que toutes les lotions utiles sont bien cochees afin de garder une tracabilite complete de la prestation."
           : "Noter le sens de brossage, la reaction du poil et le timing reel aide a reproduire un resultat regulier sur les prochains rendez-vous.",
@@ -1522,7 +1522,7 @@ export default function SessionModal({
                   Appliquer aux deux yeux
                 </button>
                 <button type="button" className={styles.eyeSyncBtnSecondary} onClick={applyGeneralParamsToBothEyes}>
-                  Reinitialiser depuis les parametres generaux
+                  Réinitialiser depuis les paramètres généraux
                 </button>
               </div>
 

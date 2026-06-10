@@ -137,7 +137,7 @@ export default function PublicBookingModal({
 
       setFeedback({
         type: "success",
-        message: "Votre demande de rendez-vous a bien ete envoyee.",
+        message: "Votre demande de rendez-vous a bien été envoyée.",
       });
       setFirstName("");
       setLastName("");
@@ -170,7 +170,7 @@ export default function PublicBookingModal({
             <div className={styles.modalHeader}>
               <div>
                 <span className={styles.kicker}>Reservation</span>
-                <h2>Choisir un creneau</h2>
+                <h2>Choisir un créneau</h2>
               </div>
               <button className={styles.closeButton} type="button" onClick={() => setIsOpen(false)} aria-label="Fermer">
                 ×
@@ -217,7 +217,7 @@ export default function PublicBookingModal({
               {isLoadingSlots && <div className={styles.modalInfo}>Chargement des creneaux disponibles...</div>}
               {!isLoadingSlots && slotError && <div className={styles.modalError}>{slotError}</div>}
               {!isLoadingSlots && !slotError && slots.length === 0 && (
-                <div className={styles.modalInfo}>Aucun creneau disponible pour cette date.</div>
+                <div className={styles.modalInfo}>Aucun créneau disponible pour cette date.</div>
               )}
 
               <div className={styles.formSplit}>

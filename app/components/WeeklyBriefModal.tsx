@@ -105,7 +105,7 @@ export default function WeeklyBriefModal({ isOpen, onClose, data }: WeeklyBriefM
           {/* Conseil de la semaine */}
           <div className={styles.tipCard}>
             <div className={styles.tipHeader}>💡 Conseil de la semaine</div>
-            <p>Pense a partager des photos avant/apres de tes poses sur Instagram pour attirer de nouvelles clientes !</p>
+            <p>Pense à partager des photos avant/après de tes poses sur Instagram pour attirer de nouvelles clientes !</p>
           </div>
         </div>
 

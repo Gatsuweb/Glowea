@@ -10,7 +10,7 @@ type DepositType = "fixed" | "percent";
 
 type PaymentSettings = {
   stripeAccountId: string | null;
-  stripeOnboardingComplete: boolean;
+  stripeOnboardingComplété: boolean;
   paymentsEnabled: boolean;
   defaultDepositAmount: number;
   defaultDepositType: DepositType;
@@ -58,7 +58,7 @@ export default function PaymentsSettingsClient({
       }
 
       setSettings((prev) => ({ ...prev, ...data.user }));
-      setMessage(data.user.paymentsEnabled ? "Compte Stripe pret a recevoir des paiements." : "Configuration Stripe encore incomplete.");
+      setMessage(data.user.paymentsEnabled ? "Compte Stripe prêt à recevoir des paiements." : "Configuration Stripe encore incomplète.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Une erreur inattendue est survenue.");
     } finally {
@@ -84,7 +84,7 @@ export default function PaymentsSettingsClient({
       const data = await response.json();
 
       if (!response.ok || !data.url) {
-        throw new Error(data.error || "Impossible de creer le lien Stripe.");
+        throw new Error(data.error || "Impossible de créer le lien Stripe.");
       }
 
       window.location.href = data.url;
@@ -140,8 +140,8 @@ export default function PaymentsSettingsClient({
           <Link className={styles.backLink} href="/dashboard">
             Retour au dashboard
           </Link>
-          <h1>Parametres paiements</h1>
-          <p>Connectez votre compte Stripe Express pour recevoir les arrhes et paiements de vos clientes.</p>
+          <h1>Paramètres paiements</h1>
+          <p>Connectéz votre compte Stripe Express pour recevoir les arrhes et paiements de vos clientes.</p>
         </div>
         <span className={`${styles.badge} ${status.tone}`}>{status.label}</span>
       </div>
@@ -157,18 +157,18 @@ export default function PaymentsSettingsClient({
         <div>
           <h2>Stripe Connect Express</h2>
           <p>
-            Les paiements clients passent par Glowea puis sont transferes vers votre compte Stripe connecte.
+            Les paiements clients passent par Glowea puis sont transférés vers votre compte Stripe connecté.
           </p>
         </div>
 
         <div className={styles.statusGrid}>
           <div>
             <span>Compte Stripe</span>
-            <strong>{settings.stripeAccountId ? "Connecte" : "A creer"}</strong>
+            <strong>{settings.stripeAccountId ? "Connecté" : "À créer"}</strong>
           </div>
           <div>
             <span>Onboarding</span>
-            <strong>{settings.stripeOnboardingComplete ? "Complete" : "Incomplet"}</strong>
+            <strong>{settings.stripeOnboardingComplété ? "Complété" : "Incomplet"}</strong>
           </div>
           <div>
             <span>Paiements</span>
@@ -178,7 +178,7 @@ export default function PaymentsSettingsClient({
 
         <div className={styles.actions}>
           <button className={styles.primaryButton} onClick={startOnboarding} disabled={isConnecting}>
-            {settings.stripeAccountId ? "Reprendre la configuration" : "Connecter mon compte Stripe"}
+            {settings.stripeAccountId ? "Reprendre la configuration" : "Connectér mon compte Stripe"}
           </button>
           <button className={styles.secondaryButton} onClick={refreshStatus} disabled={!settings.stripeAccountId || isRefreshing}>
             {isRefreshing ? "Verification..." : "Rafraichir le statut"}

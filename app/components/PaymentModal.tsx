@@ -124,7 +124,7 @@ export default function PaymentModal({
       const data = await response.json();
 
       if (!response.ok || !data.url) {
-        throw new Error(data.error || "Impossible de creer le lien de paiement.");
+        throw new Error(data.error || "Impossible de créer le lien de paiement.");
       }
 
       setPaymentUrl(data.url);
@@ -149,7 +149,7 @@ export default function PaymentModal({
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || "Impossible de marquer le rendez-vous comme paye.");
+        throw new Error(data.error || "Impossible de marquer le rendez-vous comme payé.");
       }
 
       router.refresh();
@@ -171,7 +171,7 @@ export default function PaymentModal({
       <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
         <div className={styles.header}>
           <div className={styles.headerLeft}>
-            <h2>{mode === "closeout" ? "Cloturer le rendez-vous" : "Paiement du rendez-vous"}</h2>
+            <h2>{mode === "closeout" ? "Clôturer le rendez-vous" : "Paiement du rendez-vous"}</h2>
             <p>{clientName} - {serviceName}</p>
           </div>
           <button className={styles.btnClose} onClick={onClose} type="button">x</button>
@@ -195,18 +195,18 @@ export default function PaymentModal({
               <strong>{formatMoney(paidCents)}</strong>
             </div>
             <div>
-              <span>Arrhes deja versees</span>
+              <span>Arrhes déjà versées</span>
               <strong>{formatMoney(depositPaidCents)}</strong>
             </div>
             <div>
-              <span>Reste a payer</span>
+              <span>Reste à payer</span>
               <strong>{formatMoney(remainingCents)}</strong>
             </div>
           </div>
 
           {!canUseStripe && (
             <div className={styles.warningBox}>
-              Stripe Connect n&apos;est pas encore actif. Les actions Stripe redirigeront vers les parametres paiements.
+              Stripe Connect n&apos;est pas encore actif. Les actions Stripe redirigeront vers les paramètres paiements.
             </div>
           )}
 
@@ -268,11 +268,11 @@ export default function PaymentModal({
                 ))}
               </div>
               <div className={styles.statusRow} style={{ marginTop: 12 }}>
-                <span>Methode</span>
+                <span>Méthode</span>
                 <strong>{paymentMethodLabel}</strong>
               </div>
               <button className={styles.btnOffline} type="button" onClick={markPaidOffline} disabled={isSubmitting || isPaid}>
-                Marquer comme paye hors ligne
+                Marquer comme payé hors ligne
               </button>
             </div>
           )}

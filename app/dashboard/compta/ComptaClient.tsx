@@ -280,9 +280,9 @@ export default function ComptaClient({
   const relanceBannerText =
     relanceCandidates.length > 0
       ? relanceCandidates.length === 1
-        ? `1 cliente n'a pas repris RDV depuis plus de 6 semaines. Une relance personnalisee pourrait recuperer ~${Math.round(relancePotentialRevenue)}EUR de CA.`
-        : `${relanceCandidates.length} clientes n'ont pas repris RDV depuis plus de 6 semaines. Une relance personnalisee pourrait recuperer ~${Math.round(relancePotentialRevenue)}EUR de CA.`
-      : "Aucune cliente a relancer pour le moment.";
+        ? `1 cliente n'a pas repris RDV depuis plus de 6 semaines. Une relance personnalis?e pourrait r?cup?rer ~${Math.round(relancePotentialRevenue)}EUR de CA.`
+        : `${relanceCandidates.length} clientes n'ont pas repris RDV depuis plus de 6 semaines. Une relance personnalis?e pourrait r?cup?rer ~${Math.round(relancePotentialRevenue)}EUR de CA.`
+      : "Aucune cliente ? relancer pour le moment.";
 
   return (
     <main className={styles.layout}>
@@ -1004,7 +1004,7 @@ export default function ComptaClient({
                   <span>
                     {chargeIsRecurring
                       ? "Parfait pour le loyer, les outils logiciels, les assurances ou tout autre frais regulier."
-                      : "Ajoutez un achat exceptionnel ou une depense unique sans alourdir votre comptabilite."}
+                      : "Ajoutez un achat exceptionnel ou une dépense unique sans alourdir votre comptabilité."}
                   </span>
                 </div>
               </div>
@@ -1035,7 +1035,7 @@ export default function ComptaClient({
                   />
                 </div>
                 <div className={styles.formGroup}>
-                  <label className={styles.fieldLabel}>Date ou debut</label>
+                  <label className={styles.fieldLabel}>Date ou début</label>
                   <input
                     className={styles.formField}
                     type="date"

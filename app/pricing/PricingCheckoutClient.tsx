@@ -18,7 +18,7 @@ const plans: Array<{
     key: "essential",
     name: "Essentiel",
     price: "39,90 EUR",
-    description: "Pour gerer vos clientes, rendez-vous, sessions, stock et comptabilite.",
+    description: "Pour gérer vos clientes, rendez-vous, sessions, stock et comptabilité.",
     features: [
       "Agenda et rendez-vous",
       "Fiches clientes completes",

@@ -61,7 +61,7 @@ function formatSmsMessage(params: {
     timeZone: "Europe/Paris",
   });
 
-  return `Bonjour ${firstName}, petit rappel pour votre rendez-vous demain a ${time} pour ${serviceName}. A bientot`;
+  return `Bonjour ${firstName}, petit rappel pour votre rendez-vous demain à ${time} pour ${serviceName}. À bientôt`;
 }
 
 async function claimReminder(params: {

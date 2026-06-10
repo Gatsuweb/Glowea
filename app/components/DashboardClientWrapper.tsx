@@ -330,7 +330,7 @@ export default function DashboardClientWrapper({
     const clientName = appointment.clientName || "votre cliente";
     const subject = encodeURIComponent(`Rendez-vous Glowea - ${appointment.time}`);
     const body = encodeURIComponent(
-      `Bonjour ${clientName},\n\nJe vous contacte au sujet de votre rendez-vous ${appointment.serviceName} prevu a ${appointment.time}.\n\nA bientot.`
+      `Bonjour ${clientName},\n\nJe vous contacte au sujet de votre rendez-vous ${appointment.serviceName} prévu à ${appointment.time}.\n\nÀ bientôt.`
     );
 
     if (appointment.clientEmail) {
@@ -378,7 +378,7 @@ export default function DashboardClientWrapper({
             ? "Paiement confirme. Votre abonnement est maintenant actif."
             : checkoutSyncState === "error"
               ? "Paiement confirme. Le retour Stripe a fonctionne, mais la synchronisation automatique a echoue. Le webhook finalisera l'activation."
-              : "Paiement confirme. Votre abonnement sera active apres confirmation du webhook Stripe."}
+              : "Paiement confirmé. Votre abonnement sera activé après confirmation du webhook Stripe."}
         </section>
       )}
 
@@ -498,7 +498,7 @@ export default function DashboardClientWrapper({
             )}
             {appointments.length === 0 ? (
               <div className={styles.emptyState}>
-                <p>Aucun rendez-vous prevu aujourd&apos;hui ou demain</p>
+                <p>Aucun rendez-vous pr?vu aujourd&apos;hui ou demain</p>
                 <button className={styles.emptyStateBtn} onClick={() => guardMutation(() => setNewAppointmentModalOpen(true))}>
                   Créer un premier rendez-vous
                 </button>

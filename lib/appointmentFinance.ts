@@ -49,12 +49,12 @@ const offlinePaymentMethods = new Set<AppointmentPaymentMethod>([
 
 const paymentLabels: Record<string, string> = {
   none: "Aucun paiement",
-  deposit_pending: "Arrhes demandees",
-  deposit_paid: "Arrhes recues",
+  deposit_pending: "Arrhes demandées",
+  deposit_paid: "Arrhes reçues",
   partial_paid: "Paiement partiel",
-  paid: "Paye",
-  paid_offline: "Paye hors ligne",
-  refunded: "Rembourse",
+  paid: "Payé",
+  paid_offline: "Payé hors ligne",
+  refunded: "Remboursé",
 };
 
 export function normalizeAppointmentPaymentStatus(status?: string | null): AppointmentPaymentStatus {
