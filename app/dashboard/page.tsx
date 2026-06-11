@@ -1,6 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import DashboardClientWrapper from "../components/DashboardClientWrapper";
 import prisma from "../../lib/prisma";
+import { getAgendaPanelData } from "../../lib/agendaPanelData";
 import { getTenantSubscriptionAccess } from "../../lib/subscription";
 import { syncCheckoutSessionById } from "../../lib/stripeSubscriptionSync";
 
@@ -89,7 +90,10 @@ export default async function DashboardPage({
     checkoutSyncState = "pending";
   }
 
-  const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
+  const [subscriptionAccess, quickAgendaData] = await Promise.all([
+    getTenantSubscriptionAccess(tenantId),
+    getAgendaPanelData(tenantId, userId),
+  ]);
 
   const [profileUser, profileTenant, paymentSettings] = await Promise.all([
     prisma.user.findUnique({ where: { id: tenantId } }),
@@ -587,6 +591,7 @@ export default async function DashboardPage({
         defaultDepositAmount: Number(paymentSettings?.defaultDepositAmount || 0),
         defaultDepositType: paymentSettings?.defaultDepositType || "fixed",
       }}
+      quickAgenda={quickAgendaData}
       checkoutSuccess={resolvedSearchParams.success === "true"}
       checkoutSyncState={checkoutSyncState}
     />

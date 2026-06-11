@@ -14,6 +14,7 @@ import SessionModal from "./SessionModal";
 import SendPromoModal from "./SendPromoModal";
 import WeeklyBriefModal from "./WeeklyBriefModal";
 import InstallAppModal from "./InstallAppModal";
+import AgendaClientWrapper, { type AgendaClientWrapperProps } from "./AgendaClientWrapper";
 import type { SubscriptionAccess } from "../../lib/subscription";
 import {
   getAppointmentFinancialSummary,
@@ -163,6 +164,7 @@ export default function DashboardClientWrapper({
     defaultDepositAmount: 0,
     defaultDepositType: "fixed",
   },
+  quickAgenda,
   checkoutSuccess = false,
   checkoutSyncState = null,
 }: { 
@@ -186,6 +188,7 @@ export default function DashboardClientWrapper({
   insights?: SmartInsight[];
   subscriptionAccess: SubscriptionAccess;
   paymentSettings?: PaymentSettings;
+  quickAgenda?: AgendaClientWrapperProps;
   checkoutSuccess?: boolean;
   checkoutSyncState?: "activated" | "pending" | "error" | null;
 }) {
@@ -203,6 +206,26 @@ export default function DashboardClientWrapper({
   const [isSendPromoModalOpen, setSendPromoModalOpen] = useState(false);
   const [isWeeklyBriefOpen, setWeeklyBriefOpen] = useState(false);
   const [isInstallModalOpen, setInstallModalOpen] = useState(false);
+  const [isQuickAgendaOpen, setQuickAgendaOpen] = useState(false);
+
+  React.useEffect(() => {
+    if (!isQuickAgendaOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setQuickAgendaOpen(false);
+      }
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isQuickAgendaOpen]);
 
   // Vérifier si on est Lundi et afficher la popup (une fois par jour)
   React.useEffect(() => {
@@ -321,6 +344,18 @@ export default function DashboardClientWrapper({
     router.push("/dashboard/agenda");
   };
 
+  const openComptaPage = () => {
+    router.push("/dashboard/compta");
+  };
+
+  const openStockPage = () => {
+    router.push("/dashboard/stock");
+  };
+
+  const openClientsPage = () => {
+    router.push("/dashboard/clients");
+  };
+
   const clearAppointmentActionMessage = () => {
     if (appointmentActionMessage) setAppointmentActionMessage(null);
   };
@@ -372,6 +407,61 @@ export default function DashboardClientWrapper({
 
   return (
     <main className={styles.layout}>
+      {quickAgenda && (
+        <>
+          <button
+            type="button"
+            className={styles.quickAgendaTab}
+            onClick={() => setQuickAgendaOpen(true)}
+            aria-label="Ouvrir le planning rapide"
+            aria-expanded={isQuickAgendaOpen}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M8 2v4"></path>
+              <path d="M16 2v4"></path>
+              <rect x="3" y="4" width="18" height="18" rx="2"></rect>
+              <path d="M3 10h18"></path>
+              <path d="M11 14h1"></path>
+              <path d="M16 14h1"></path>
+              <path d="M7 18h1"></path>
+            </svg>
+          </button>
+
+          <div
+            className={`${styles.quickAgendaOverlay} ${isQuickAgendaOpen ? styles.quickAgendaOverlayOpen : ""}`}
+            onClick={() => setQuickAgendaOpen(false)}
+            aria-hidden={!isQuickAgendaOpen}
+          />
+
+          <aside
+            className={`${styles.quickAgendaPanel} ${isQuickAgendaOpen ? styles.quickAgendaPanelOpen : ""}`}
+            aria-hidden={!isQuickAgendaOpen}
+            aria-label="Planning rapide"
+          >
+            <div className={styles.quickAgendaPanelHeader}>
+              <div>
+                <span>Planning</span>
+                <strong>Semaine en cours</strong>
+              </div>
+              <button
+                type="button"
+                className={styles.quickAgendaClose}
+                onClick={() => setQuickAgendaOpen(false)}
+                aria-label="Fermer le planning rapide"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M18 6 6 18"></path>
+                  <path d="m6 6 12 12"></path>
+                </svg>
+              </button>
+            </div>
+            <div className={styles.quickAgendaPanelBody}>
+              <AgendaClientWrapper {...quickAgenda} displayMode="panel" />
+            </div>
+          </aside>
+        </>
+      )}
+
       {checkoutSuccess && (
         <section className={styles.subscriptionBannerSuccess} role="status">
           {checkoutSyncState === "activated"
@@ -428,7 +518,7 @@ export default function DashboardClientWrapper({
       {/* Stats Grid */}
       <section className={styles.statsGrid}>
         {/* Card 1: Rendez-vous */}
-        <div className={styles.statCard}>
+        <button type="button" className={styles.statCard} onClick={openAgendaPage}>
           <div className={styles.statCardIcon}>
             <Image src="/icones/agenda.svg" alt="Rendez-vous" width={40} height={40} />
           </div>
@@ -443,10 +533,10 @@ export default function DashboardClientWrapper({
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </button>
 
         {/* Card 2: Revenus */}
-        <div className={styles.statCard}>
+        <button type="button" className={styles.statCard} onClick={openComptaPage}>
           <div className={styles.statCardIcon}>
             <Image src="/icones/transaction.svg" alt="Revenus" width={40} height={40} />
           </div>
@@ -468,10 +558,10 @@ export default function DashboardClientWrapper({
             </ResponsiveContainer>
           </div>
           <div className={revenueTrendClassName}>{revenueTrendLabel}</div>
-        </div>
+        </button>
 
         {/* Card 3: Objectif */}
-        <div className={styles.statCard}>
+        <button type="button" className={styles.statCard} onClick={openComptaPage}>
           <div className={styles.statCardIcon}>
             <Image src="/icones/objectif.svg" alt="Objectif" width={40} height={40} />
           </div>
@@ -482,14 +572,19 @@ export default function DashboardClientWrapper({
               <div style={{ background: 'var(--tertiary)', height: '100%', width: `${objectivePercent}%`, borderRadius: '3px', transition: 'width 0.5s' }} />
             </div>
           </div>
-        </div>
+        </button>
       </section>
 
       {/* Main Grid */}
       <section className={styles.mainGrid}>
         {/* Appointments */}
         <div className={styles.card}>
-          <h2 className={styles.cardTitle}>Prochains <span>Rendez-vous</span></h2>
+          <div className={styles.cardHeader}>
+            <h2 className={styles.cardTitle}>Prochains <span>Rendez-vous</span></h2>
+            <button type="button" className={styles.cardLinkBtn} onClick={openAgendaPage}>
+              Voir
+            </button>
+          </div>
           <div className={styles.appointmentList}>
             {appointmentActionMessage && (
               <div className={styles.appointmentNotice} role="status">
@@ -631,7 +726,12 @@ export default function DashboardClientWrapper({
 
         {/* Revenue Stats */}
         <div className={styles.card}>
-          <h2 className={styles.cardTitle}>Statistique <span>des Revenus</span></h2>
+          <div className={styles.cardHeader}>
+            <h2 className={styles.cardTitle}>Statistique <span>des Revenus</span></h2>
+            <button type="button" className={styles.cardLinkBtn} onClick={openComptaPage}>
+              Voir
+            </button>
+          </div>
           <div style={{ height: '200px', width: '100%', minHeight: 0, minWidth: 0 }}>
             <RevenueChart data={mockRevTrend} />
           </div>
@@ -648,7 +748,7 @@ export default function DashboardClientWrapper({
               <div className={styles.emptyState} style={{ width: '100%', margin: '0 auto' }}>
                 <p>Votre stock est vide</p>
                 <a href="/dashboard/stock" style={{ textDecoration: 'none' }}>
-                  <button className={styles.emptyStateBtn}>
+                  <button className={styles.emptyStateBtn} onClick={openStockPage}>
                     Ajouter du stock
                   </button>
                 </a>
@@ -672,7 +772,12 @@ export default function DashboardClientWrapper({
 
         {/* Top Clientes */}
         <div className={styles.card}>
-          <h2 className={styles.cardTitle}>Top <span>clientes</span></h2>
+          <div className={styles.cardHeader}>
+            <h2 className={styles.cardTitle}>Top <span>clientes</span></h2>
+            <button type="button" className={styles.cardLinkBtn} onClick={openClientsPage}>
+              Voir
+            </button>
+          </div>
           <div className={styles.topClientList}>
             {topClients.length === 0 ? (
               <div className={styles.emptyState}>

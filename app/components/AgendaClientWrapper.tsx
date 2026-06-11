@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import styles from "../dashboard/agenda/agenda.module.css";
 import SessionModal from "./SessionModal";
 import PaymentModal from "./PaymentModal";
 import NewAppointmentModal from "./NewAppointmentModal";
 import { deleteAppointment, updateAppointmentStatus } from "../actions/appointmentActions";
+import { deleteAvailabilityException, saveAvailabilityException, saveBookingSettings } from "../actions/publicPageActions";
 import {
   getAppointmentFinancialSummary,
   getAppointmentPaymentLabel,
@@ -53,10 +55,70 @@ type AgendaAppointment = {
   service: AgendaService;
 };
 
-const CALENDAR_START_HOUR = 8;
-const CALENDAR_END_HOUR = 18;
+type BookingDay = {
+  isOpen: boolean;
+  start: string;
+  end: string;
+  breaks: Array<{ start: string; end: string }>;
+};
+
+type AgendaBookingSettings = {
+  days: BookingDay[];
+  minBookingNoticeMin: number;
+  slotIntervalMin: number;
+  bufferMin: number;
+  depositsEnabled: boolean;
+  depositsRequired: boolean;
+  depositAmount: number;
+  depositType: "fixed" | "percent";
+  pendingBookingTtlMin: number;
+};
+
+type AgendaAvailabilityException = {
+  id: string;
+  type: "VACATION" | "ABSENCE" | "PERSONAL_APPOINTMENT" | "TRAINING" | "OTHER";
+  title: string;
+  startAt: string;
+  endAt: string;
+  allDay: boolean;
+  notes: string;
+};
+
+type CalendarSelection = {
+  dayIndex: number;
+  startSlotIndex: number;
+  endSlotIndex: number;
+  menuX: number;
+  menuY: number;
+};
+
+type ManagedCalendarItem =
+  | {
+      kind: "exception";
+      id: string;
+      type: AgendaAvailabilityException["type"];
+      title: string;
+      startAt: string;
+      endAt: string;
+      allDay: boolean;
+      notes: string;
+      menuX: number;
+      menuY: number;
+    }
+  | {
+      kind: "pause";
+      dayIndex: number;
+      breakIndex: number;
+      start: string;
+      end: string;
+      menuX: number;
+      menuY: number;
+    };
+
+const CALENDAR_START_HOUR = 7;
+const CALENDAR_END_HOUR = 22;
 const SLOT_MINUTES = 30;
-const SLOT_HEIGHT = 36;
+const SLOT_HEIGHT = 28;
 
 function getPaymentBadgeClass(status: string | undefined, stylesMap: Record<string, string>) {
   switch (status) {
@@ -85,10 +147,100 @@ type PaymentSettings = {
   defaultDepositType: "fixed" | "percent";
 };
 
+const defaultBookingSettings: AgendaBookingSettings = {
+  days: [
+    { isOpen: false, start: "09:00", end: "18:00", breaks: [] },
+    { isOpen: true, start: "09:00", end: "18:00", breaks: [] },
+    { isOpen: true, start: "09:00", end: "18:00", breaks: [] },
+    { isOpen: true, start: "09:00", end: "18:00", breaks: [] },
+    { isOpen: true, start: "09:00", end: "18:00", breaks: [] },
+    { isOpen: true, start: "09:00", end: "18:00", breaks: [] },
+    { isOpen: true, start: "09:00", end: "18:00", breaks: [] },
+  ],
+  minBookingNoticeMin: 1440,
+  slotIntervalMin: 30,
+  bufferMin: 0,
+  depositsEnabled: false,
+  depositsRequired: false,
+  depositAmount: 0,
+  depositType: "fixed",
+  pendingBookingTtlMin: 15,
+};
+
+const availabilityTypeLabels: Record<AgendaAvailabilityException["type"], string> = {
+  VACATION: "Conge",
+  ABSENCE: "Absence",
+  PERSONAL_APPOINTMENT: "Rendez-vous personnel",
+  TRAINING: "Formation",
+  OTHER: "Blocage",
+};
+
+function parseTimeToMinutes(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0;
+  return hours * 60 + minutes;
+}
+
+function toDatetimeLocal(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function datetimeLocalToIso(value: string, fallback: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? fallback : date.toISOString();
+}
+
+function getViewportMenuPosition(
+  clientX: number,
+  clientY: number,
+  kind: "selection" | "managed"
+) {
+  const margin = 16;
+  const offset = 12;
+  const menuSize = kind === "managed"
+    ? { width: 380, height: 560 }
+    : { width: 320, height: 330 };
+
+  if (typeof window === "undefined") {
+    return { x: clientX + offset, y: clientY + offset };
+  }
+
+  let x = clientX + offset;
+  let y = clientY + offset;
+
+  if (x + menuSize.width > window.innerWidth - margin) {
+    x = clientX - menuSize.width - offset;
+  }
+
+  if (y + menuSize.height > window.innerHeight - margin) {
+    y = clientY - menuSize.height - offset;
+  }
+
+  return {
+    x: Math.max(margin, Math.min(x, window.innerWidth - menuSize.width - margin)),
+    y: Math.max(margin, Math.min(y, window.innerHeight - menuSize.height - margin)),
+  };
+}
+
+export type AgendaClientWrapperProps = { 
+  appointments?: AgendaAppointment[];
+  clients?: AgendaClient[];
+  services?: AgendaService[];
+  bookingSettings?: AgendaBookingSettings;
+  availabilityExceptions?: AgendaAvailabilityException[];
+  paymentSettings?: PaymentSettings;
+  displayMode?: "page" | "panel";
+};
+
 export default function AgendaClientWrapper({ 
   appointments = [],
   clients = [],
   services = [],
+  bookingSettings = defaultBookingSettings,
+  availabilityExceptions = [],
   paymentSettings = {
     stripeConnected: false,
     stripeOnboardingComplete: false,
@@ -96,14 +248,11 @@ export default function AgendaClientWrapper({
     defaultDepositAmount: 0,
     defaultDepositType: "fixed",
   },
-}: { 
-  appointments?: AgendaAppointment[];
-  clients?: AgendaClient[];
-  services?: AgendaService[];
-  paymentSettings?: PaymentSettings;
-}) {
+  displayMode = "page",
+}: AgendaClientWrapperProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isPanelMode = displayMode === "panel";
  const [isSessionModalOpen, setSessionModalOpen] = useState(false);
   const [selectedSessionAppointment, setSelectedSessionAppointment] = useState<AgendaAppointment | null>(null);
 
@@ -113,10 +262,31 @@ export default function AgendaClientWrapper({
   const [isNewAppointmentModalOpen, setNewAppointmentModalOpen] = useState(false);
   const [appointmentToEdit, setAppointmentToEdit] = useState<AgendaAppointment | null>(null);
   const [initialAppointmentSlot, setInitialAppointmentSlot] = useState<Date | null>(null);
+  const [initialAppointmentEndSlot, setInitialAppointmentEndSlot] = useState<Date | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [actionAppointmentId, setActionAppointmentId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [currentBookingSettings, setCurrentBookingSettings] = useState(bookingSettings);
+  const [currentAvailabilityExceptions, setCurrentAvailabilityExceptions] = useState(availabilityExceptions);
+  const [dragSelection, setDragSelection] = useState<CalendarSelection | null>(null);
+  const [confirmedSelection, setConfirmedSelection] = useState<CalendarSelection | null>(null);
+  const [managedItem, setManagedItem] = useState<ManagedCalendarItem | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    setCurrentBookingSettings(bookingSettings);
+    setManagedItem(null);
+  }, [bookingSettings]);
+
+  useEffect(() => {
+    setCurrentAvailabilityExceptions(availabilityExceptions);
+    setManagedItem(null);
+  }, [availabilityExceptions]);
 
   // Mettre à jour l'heure toutes les minutes pour la ligne rouge
   useEffect(() => {
@@ -167,7 +337,7 @@ export default function AgendaClientWrapper({
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getStartOfWeek(new Date()));
   const [activeFilter, setActiveFilter] = useState("Aujourd'hui");
 
-  const calendarSlots = Array.from({ length: ((CALENDAR_END_HOUR - CALENDAR_START_HOUR) * 60) / SLOT_MINUTES + 2 }).map((_, index) => {
+  const calendarSlots = Array.from({ length: ((CALENDAR_END_HOUR - CALENDAR_START_HOUR) * 60) / SLOT_MINUTES }).map((_, index) => {
     const totalMinutes = CALENDAR_START_HOUR * 60 + index * SLOT_MINUTES;
     const hour = Math.floor(totalMinutes / 60);
     const minute = totalMinutes % 60;
@@ -179,6 +349,7 @@ export default function AgendaClientWrapper({
   });
 
   const changeWeek = (offset: number) => {
+    clearSelection();
     const newDate = new Date(currentWeekStart);
     newDate.setDate(newDate.getDate() + offset * 7);
     setCurrentWeekStart(newDate);
@@ -186,6 +357,7 @@ export default function AgendaClientWrapper({
   };
 
   const handleFilterClick = (filter: string) => {
+    clearSelection();
     setActiveFilter(filter);
     const today = new Date();
     if (filter === "Aujourd'hui" || filter === "Cette semaine" || filter === "Ce mois") {
@@ -204,6 +376,148 @@ export default function AgendaClientWrapper({
     return d;
   });
 
+  const activeSelection = dragSelection || confirmedSelection;
+
+  function getDateForSlot(day: Date, slotIndex: number) {
+    if (slotIndex >= calendarSlots.length) {
+      const date = new Date(day);
+      date.setHours(CALENDAR_END_HOUR, 0, 0, 0);
+      return date;
+    }
+
+    const slot = calendarSlots[Math.min(Math.max(slotIndex, 0), calendarSlots.length - 1)];
+    const date = new Date(day);
+    date.setHours(slot.hour, slot.minute, 0, 0);
+    return date;
+  }
+
+  function getSelectionBounds(selection: CalendarSelection) {
+    const day = weekDays[selection.dayIndex];
+    const startIndex = Math.min(selection.startSlotIndex, selection.endSlotIndex);
+    const endIndex = Math.max(selection.startSlotIndex, selection.endSlotIndex) + 1;
+    return {
+      day,
+      startIndex,
+      endIndex,
+      startAt: getDateForSlot(day, startIndex),
+      endAt: getDateForSlot(day, endIndex),
+    };
+  }
+
+  function isSlotSelected(dayIndex: number, slotIndex: number) {
+    if (!activeSelection || activeSelection.dayIndex !== dayIndex) return false;
+    const start = Math.min(activeSelection.startSlotIndex, activeSelection.endSlotIndex);
+    const end = Math.max(activeSelection.startSlotIndex, activeSelection.endSlotIndex);
+    return slotIndex >= start && slotIndex <= end;
+  }
+
+  function startSlotSelection(dayIndex: number, slotIndex: number, event: React.MouseEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    const position = getViewportMenuPosition(event.clientX, event.clientY, "selection");
+    setConfirmedSelection(null);
+    setDragSelection({
+      dayIndex,
+      startSlotIndex: slotIndex,
+      endSlotIndex: slotIndex,
+      menuX: position.x,
+      menuY: position.y,
+    });
+  }
+
+  function extendSlotSelection(dayIndex: number, slotIndex: number) {
+    setDragSelection((current) => {
+      if (!current || current.dayIndex !== dayIndex) return current;
+      return { ...current, endSlotIndex: slotIndex };
+    });
+  }
+
+  function finishSlotSelection(event: React.MouseEvent<HTMLDivElement>) {
+    setDragSelection((current) => {
+      if (!current) return null;
+      const position = getViewportMenuPosition(event.clientX, event.clientY, "selection");
+      setConfirmedSelection({
+        ...current,
+        menuX: position.x,
+        menuY: position.y,
+      });
+      return null;
+    });
+  }
+
+  function clearSelection() {
+    setDragSelection(null);
+    setConfirmedSelection(null);
+  }
+
+  function formatSelectionRange(selection: CalendarSelection) {
+    const bounds = getSelectionBounds(selection);
+    return `${bounds.startAt.toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "short" })} - ${bounds.startAt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} / ${bounds.endAt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+  }
+
+  function getExceptionBlocksForSlot(day: Date, slot: { hour: number; minute: number }) {
+    return currentAvailabilityExceptions.filter((item) => {
+      const startAt = new Date(item.startAt);
+      const flooredMinute = Math.floor(startAt.getMinutes() / SLOT_MINUTES) * SLOT_MINUTES;
+      return (
+        startAt.getDate() === day.getDate() &&
+        startAt.getMonth() === day.getMonth() &&
+        startAt.getFullYear() === day.getFullYear() &&
+        startAt.getHours() === slot.hour &&
+        flooredMinute === slot.minute
+      );
+    });
+  }
+
+  function getPauseBlocksForSlot(day: Date, slot: { hour: number; minute: number }) {
+    const daySettings = currentBookingSettings.days[day.getDay()];
+    if (!daySettings?.breaks?.length) return [];
+    const slotMinutes = slot.hour * 60 + slot.minute;
+
+    return daySettings.breaks
+      .map((pause, breakIndex) => ({
+        ...pause,
+        breakIndex,
+        startMinutes: parseTimeToMinutes(pause.start),
+        endMinutes: parseTimeToMinutes(pause.end),
+      }))
+      .filter((pause) => Math.floor(pause.startMinutes / SLOT_MINUTES) * SLOT_MINUTES === slotMinutes);
+  }
+
+  function openExceptionMenu(item: AgendaAvailabilityException, event: React.MouseEvent<HTMLDivElement>) {
+    event.stopPropagation();
+    const position = getViewportMenuPosition(event.clientX, event.clientY, "managed");
+    setConfirmedSelection(null);
+    setDragSelection(null);
+    setManagedItem({
+      kind: "exception",
+      id: item.id,
+      type: item.type,
+      title: item.title,
+      startAt: item.startAt,
+      endAt: item.endAt,
+      allDay: item.allDay,
+      notes: item.notes,
+      menuX: position.x,
+      menuY: position.y,
+    });
+  }
+
+  function openPauseMenu(dayIndex: number, breakIndex: number, pause: { start: string; end: string }, event: React.MouseEvent<HTMLDivElement>) {
+    event.stopPropagation();
+    const position = getViewportMenuPosition(event.clientX, event.clientY, "managed");
+    setConfirmedSelection(null);
+    setDragSelection(null);
+    setManagedItem({
+      kind: "pause",
+      dayIndex,
+      breakIndex,
+      start: pause.start,
+      end: pause.end,
+      menuX: position.x,
+      menuY: position.y,
+    });
+  }
+
   const isToday = (date: Date) => {
     const today = new Date();
     return date.getDate() === today.getDate() &&
@@ -218,15 +532,16 @@ export default function AgendaClientWrapper({
   };
 
   const getRedLinePosition = () => {
-    const hours = currentTime.getHours();
-    const minutes = currentTime.getMinutes();
-    
-    if (hours < CALENDAR_START_HOUR) return 0;
-    if (hours > CALENDAR_END_HOUR || (hours === CALENDAR_END_HOUR && minutes > SLOT_MINUTES)) {
+    const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+    const startMinutes = CALENDAR_START_HOUR * 60;
+    const endMinutes = CALENDAR_END_HOUR * 60;
+
+    if (currentMinutes <= startMinutes) return 0;
+    if (currentMinutes >= endMinutes) {
       return calendarSlots.length * SLOT_HEIGHT;
     }
 
-    return (((hours - CALENDAR_START_HOUR) * 60) + minutes) * (SLOT_HEIGHT / SLOT_MINUTES);
+    return (currentMinutes - startMinutes) * (SLOT_HEIGHT / SLOT_MINUTES);
   };
 
   const monthNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
@@ -363,16 +678,18 @@ export default function AgendaClientWrapper({
     }
   };
 
-  const openCreateAppointmentAt = (day: Date, hour: number, minute: number) => {
+  const openCreateAppointmentAt = (day: Date, hour: number, minute: number, endAt?: Date | null) => {
     const scheduledAt = new Date(day);
     scheduledAt.setHours(hour, minute, 0, 0);
     setAppointmentToEdit(null);
     setInitialAppointmentSlot(scheduledAt);
+    setInitialAppointmentEndSlot(endAt || null);
     setNewAppointmentModalOpen(true);
   };
 
   const openEditAppointment = (appointment: AgendaAppointment) => {
     setInitialAppointmentSlot(null);
+    setInitialAppointmentEndSlot(null);
     setAppointmentToEdit(appointment);
     setNewAppointmentModalOpen(true);
   };
@@ -413,8 +730,391 @@ export default function AgendaClientWrapper({
     }
   };
 
+  const handleSelectionCreateAppointment = () => {
+    if (!confirmedSelection) return;
+    const bounds = getSelectionBounds(confirmedSelection);
+    openCreateAppointmentAt(bounds.startAt, bounds.startAt.getHours(), bounds.startAt.getMinutes(), bounds.endAt);
+    clearSelection();
+  };
+
+  const saveSelectionException = async (type: AgendaAvailabilityException["type"], title: string) => {
+    if (!confirmedSelection) return;
+
+    const bounds = getSelectionBounds(confirmedSelection);
+    setActionError(null);
+
+    try {
+      const result = await saveAvailabilityException({
+        type,
+        title,
+        startAt: bounds.startAt.toISOString(),
+        endAt: bounds.endAt.toISOString(),
+        allDay: false,
+        notes: "Cree depuis l'agenda",
+      });
+
+      if (!result.success) {
+        setActionError(result.error);
+        return;
+      }
+
+      setCurrentAvailabilityExceptions((current) => [...current, result.exception]);
+      setToastMessage(`${title} ajoute`);
+      window.setTimeout(() => setToastMessage(null), 2500);
+      clearSelection();
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setActionError("Impossible d'ajouter ce blocage.");
+    }
+  };
+
+  const saveSelectionPause = async () => {
+    if (!confirmedSelection) return;
+
+    const bounds = getSelectionBounds(confirmedSelection);
+    const dayKey = bounds.day.getDay();
+    const pause = {
+      start: bounds.startAt.toTimeString().slice(0, 5),
+      end: bounds.endAt.toTimeString().slice(0, 5),
+    };
+    const nextSettings = {
+      ...currentBookingSettings,
+      days: currentBookingSettings.days.map((day, index) => (
+        index === dayKey
+          ? { ...day, isOpen: true, breaks: [...day.breaks, pause] }
+          : day
+      )),
+    };
+
+    setActionError(null);
+
+    try {
+      const result = await saveBookingSettings(nextSettings);
+      if (!result.success) {
+        setActionError(result.error);
+        return;
+      }
+
+      setCurrentBookingSettings(result.bookingSettings);
+      setToastMessage("Pause ajoutee aux horaires");
+      window.setTimeout(() => setToastMessage(null), 2500);
+      clearSelection();
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setActionError("Impossible d'ajouter cette pause.");
+    }
+  };
+
+  const updateManagedException = <K extends keyof Extract<ManagedCalendarItem, { kind: "exception" }>>(
+    key: K,
+    value: Extract<ManagedCalendarItem, { kind: "exception" }>[K]
+  ) => {
+    setManagedItem((current) => (
+      current?.kind === "exception" ? { ...current, [key]: value } : current
+    ));
+  };
+
+  const updateManagedPause = <K extends keyof Extract<ManagedCalendarItem, { kind: "pause" }>>(
+    key: K,
+    value: Extract<ManagedCalendarItem, { kind: "pause" }>[K]
+  ) => {
+    setManagedItem((current) => (
+      current?.kind === "pause" ? { ...current, [key]: value } : current
+    ));
+  };
+
+  const saveManagedException = async () => {
+    if (!managedItem || managedItem.kind !== "exception") return;
+    setActionError(null);
+
+    try {
+      const result = await saveAvailabilityException({
+        id: managedItem.id,
+        type: managedItem.type,
+        title: managedItem.title,
+        startAt: managedItem.startAt,
+        endAt: managedItem.endAt,
+        allDay: managedItem.allDay,
+        notes: managedItem.notes,
+      });
+
+      if (!result.success) {
+        setActionError(result.error);
+        return;
+      }
+
+      setCurrentAvailabilityExceptions((current) => current.map((item) => (
+        item.id === result.exception.id ? result.exception : item
+      )));
+      setManagedItem(null);
+      setToastMessage("Blocage mis a jour");
+      window.setTimeout(() => setToastMessage(null), 2500);
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setActionError("Impossible de modifier cet element.");
+    }
+  };
+
+  const deleteManagedException = async () => {
+    if (!managedItem || managedItem.kind !== "exception") return;
+    setActionError(null);
+
+    try {
+      const result = await deleteAvailabilityException(managedItem.id);
+      if (!result.success) {
+        setActionError(result.error);
+        return;
+      }
+
+      setCurrentAvailabilityExceptions((current) => current.filter((item) => item.id !== managedItem.id));
+      setManagedItem(null);
+      setToastMessage("Blocage supprime");
+      window.setTimeout(() => setToastMessage(null), 2500);
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setActionError("Impossible de supprimer cet element.");
+    }
+  };
+
+  const makeManagedExceptionRecurring = async () => {
+    if (!managedItem || managedItem.kind !== "exception") return;
+    const startAt = new Date(managedItem.startAt);
+    const endAt = new Date(managedItem.endAt);
+    if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || endAt <= startAt) {
+      setActionError("La plage horaire est invalide.");
+      return;
+    }
+
+    const dayIndex = startAt.getDay();
+    const recurringBreak = {
+      start: startAt.toTimeString().slice(0, 5),
+      end: endAt.toTimeString().slice(0, 5),
+    };
+    const nextSettings = {
+      ...currentBookingSettings,
+      days: currentBookingSettings.days.map((day, index) => (
+        index === dayIndex
+          ? { ...day, isOpen: true, breaks: [...day.breaks, recurringBreak] }
+          : day
+      )),
+    };
+
+    setActionError(null);
+
+    try {
+      const result = await saveBookingSettings(nextSettings);
+      if (!result.success) {
+        setActionError(result.error);
+        return;
+      }
+
+      setCurrentBookingSettings(result.bookingSettings);
+      setManagedItem(null);
+      setToastMessage("Blocage recurrent ajoute");
+      window.setTimeout(() => setToastMessage(null), 2500);
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setActionError("Impossible de rendre ce blocage recurrent.");
+    }
+  };
+
+  const saveManagedPause = async () => {
+    if (!managedItem || managedItem.kind !== "pause") return;
+    setActionError(null);
+
+    const nextSettings = {
+      ...currentBookingSettings,
+      days: currentBookingSettings.days.map((day, index) => {
+        if (index !== managedItem.dayIndex) return day;
+        return {
+          ...day,
+          breaks: day.breaks.map((pause, breakIndex) => (
+            breakIndex === managedItem.breakIndex
+              ? { start: managedItem.start, end: managedItem.end }
+              : pause
+          )),
+        };
+      }),
+    };
+
+    try {
+      const result = await saveBookingSettings(nextSettings);
+      if (!result.success) {
+        setActionError(result.error);
+        return;
+      }
+
+      setCurrentBookingSettings(result.bookingSettings);
+      setManagedItem(null);
+      setToastMessage("Pause mise a jour");
+      window.setTimeout(() => setToastMessage(null), 2500);
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setActionError("Impossible de modifier cette pause.");
+    }
+  };
+
+  const deleteManagedPause = async () => {
+    if (!managedItem || managedItem.kind !== "pause") return;
+    setActionError(null);
+
+    const nextSettings = {
+      ...currentBookingSettings,
+      days: currentBookingSettings.days.map((day, index) => {
+        if (index !== managedItem.dayIndex) return day;
+        return {
+          ...day,
+          breaks: day.breaks.filter((_, breakIndex) => breakIndex !== managedItem.breakIndex),
+        };
+      }),
+    };
+
+    try {
+      const result = await saveBookingSettings(nextSettings);
+      if (!result.success) {
+        setActionError(result.error);
+        return;
+      }
+
+      setCurrentBookingSettings(result.bookingSettings);
+      setManagedItem(null);
+      setToastMessage("Pause supprimee");
+      window.setTimeout(() => setToastMessage(null), 2500);
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setActionError("Impossible de supprimer cette pause.");
+    }
+  };
+
+  const selectionActionMenu = confirmedSelection ? (
+    <div
+      className={styles.slotActionMenu}
+      style={{
+        left: `${confirmedSelection.menuX}px`,
+        top: `${confirmedSelection.menuY}px`,
+      }}
+    >
+      <strong>{formatSelectionRange(confirmedSelection)}</strong>
+      <button type="button" onClick={handleSelectionCreateAppointment}>Creer un rendez-vous</button>
+      <button type="button" onClick={() => saveSelectionException("OTHER", "Creneau bloque")}>Bloquer ce creneau</button>
+      <button type="button" onClick={saveSelectionPause}>Ajouter une pause</button>
+      <button type="button" onClick={() => saveSelectionException("ABSENCE", "Indisponibilite")}>Ajouter une indisponibilite</button>
+      <button type="button" disabled title="Architecture a brancher sur une future recurrence">
+        Ajouter une recurrence
+      </button>
+      <button type="button" onClick={clearSelection}>Annuler</button>
+    </div>
+  ) : null;
+
+  const managedEventMenu = managedItem ? (
+    <div
+      className={styles.managedEventMenu}
+      style={{
+        left: `${managedItem.menuX}px`,
+        top: `${managedItem.menuY}px`,
+      }}
+    >
+      {managedItem.kind === "exception" ? (
+        <>
+          <strong>{managedItem.title || availabilityTypeLabels[managedItem.type]}</strong>
+          <label>
+            Type
+            <select
+              value={managedItem.type}
+              onChange={(event) => updateManagedException("type", event.target.value as AgendaAvailabilityException["type"])}
+            >
+              {Object.entries(availabilityTypeLabels).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Titre
+            <input
+              value={managedItem.title}
+              onChange={(event) => updateManagedException("title", event.target.value)}
+            />
+          </label>
+          <label>
+            Debut
+            <input
+              type="datetime-local"
+              value={toDatetimeLocal(managedItem.startAt)}
+              onChange={(event) => updateManagedException("startAt", datetimeLocalToIso(event.target.value, managedItem.startAt))}
+            />
+          </label>
+          <label>
+            Fin
+            <input
+              type="datetime-local"
+              value={toDatetimeLocal(managedItem.endAt)}
+              onChange={(event) => updateManagedException("endAt", datetimeLocalToIso(event.target.value, managedItem.endAt))}
+            />
+          </label>
+          <label>
+            Notes
+            <textarea
+              value={managedItem.notes}
+              onChange={(event) => updateManagedException("notes", event.target.value)}
+              rows={3}
+            />
+          </label>
+          <div className={styles.managedEventActions}>
+            <button type="button" onClick={saveManagedException}>Modifier</button>
+            <button type="button" onClick={deleteManagedException}>Supprimer</button>
+            <button type="button" onClick={makeManagedExceptionRecurring}>Rendre recurrent</button>
+            <button type="button" onClick={() => setManagedItem(null)}>Fermer</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <strong>Pause recurrente</strong>
+          <label>
+            Debut
+            <input
+              type="time"
+              value={managedItem.start}
+              onChange={(event) => updateManagedPause("start", event.target.value)}
+            />
+          </label>
+          <label>
+            Fin
+            <input
+              type="time"
+              value={managedItem.end}
+              onChange={(event) => updateManagedPause("end", event.target.value)}
+            />
+          </label>
+          <div className={styles.managedEventActions}>
+            <button type="button" onClick={saveManagedPause}>Modifier</button>
+            <button type="button" onClick={deleteManagedPause}>Supprimer</button>
+            <button type="button" disabled>Deja recurrente</button>
+            <button type="button" onClick={() => setManagedItem(null)}>Fermer</button>
+          </div>
+        </>
+      )}
+    </div>
+  ) : null;
+
   return (
-    <main className={styles.layout}>
+    <main className={`${styles.layout} ${isPanelMode ? styles.panelLayout : ""}`}>
+      {isMounted && (selectionActionMenu || managedEventMenu) && createPortal(
+        <>
+          {selectionActionMenu}
+          {managedEventMenu}
+        </>,
+        document.body
+      )}
+
+      {!isPanelMode && (
+        <>
       {/* Header Section */}
       <header className={styles.header}>
         <div className={styles.headerLeft}>
@@ -633,9 +1333,17 @@ export default function AgendaClientWrapper({
         )}
       </section>
 
+        </>
+      )}
+
       {/* Calendar Section */}
-      {!isHistoryView && (
-        <section className={styles.calendarSection}>
+      {(!isHistoryView || isPanelMode) && (
+        <section className={`${styles.calendarSection} ${isPanelMode ? styles.panelCalendarSection : ""}`}>
+          {isPanelMode && actionError && (
+            <div className={styles.errorAlert}>
+              {actionError}
+            </div>
+          )}
           <div className={styles.calendarHeader}>
             <h2 className={styles.calendarTitle}>Planning de la semaine</h2>
             <div className={styles.calendarActions}>
@@ -672,14 +1380,15 @@ export default function AgendaClientWrapper({
               </div>
               
               {/* Corps du calendrier scrollable */}
-              <div className={styles.gridBody}>
+              <div className={styles.gridBody} onMouseLeave={() => setDragSelection(null)}>
                 {/* Ligne indiquant l'heure actuelle */}
                 {isCurrentWeek() && (
                   <div className={styles.currentTimeLine} style={{ top: `${getRedLinePosition()}px` }}></div>
                 )}
 
                 {/* Génération des créneaux de 30 minutes */}
-                {calendarSlots.map((slot) => (
+
+                {calendarSlots.map((slot, slotIndex) => (
                   <div key={slot.label} className={styles.timeRow}>
                     <div className={styles.timeLabel}>{slot.label}</div>
                     {weekDays.map((day, dayIndex) => {
@@ -691,14 +1400,61 @@ export default function AgendaClientWrapper({
                                appDate.getHours() === slot.hour &&
                                appSlotMinute === slot.minute;
                       });
+                      const dayExceptions = getExceptionBlocksForSlot(day, slot);
+                      const dayPauses = getPauseBlocksForSlot(day, slot);
 
                       return (
                         <div
                           key={dayIndex}
-                          className={styles.timeCell}
-                          onClick={() => openCreateAppointmentAt(day, slot.hour, slot.minute)}
-                          title={`Cr?er un rendez-vous ${slot.label}`}
+                          className={`${styles.timeCell} ${isSlotSelected(dayIndex, slotIndex) ? styles.timeCellSelected : ""}`}
+                          onMouseDown={(event) => startSlotSelection(dayIndex, slotIndex, event)}
+                          onMouseEnter={() => extendSlotSelection(dayIndex, slotIndex)}
+                          onMouseUp={finishSlotSelection}
+                          title={`Selectionner ${slot.label}`}
                         >
+                          {dayExceptions.map((item) => {
+                            const startAt = new Date(item.startAt);
+                            const endAt = new Date(item.endAt);
+                            const durationMinutes = Math.max((endAt.getTime() - startAt.getTime()) / 60000, SLOT_MINUTES);
+                            const topOffset = ((startAt.getMinutes() - slot.minute) / SLOT_MINUTES) * SLOT_HEIGHT;
+                            const height = Math.max(28, (durationMinutes / SLOT_MINUTES) * SLOT_HEIGHT);
+
+                            return (
+                              <div
+                                key={item.id}
+                                className={styles.blockedEvent}
+                                style={{ top: `${topOffset}px`, height: `${height}px` }}
+                                title={item.title || "Indisponibilite"}
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onClick={(event) => openExceptionMenu(item, event)}
+                              >
+                                <div className={styles.eventTitle}>{item.title || "Indisponibilite"}</div>
+                                <div className={styles.eventTime}>
+                                  {startAt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} -
+                                  {endAt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {dayPauses.map((pause) => {
+                            const durationMinutes = Math.max(pause.endMinutes - pause.startMinutes, SLOT_MINUTES);
+                            const topOffset = ((pause.startMinutes % 60) - slot.minute) / SLOT_MINUTES * SLOT_HEIGHT;
+                            const height = Math.max(28, (durationMinutes / SLOT_MINUTES) * SLOT_HEIGHT);
+
+                            return (
+                              <div
+                                key={`pause-${dayIndex}-${pause.breakIndex}`}
+                                className={styles.pauseEvent}
+                                style={{ top: `${topOffset}px`, height: `${height}px` }}
+                                title="Modifier la pause"
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onClick={(event) => openPauseMenu(day.getDay(), pause.breakIndex, pause, event)}
+                              >
+                                <div className={styles.eventTitle}>Pause</div>
+                                <div className={styles.eventTime}>{pause.start} - {pause.end}</div>
+                              </div>
+                            );
+                          })}
                           {dayAppointments.map((app, appIndex) => {
                             const appDate = new Date(app.scheduledAt);
                             const endAt = new Date(app.endAt);
@@ -712,6 +1468,7 @@ export default function AgendaClientWrapper({
                                 key={app.id} 
                                 className={`${styles.eventBlock} ${styleClass}`} 
                                 style={{ top: `${topOffset}px`, height: `${height}px` }}
+                                onMouseDown={(event) => event.stopPropagation()}
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   openEditAppointment(app);
@@ -779,11 +1536,13 @@ export default function AgendaClientWrapper({
           setNewAppointmentModalOpen(false);
           setAppointmentToEdit(null);
           setInitialAppointmentSlot(null);
+          setInitialAppointmentEndSlot(null);
         }}
         clients={clients}
         services={services}
         initialData={appointmentToEdit}
         initialScheduledAt={initialAppointmentSlot}
+        initialEndAt={initialAppointmentEndSlot}
         onSaved={showSavedToast}
       />
 

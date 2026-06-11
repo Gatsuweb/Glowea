@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import styles from './NewAppointmentModal.module.css';
 import NewClientModal from './NewClientModal';
 import NewServiceModal from './NewServiceModal';
@@ -40,6 +41,19 @@ function formatDateInput(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function formatTimeInput(date: Date) {
+  return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function addMinutesToTime(time: string | null, minutesToAdd: number) {
+  if (!time) return "";
+  const [hours, minutes] = time.split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return "";
+  const date = new Date();
+  date.setHours(hours, minutes + minutesToAdd, 0, 0);
+  return formatTimeInput(date);
+}
+
 interface NewAppointmentModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -47,6 +61,7 @@ interface NewAppointmentModalProps {
   services?: ServiceOption[];
   initialData?: AppointmentInitialData | null;
   initialScheduledAt?: string | Date | null;
+  initialEndAt?: string | Date | null;
   onSaved?: () => void;
 }
 
@@ -57,6 +72,7 @@ export default function NewAppointmentModal({
   services = [],
   initialData = null,
   initialScheduledAt = null,
+  initialEndAt = null,
   onSaved,
 }: NewAppointmentModalProps) {
   const router = useRouter();
@@ -70,11 +86,30 @@ export default function NewAppointmentModal({
   const [isCreatingService, setIsCreatingService] = useState(false);
   const [notes, setNotes] = useState('');
   const [durationMin, setDurationMin] = useState('60');
+  const [endTime, setEndTime] = useState('');
   const [priceEuros, setPriceEuros] = useState('0');
   const [status, setStatus] = useState<"SCHEDULED" | "PENDING_PAYMENT" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELED" | "EXPIRED" | "NO_SHOW">("SCHEDULED");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localServices, setLocalServices] = useState(services);
   const [error, setError] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     setLocalServices(services);
@@ -98,6 +133,7 @@ export default function NewAppointmentModal({
           ? Math.round((endAt.getTime() - date.getTime()) / 60000)
           : Number(initialData.service?.durationMin || 60);
         setDurationMin(String(computedDuration || 60));
+        setEndTime(endAt && endAt > date ? formatTimeInput(endAt) : addMinutesToTime(timeStr, computedDuration || 60));
         setPriceEuros(initialData.price !== null && initialData.price !== undefined
           ? String(initialData.price / 100)
           : String(initialData.service?.price || 0));
@@ -106,25 +142,30 @@ export default function NewAppointmentModal({
       } else {
         // Reset for new
         const slotDate = initialScheduledAt ? new Date(initialScheduledAt) : null;
+        const slotEndDate = initialEndAt ? new Date(initialEndAt) : null;
+        const selectedDuration = slotDate && slotEndDate && slotEndDate > slotDate
+          ? Math.round((slotEndDate.getTime() - slotDate.getTime()) / 60000)
+          : 60;
         setSelectedTime(slotDate ? slotDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null);
         setSelectedDate(slotDate ? formatDateInput(slotDate) : formatDateInput(new Date()));
         setSelectedPrestation(null);
         setClientSearch('');
         setSelectedClientId(null);
         setNotes('');
-        setDurationMin('60');
+        setDurationMin(String(selectedDuration));
+        setEndTime(slotDate ? addMinutesToTime(formatTimeInput(slotDate), selectedDuration) : "");
         setPriceEuros('0');
         setStatus("SCHEDULED");
         setError(null);
       }
     }
-  }, [isOpen, initialData, initialScheduledAt]);
+  }, [isOpen, initialData, initialScheduledAt, initialEndAt]);
 
   const filteredClients = clients.filter(client => 
     client.name.toLowerCase().includes(clientSearch.toLowerCase())
   );
 
-  if (!isOpen) return null;
+  if (!isOpen || !isMounted) return null;
 
   // We generate timeslots from 8:00 to 18:30 in 30-minute increments.
   const timeSlots = [];
@@ -135,6 +176,7 @@ export default function NewAppointmentModal({
 
   // Filter services by category if needed, here we just show all services
   const currentPrestations = localServices;
+  const preservesCalendarSelection = Boolean(!initialData && initialScheduledAt && initialEndAt);
 
   const handleSubmit = async () => {
     if (!selectedClientId || !selectedPrestation || !selectedTime || !selectedDate) {
@@ -189,7 +231,7 @@ export default function NewAppointmentModal({
     }
   };
 
-  return (
+  const modal = (
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.modalContent} onClick={(e) => {
         e.stopPropagation();
@@ -276,9 +318,31 @@ export default function NewAppointmentModal({
             <input 
               type="time" 
               className={styles.dateInput}
+              aria-label="Heure de debut"
               value={selectedTime || ''}
-              onChange={(e) => setSelectedTime(e.target.value)}
+              onChange={(e) => {
+                setSelectedTime(e.target.value);
+                setEndTime(addMinutesToTime(e.target.value, Number(durationMin) || 60));
+              }}
               style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
+            />
+            <input
+              type="time"
+              className={styles.dateInput}
+              aria-label="Heure de fin"
+              value={endTime}
+              onChange={(e) => {
+                setEndTime(e.target.value);
+                if (!selectedTime) return;
+                const [startHours, startMinutes] = selectedTime.split(":").map(Number);
+                const [endHours, endMinutes] = e.target.value.split(":").map(Number);
+                const nextDuration = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
+                if (Number.isFinite(nextDuration) && nextDuration > 0) {
+                  setDurationMin(String(nextDuration));
+                }
+              }}
+              style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
+              title="Heure de fin"
             />
           </div>
           <div className={styles.timeSlots} style={{ maxHeight: '150px', overflowY: 'auto' }}>
@@ -286,7 +350,10 @@ export default function NewAppointmentModal({
               <button 
                 key={time} 
                 className={`${styles.timeSlot} ${selectedTime === time ? styles.active : ''}`}
-                onClick={() => setSelectedTime(time)}
+                onClick={() => {
+                  setSelectedTime(time);
+                  setEndTime(addMinutesToTime(time, Number(durationMin) || 60));
+                }}
               >
                 {time}
               </button>
@@ -317,7 +384,11 @@ export default function NewAppointmentModal({
                   className={`${styles.prestationCard} ${selectedPrestation === prest.id ? styles.active : ''}`}
                   onClick={() => {
                     setSelectedPrestation(prest.id);
-                    setDurationMin(String(prest.durationMin || 60));
+                    if (!preservesCalendarSelection) {
+                      const nextDuration = prest.durationMin || 60;
+                      setDurationMin(String(nextDuration));
+                      setEndTime(addMinutesToTime(selectedTime, nextDuration));
+                    }
                     setPriceEuros(String(prest.price || 0));
                   }}
                 >
@@ -347,7 +418,10 @@ export default function NewAppointmentModal({
                 max="480"
                 step="15"
                 value={durationMin}
-                onChange={(e) => setDurationMin(e.target.value)}
+                onChange={(e) => {
+                  setDurationMin(e.target.value);
+                  setEndTime(addMinutesToTime(selectedTime, Number(e.target.value) || 60));
+                }}
               />
             </label>
             <label>
@@ -410,7 +484,7 @@ export default function NewAppointmentModal({
         isOpen={isCreatingClient} 
         onClose={() => setIsCreatingClient(false)} 
         onSave={(client) => {
-          setClientSearch(client.fullName || client.firstName);
+          setClientSearch([client.firstName, client.lastName].filter(Boolean).join(" "));
           setSelectedClientId(client.id);
         }}
       />
@@ -421,10 +495,16 @@ export default function NewAppointmentModal({
         onSave={(service) => {
           setLocalServices(prev => [...prev, service]);
           setSelectedPrestation(service.id);
-          setDurationMin(String(service.durationMin || 60));
+          if (!preservesCalendarSelection) {
+            const nextDuration = service.durationMin || 60;
+            setDurationMin(String(nextDuration));
+            setEndTime(addMinutesToTime(selectedTime, nextDuration));
+          }
           setPriceEuros(String(service.price || 0));
         }}
       />
     </div>
   );
+
+  return createPortal(modal, document.body);
 }
