@@ -22,7 +22,7 @@
 .serviceCard,
 .subscriptionPanel,
 .modal {
-  background: rgba(255, 253, 250, 0.88);
+  background: rgba(255, 253, 250, 0.98);
   border: 1px solid rgba(109, 60, 66, 0.12);
   box-shadow: 0 24px 70px rgba(72, 37, 35, 0.12);
 }
@@ -270,6 +270,7 @@
   text-align: left;
   transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease, filter 0.22s ease;
   width: 100%;
+  z-index: 1;
 }
 .sectionHeader h3 {
   font-family: var(--font-title);
@@ -438,7 +439,9 @@
   min-height: 100%;
   overflow: hidden;
   padding: 0;
+  position: relative;
   transition: transform 0.22s ease, box-shadow 0.22s ease;
+  z-index: 1;
 }
 
 .galleryItem:hover {
@@ -479,7 +482,7 @@
   justify-content: center;
   padding: 18px;
   position: fixed;
-  z-index: 1000;
+  z-index: 2000;
 }
 
 .lightboxOverlay {
@@ -490,7 +493,7 @@
   justify-content: center;
   padding: 76px 18px 24px;
   position: fixed;
-  z-index: 1100;
+  z-index: 1000;
 }
 
 .lightboxChrome {
@@ -500,7 +503,7 @@
   position: fixed;
   top: 18px;
   transform: translateX(-50%);
-  z-index: 1110;
+  z-index: 1010;
 }
 
 .lightboxChrome button {
@@ -576,7 +579,9 @@
   max-width: 720px;
   overflow: auto;
   padding: 26px;
+  position: relative;
   width: 100%;
+  z-index: 2001;
 }
 
 .modalHeader {
@@ -635,6 +640,56 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.bookingServicePicker {
+  display: grid;
+  gap: 10px;
+}
+
+.bookingServicePickerLabel {
+  color: #4c3a34;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.bookingServiceOptions {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.bookingServiceOption {
+  background: #fff;
+  border: 1px solid #e5d6ce;
+  color: #4c3a34;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 72px;
+  padding: 12px;
+  text-align: left;
+}
+
+.bookingServiceOption:hover,
+.bookingServiceOptionSelected {
+  border-color: #7a2637;
+  box-shadow: 0 6px 16px rgba(122, 38, 55, 0.08);
+}
+
+.bookingServiceOptionSelected {
+  background: #fff7f3;
+}
+
+.bookingServiceOption span {
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.bookingServiceOption small {
+  color: #7a625c;
+  font-size: 0.8rem;
+}
+
 .selectedService {
   align-items: center;
   background: #f7eee8;
@@ -646,6 +701,8 @@
 
 .selectedService strong {
   color: #7a2637;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .modalSuccess,
@@ -822,6 +879,21 @@
 
   .formSplit {
     grid-template-columns: 1fr;
+  }
+
+  .bookingServiceOptions {
+    grid-template-columns: 1fr;
+  }
+
+  .selectedService {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .selectedService strong {
+    text-align: left;
+    white-space: normal;
   }
 
   .mobileStickyCta {

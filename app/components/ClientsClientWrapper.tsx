@@ -3,16 +3,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react/no-unescaped-entities, react-hooks/exhaustive-deps */
 
 import React, { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import styles from "../dashboard/clients/clients.module.css";
 import SessionModal from "./SessionModal";
 import NewAppointmentModal from "./NewAppointmentModal";
 import SendClientTemplateModal from "./SendClientTemplateModal";
 import { getConsent, saveConsent, type ConsentSnapshot } from "../actions/consentActions";
-import { updateClientProfile } from "../actions/clientActions";
+import { deleteClientGalleryProject, updateClientGalleryProject, updateClientProfile } from "../actions/clientActions";
 import {
   getAppointmentFinancialSummary,
 } from "../../lib/appointmentFinance";
+import {
+  COMPLETED_APPOINTMENT_STATUSES,
+  LOST_APPOINTMENT_STATUSES,
+  getAppointmentStatusLabel,
+} from "../../lib/appointmentStatus";
 
 type ConsentDocumentItem = {
   id: string;
@@ -72,6 +77,55 @@ function getSessionCategoryLabel(category: string | null | undefined) {
   }
 }
 
+type AppointmentServiceDisplay = {
+  serviceId: string;
+  name: string;
+  price: number;
+  durationMin: number;
+  position: number;
+};
+
+function getAppointmentServices(app: any): AppointmentServiceDisplay[] {
+  const snapshots = Array.isArray(app?.AppointmentService)
+    ? app.AppointmentService
+        .slice()
+        .sort((a: any, b: any) => Number(a.position || 0) - Number(b.position || 0))
+    : [];
+
+  if (snapshots.length > 0) {
+    return snapshots.map((item: any, index: number) => ({
+      serviceId: item.serviceId,
+      name: item.nameSnapshot || item.Service?.name || "Prestation",
+      price: Number(item.priceSnapshot || 0) / 100,
+      durationMin: Number(item.durationSnapshot || item.Service?.durationMin || 60),
+      position: Number(item.position ?? index),
+    }));
+  }
+
+  return app?.Service
+    ? [{
+        serviceId: app.Service.id,
+        name: app.Service.name || "Prestation",
+        price: app.Service.price ? Number(app.Service.price) : 0,
+        durationMin: app.Service.durationMin || 60,
+        position: 0,
+      }]
+    : [];
+}
+
+function getAppointmentServicesLabel(app: any) {
+  const services = getAppointmentServices(app);
+  return services.length > 0 ? services.map((service) => service.name).join(" + ") : "Prestation";
+}
+
+function getAppointmentServicesPrice(app: any) {
+  return getAppointmentServices(app).reduce((sum: number, service: AppointmentServiceDisplay) => sum + service.price, 0);
+}
+
+function getAppointmentServicesDuration(app: any) {
+  return getAppointmentServices(app).reduce((sum: number, service: AppointmentServiceDisplay) => sum + service.durationMin, 0) || 60;
+}
+
 function formatProjectDate(value: string | Date | null | undefined) {
   if (!value) return "";
   const date = new Date(value);
@@ -99,23 +153,28 @@ function buildClientGalleryProjects(clientMedia: any[]) {
     const projectId = session?.id || `media-${item.id || index}`;
 
     if (!projects.has(projectId)) {
-      const title = session?.Service?.name || session?.title || getSessionCategoryLabel(session?.category);
+      const title = session?.title || session?.Service?.name || getSessionCategoryLabel(session?.category);
       const description = session?.generalNotes || "";
       const dateValue = session?.Appointment?.scheduledAt || item?.createdAt || item?.Media?.SessionMedia?.[0]?.createdAt || null;
 
       projects.set(projectId, {
         id: projectId,
+        sessionId: session?.id || null,
         title,
         description,
         createdAt: dateValue,
         before: null,
         after: null,
         other: [],
+        mediaIds: [],
         orderValue: dateValue ? new Date(dateValue).getTime() : Date.now() - index,
       });
     }
 
     const project = projects.get(projectId);
+    if (item?.mediaId) {
+      project.mediaIds.push(item.mediaId);
+    }
     const image = {
       url: item?.Media?.url,
       alt: label || "Photo cliente",
@@ -142,6 +201,7 @@ function buildClientGalleryProjects(clientMedia: any[]) {
 }
 
 export default function ClientsClientWrapper({ clients, services = [] }: { clients: any[]; services?: any[] }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [clientList, setClientList] = useState<any[]>(clients);
   const [isMobileDirectoryOpen, setIsMobileDirectoryOpen] = useState(false);
@@ -175,6 +235,10 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
     setSelectedClientIds((current) => current.filter((clientId) => clientList.some((client) => client.id === clientId)));
   }, [clientList]);
 
+  useEffect(() => {
+    setClientList(clients);
+  }, [clients]);
+
   const [searchQuery, setSearchQuery] = useState("");
 
   const [consentData, setConsentData] = useState<ConsentState>(emptyConsentData);
@@ -190,6 +254,12 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   const [isSavingClient, setIsSavingClient] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
   const [clientSuccess, setClientSuccess] = useState<string | null>(null);
+  const [currentProjectIndex, setCurrentProjectIndex] = useState(0);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [projectForm, setProjectForm] = useState({ title: "", description: "" });
+  const [projectSaveError, setProjectSaveError] = useState<string | null>(null);
+  const [savingProjectId, setSavingProjectId] = useState<string | null>(null);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
   const [clientForm, setClientForm] = useState({
     firstName: "",
     lastName: "",
@@ -279,6 +349,9 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   const selectedClientNote = selectedClient?.ClientNote?.[0]?.content || "";
   const selectedClientMedia = selectedClient?.ClientMedia || [];
   const galleryProjects = buildClientGalleryProjects(selectedClientMedia);
+  const currentGalleryProject = galleryProjects[currentProjectIndex] || null;
+  const visibleGalleryProjects = currentGalleryProject ? [currentGalleryProject] : [];
+  const hasMultipleGalleryProjects = galleryProjects.length > 1;
   const selectedClientDisplayName = selectedClient
     ? `${selectedClient.firstName} ${selectedClient.lastName || ""}`.trim()
     : "Aucun client sélectionné";
@@ -305,7 +378,89 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
     setIsEditingHealth(false);
     setClientError(null);
     setClientSuccess(null);
+    setCurrentProjectIndex(0);
+    setEditingProjectId(null);
+    setProjectSaveError(null);
+    setDeletingProjectId(null);
   }, [selectedClientId, selectedClient, selectedClientNote]);
+
+  useEffect(() => {
+    if (currentProjectIndex >= galleryProjects.length) {
+      setCurrentProjectIndex(Math.max(galleryProjects.length - 1, 0));
+    }
+  }, [currentProjectIndex, galleryProjects.length]);
+
+  const startEditingProject = (project: any) => {
+    setEditingProjectId(project.id);
+    setProjectForm({
+      title: project.title || "",
+      description: project.description || "",
+    });
+    setProjectSaveError(null);
+  };
+
+  const cancelEditingProject = () => {
+    setEditingProjectId(null);
+    setProjectSaveError(null);
+  };
+
+  const saveGalleryProject = async (project: any) => {
+    if (!selectedClient || !project.sessionId) return;
+
+    setSavingProjectId(project.id);
+    setProjectSaveError(null);
+    try {
+      const res = await updateClientGalleryProject({
+        clientId: selectedClient.id,
+        sessionId: project.sessionId,
+        title: projectForm.title,
+        description: projectForm.description,
+      });
+
+      if (!res.success) {
+        setProjectSaveError(res.error || "Impossible de modifier ce projet");
+        return;
+      }
+
+      setEditingProjectId(null);
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setProjectSaveError("Une erreur inattendue est survenue");
+    } finally {
+      setSavingProjectId(null);
+    }
+  };
+
+  const deleteGalleryProject = async (project: any) => {
+    if (!selectedClient) return;
+
+    const confirmed = window.confirm("Supprimer ce projet de la galerie cliente ?");
+    if (!confirmed) return;
+
+    setDeletingProjectId(project.id);
+    setProjectSaveError(null);
+    try {
+      const res = await deleteClientGalleryProject({
+        clientId: selectedClient.id,
+        sessionId: project.sessionId,
+        mediaIds: project.mediaIds || [],
+      });
+
+      if (!res.success) {
+        setProjectSaveError(res.error || "Impossible de supprimer ce projet");
+        return;
+      }
+
+      setEditingProjectId(null);
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setProjectSaveError("Une erreur inattendue est survenue");
+    } finally {
+      setDeletingProjectId(null);
+    }
+  };
 
   const parseAllergies = (value: string) => {
     return value
@@ -441,32 +596,38 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
         date: date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
         time: date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
         client: `${selectedClient.firstName} ${selectedClient.lastName || ''}`.trim(),
-        presta: app.Service?.name || "Inconnu",
-        status: app.status === "COMPLETED" ? "Terminé" : app.status === "CANCELED" ? "Annulé" : "En attente",
+        presta: getAppointmentServicesLabel(app),
+        status: getAppointmentStatusLabel(app.status),
         amount: `${(finance.paidAmountCents / 100).toFixed(2)} €`,
         remainingAmount: finance.remainingAmountCents,
-        serviceCat: app.Service?.ServiceCategory?.name || "Prestation",
+        serviceCat: app.Service?.ServiceCategory?.name || (getAppointmentServices(app).length > 1 ? "Multi-prestations" : "Prestation"),
         hasSession: !!app.Session,
         originalApp: app
       };
     });
 
   const historyPresta = clientAppointments.reduce((acc: any[], app: any) => {
-    if (app.Service && app.status === "COMPLETED") {
-      const existing = acc.find(p => p.id === app.Service.id);
+    if ((COMPLETED_APPOINTMENT_STATUSES as readonly string[]).includes(app.status)) {
+      const appointmentServices = getAppointmentServices(app);
       const finance = getAppointmentFinancialSummary(app);
-      if (existing) {
-        existing.count += 1;
-        existing.ca += finance.paidAmountCents;
-      } else {
-        acc.push({
-          id: app.Service.id,
-          name: app.Service.name,
-          cat: app.Service.ServiceCategory?.name || "Prestation",
-          count: 1,
-          ca: finance.paidAmountCents
-        });
-      }
+      appointmentServices.forEach((service) => {
+        const existing = acc.find(p => p.id === service.serviceId);
+        const revenueShare = appointmentServices.length > 0
+          ? Math.round(finance.paidAmountCents / appointmentServices.length)
+          : finance.paidAmountCents;
+        if (existing) {
+          existing.count += 1;
+          existing.ca += revenueShare;
+        } else {
+          acc.push({
+            id: service.serviceId,
+            name: service.name,
+            cat: app.Service?.ServiceCategory?.name || "Prestation",
+            count: 1,
+            ca: revenueShare
+          });
+        }
+      });
     }
     return acc;
   }, []).map((p: any) => ({ ...p, ca: `${(p.ca / 100).toFixed(2)} €` }));
@@ -480,7 +641,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
       scheduledAt: appointment.scheduledAt,
       endAt: appointment.endAt,
       status: appointment.status,
-      price: appointment.price ?? (appointment.Service?.price ? Math.round(Number(appointment.Service.price) * 100) : null),
+      price: appointment.price ?? Math.round(getAppointmentServicesPrice(appointment) * 100),
       notes: appointment.notes || "",
       client: {
         id: selectedClient.id,
@@ -489,13 +650,21 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
       service: appointment.Service
         ? {
             id: appointment.Service.id,
-            name: appointment.Service.name,
-            price: appointment.Service.price ? Number(appointment.Service.price) : 0,
-            durationMin: appointment.Service.durationMin || 60,
+            name: getAppointmentServicesLabel(appointment),
+            price: getAppointmentServicesPrice(appointment),
+            durationMin: getAppointmentServicesDuration(appointment),
             color: appointment.Service.color || null,
           }
         : null,
+      appointmentServices: getAppointmentServices(appointment),
     });
+    setAppointmentModalOpen(true);
+  };
+
+  const openNewAppointmentForSelectedClient = () => {
+    if (!selectedClient) return;
+
+    setAppointmentToEdit(null);
     setAppointmentModalOpen(true);
   };
 
@@ -556,7 +725,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
               className={styles.bulkActionGhost}
               onClick={clearSelectedClients}
             >
-              Effacer
+              Annuler
             </button>
           </div>
         )}
@@ -609,7 +778,14 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
               </span>
             </div>
             <div className={styles.headerActions}>
-              <button className={styles.btnNewRdv}>+ Nouveau RDV</button>
+              <button
+                type="button"
+                className={styles.btnNewRdv}
+                onClick={openNewAppointmentForSelectedClient}
+                disabled={!selectedClient}
+              >
+                + Nouveau RDV
+              </button>
               <button
                 className={styles.iconBtn}
                 onClick={() => {
@@ -629,11 +805,29 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
           <div className={styles.headerContact}>
             <div className={styles.contactBlock}>
               <span className={styles.contactLabel}>Email</span>
-              <span className={styles.contactValue}>{selectedClient?.email || 'Non renseigné'}</span>
+              {selectedClient?.email ? (
+                <a
+                  className={`${styles.contactValue} ${styles.contactLink}`}
+                  href={`mailto:${selectedClient.email}`}
+                >
+                  {selectedClient.email}
+                </a>
+              ) : (
+                <span className={styles.contactValue}>Non renseigné</span>
+              )}
             </div>
             <div className={styles.contactBlock}>
               <span className={styles.contactLabel}>Téléphone</span>
-              <span className={styles.contactValue}>{selectedClient?.phone || 'Non renseigné'}</span>
+              {selectedClient?.phone ? (
+                <a
+                  className={`${styles.contactValue} ${styles.contactLink}`}
+                  href={`tel:${selectedClient.phone.replace(/\s+/g, "")}`}
+                >
+                  {selectedClient.phone}
+                </a>
+              ) : (
+                <span className={styles.contactValue}>Non renseigné</span>
+              )}
             </div>
           </div>
         </div>
@@ -673,12 +867,12 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
               <div className={styles.cardHeader}>
                 <h3 className={styles.cardTitle}>Coordonnées</h3>
                 <div className={styles.cardIcons}>
-                  <button className={styles.iconBtn} style={{ borderColor: 'transparent', color: '#F4B8B2' }}>
+                  {/* <button className={styles.iconBtn} style={{ borderColor: 'transparent', color: '#F4B8B2' }}>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
                       <polyline points="22,6 12,13 2,6"></polyline>
                     </svg>
-                  </button>
+                  </button> */}
                   <button
                     className={styles.iconBtn}
                     style={{ borderColor: 'transparent' }}
@@ -835,11 +1029,20 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
             {/* Galerie des projets */}
             <div className={styles.galerieHeader}>
               <h3 className={styles.galerieTitle}>Galerie des projets</h3>
+              {galleryProjects.length > 0 && (
+                <span className={styles.galleryCount}>
+                  Projet {currentProjectIndex + 1} / {galleryProjects.length}
+                </span>
+              )}
             </div>
             
             <div className={styles.projectGalleryList}>
               {galleryProjects.length > 0 ? (
-                galleryProjects.map((project: any) => (
+                <>
+                {projectSaveError && (
+                  <div className={styles.formError}>{projectSaveError}</div>
+                )}
+                {visibleGalleryProjects.map((project: any) => (
                   <article className={styles.projectCard} key={project.id}>
                     <div className={styles.projectCardHeader}>
                       <div>
@@ -854,6 +1057,68 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                         <span className={styles.projectDate}>{formatProjectDate(project.createdAt)}</span>
                       )}
                     </div>
+
+                    {project.sessionId && editingProjectId !== project.id && (
+                      <div className={styles.projectCardActions}>
+                        <button
+                          type="button"
+                          className={styles.projectEditButton}
+                          onClick={() => startEditingProject(project)}
+                          disabled={deletingProjectId === project.id}
+                        >
+                          Modifier le projet
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.projectDeleteButton}
+                          onClick={() => deleteGalleryProject(project)}
+                          disabled={deletingProjectId === project.id}
+                        >
+                          {deletingProjectId === project.id ? "Suppression..." : "Supprimer"}
+                        </button>
+                      </div>
+                    )}
+
+                    {editingProjectId === project.id && (
+                      <div className={styles.projectEditForm}>
+                        <label>
+                          Titre
+                          <input
+                            type="text"
+                            value={projectForm.title}
+                            onChange={(event) => setProjectForm((current) => ({ ...current, title: event.target.value }))}
+                            placeholder="Nom du projet"
+                          />
+                        </label>
+                        <label>
+                          Description
+                          <textarea
+                            value={projectForm.description}
+                            onChange={(event) => setProjectForm((current) => ({ ...current, description: event.target.value }))}
+                            placeholder="Note visible dans la galerie"
+                            rows={3}
+                          />
+                        </label>
+                        <div className={styles.projectEditActions}>
+                          <button
+                            type="button"
+                            className={styles.btnNewRdv}
+                            onClick={() => saveGalleryProject(project)}
+                            disabled={savingProjectId === project.id}
+                          >
+                            {savingProjectId === project.id ? "Sauvegarde..." : "Sauvegarder"}
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.projectGhostButton}
+                            onClick={cancelEditingProject}
+                            disabled={savingProjectId === project.id}
+                          >
+                            Annuler
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     <div className={styles.projectImages}>
                       <div className={styles.projectImageCard}>
@@ -889,7 +1154,29 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                       </div>
                     </div>
                   </article>
-                ))
+                ))}
+                {hasMultipleGalleryProjects && (
+                  <div className={styles.galleryPagination}>
+                    <button
+                      type="button"
+                      className={styles.galleryPageButton}
+                      onClick={() => setCurrentProjectIndex((current) => Math.max(current - 1, 0))}
+                      disabled={currentProjectIndex === 0}
+                    >
+                      Pr&eacute;c&eacute;dent
+                    </button>
+                    <span>{currentProjectIndex + 1} / {galleryProjects.length}</span>
+                    <button
+                      type="button"
+                      className={styles.galleryPageButton}
+                      onClick={() => setCurrentProjectIndex((current) => Math.min(current + 1, galleryProjects.length - 1))}
+                      disabled={currentProjectIndex >= galleryProjects.length - 1}
+                    >
+                      Suivant
+                    </button>
+                  </div>
+                )}
+                </>
               ) : (
                 <div className={styles.galerieEmpty}>
                   Les photos prises pendant les séances apparaîtront ici sur la fiche cliente.
@@ -936,7 +1223,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                           </td>
                           <td data-label="Prestation">{rdv.presta}</td>
                           <td data-label="Statut">
-                            <span className={`${styles.statusBadge} ${rdv.status === 'Terminé' ? styles.statusGreen : styles.statusOrange}`}>
+                            <span className={`${styles.statusBadge} ${(COMPLETED_APPOINTMENT_STATUSES as readonly string[]).includes(rdv.originalApp.status) ? styles.statusGreen : (LOST_APPOINTMENT_STATUSES as readonly string[]).includes(rdv.originalApp.status) ? styles.statusRed : styles.statusOrange}`}>
                               {rdv.status}
                             </span>
                           </td>
@@ -1487,6 +1774,10 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
         clients={appointmentClientOptions}
         services={appointmentServiceOptions}
         initialData={appointmentToEdit}
+        initialClient={selectedClient ? {
+          id: selectedClient.id,
+          name: `${selectedClient.firstName} ${selectedClient.lastName || ""}`.trim(),
+        } : null}
       />
     </main>
   );

@@ -361,6 +361,19 @@
   max-width: 100%;
 }
 
+.statusFinalBadge {
+  align-items: center;
+  background: #F7F1F2;
+  border: 1px solid #E8D2D6;
+  border-radius: 999px;
+  color: #6E5960;
+  display: inline-flex;
+  font-size: 0.8rem;
+  font-weight: 700;
+  min-height: 36px;
+  padding: 6px 10px;
+}
+
 .appointmentNote {
   margin-top: 8px;
   color: #777;
@@ -484,6 +497,9 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .panelCalendarSection {
@@ -571,6 +587,9 @@
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .calendarScroller::-webkit-scrollbar {
@@ -583,6 +602,13 @@
   box-shadow: var(--box-shadow);
   overflow: hidden;
   min-width: 720px;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.calendarGrid *::selection {
+  background: transparent;
 }
 
 .daysRow {
@@ -590,6 +616,9 @@
   grid-template-columns: 80px repeat(7, 1fr);
   border-bottom: 1px solid #E5E5E5;
   background: #FAFAFA;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .dayHeader {
@@ -623,6 +652,9 @@
 .gridBody {
   overflow: visible;
   position: relative;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .timeRow {
@@ -631,6 +663,9 @@
   min-height: 28px;
   border-bottom: 1px solid #F0F0F0;
   position: relative;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .timeLabel {
@@ -643,12 +678,19 @@
   font-weight: 500;
   border-right: 1px solid #F0F0F0;
   background: #FAFAFA;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .timeCell {
   border-right: 1px solid #F0F0F0;
   transition: background 0.2s;
   position: relative; /* CRITICAL FIX: Ensures absolute events stay inside the cell */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  user-select: none;
 }
 
 .timeCell:hover {
@@ -675,6 +717,10 @@
   overflow: hidden;
   z-index: 2;
   cursor: pointer;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  user-select: none;
 }
 
 .blockedEvent {
@@ -796,24 +842,6 @@
 .eventTime {
   opacity: 0.8;
   font-size: 0.7rem;
-}
-
-.event1 {
-  background: #FCD7D1;
-  color: var(--tertiary);
-  border-left: 4px solid var(--tertiary);
-}
-
-.event2 {
-  background: #E6F3FF;
-  color: #2B6CB0;
-  border-left: 4px solid #2B6CB0;
-}
-
-.event3 {
-  background: #F3E8FF;
-  color: #553C9A;
-  border-left: 4px solid #553C9A;
 }
 
 .currentTimeLine {

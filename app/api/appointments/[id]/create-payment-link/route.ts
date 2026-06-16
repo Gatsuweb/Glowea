@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import prisma from "@/lib/prisma";
 import { getAppointmentFinancialSummary } from "@/lib/appointmentFinance";
+import { getAppointmentServicesLabel } from "@/lib/appointmentServices";
 import { stripe } from "@/lib/stripe";
 import { getTenantId } from "@/lib/tenant";
 
@@ -79,6 +80,10 @@ export async function POST(
     include: {
       Client: true,
       Service: true,
+      AppointmentService: {
+        include: { Service: true },
+        orderBy: { position: "asc" },
+      },
     },
   });
 
@@ -112,7 +117,7 @@ export async function POST(
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
   const clientName = `${appointment.Client?.firstName || ""} ${appointment.Client?.lastName || ""}`.trim();
-  const serviceName = appointment.Service?.name || "Rendez-vous Glowea";
+  const serviceName = getAppointmentServicesLabel(appointment);
   const applicationFeeAmount = getApplicationFeeAmount(amount);
 
   const checkoutSession = await stripe.checkout.sessions.create({

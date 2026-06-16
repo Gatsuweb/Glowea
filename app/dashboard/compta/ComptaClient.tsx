@@ -52,9 +52,27 @@ type RelanceCandidate = {
   estimatedRevenue: number;
 };
 
+type NewClientItem = {
+  id: string;
+  name: string;
+  firstService: string;
+};
+
+type TrendPoint = {
+  label: string;
+  value: number;
+};
+
 type StatsData = {
   rdvThisMonth: number;
   rdvTrendStr: string;
+  averageBasket: number;
+  revenuePerHour: number;
+  revenuePerHourRevenue: number;
+  revenuePerHourHours: number;
+  revenuePerHourAppointments: number;
+  monthlyBenefitTrend: TrendPoint[];
+  monthlyBasketTrend: TrendPoint[];
   topPrestations: StatAmountItem[];
   maxPrestationAmount: number;
   topClients: StatAmountItem[];
@@ -67,6 +85,8 @@ type StatsData = {
   };
   relanceCandidates: RelanceCandidate[];
   relancePotentialRevenue: number;
+  newClientsCount: number;
+  newClients: NewClientItem[];
 };
 
 type DisplayTransaction = {
@@ -85,14 +105,14 @@ export default function ComptaClient({
   currentMonth,
 }: {
   initialData: VueEnsembleData;
-  initialStatsData: StatsData;
+  initialStatsData: StatsData | null;
   currentMonth: string;
 }) {
   const [filterType, setFilterType] = useState("all");
   const [filterMonth, setFilterMonth] = useState(currentMonth);
   const [activeTab, setActiveTab] = useState("vue"); // "vue", "stats", "simulation"
   const [data, setData] = useState(initialData);
-  const [statsData, setStatsData] = useState(initialStatsData);
+  const [statsData, setStatsData] = useState<StatsData | null>(initialStatsData);
 
   // States pour les Modales de Création
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
@@ -179,11 +199,14 @@ export default function ComptaClient({
     setIsSubmitting(false);
   };
 
-  const caMois = data.transactions
-    .filter((t: TransactionItem) => t.type === "INCOME" && t.sourceType === "APPOINTMENT")
+  const incomeTransactions = data.transactions
+    .filter((t: TransactionItem) => t.type === "INCOME");
+  const appointmentIncomeTransactions = incomeTransactions
+    .filter((t: TransactionItem) => t.sourceType === "APPOINTMENT");
+  const caMois = incomeTransactions
     .reduce((sum: number, t: TransactionItem) => sum + t.amount, 0);
   const prevCA = data.prevTransactions
-    .filter((t: TransactionItem) => t.type === "INCOME" && t.sourceType === "APPOINTMENT")
+    .filter((t: TransactionItem) => t.type === "INCOME")
     .reduce((sum: number, t: TransactionItem) => sum + t.amount, 0);
   const caTrend = prevCA > 0 ? ((caMois - prevCA) / prevCA) * 100 : 0;
   const caTrendStr = caTrend >= 0 ? `+${caTrend.toFixed(1)}%` : `${caTrend.toFixed(1)}%`;
@@ -199,7 +222,13 @@ export default function ComptaClient({
 
   // States pour le Simulateur
   const actualRdv = statsData?.rdvThisMonth || 0;
-  const actualAverageBasket = actualRdv > 0 ? Math.round(caMois / actualRdv) : 60;
+  const actualAverageBasket = statsData?.averageBasket ?? (actualRdv > 0
+    ? appointmentIncomeTransactions.reduce((sum: number, t: TransactionItem) => sum + t.amount, 0) / actualRdv
+    : 0);
+  const actualRevenuePerHour = statsData?.revenuePerHour ?? 0;
+  const revenuePerHourRevenue = statsData?.revenuePerHourRevenue ?? 0;
+  const revenuePerHourHours = statsData?.revenuePerHourHours ?? 0;
+  const revenuePerHourAppointments = statsData?.revenuePerHourAppointments ?? 0;
 
   const [simObjRevenu, setSimObjRevenu] = useState("2000");
   const [simObjCharges, setSimObjCharges] = useState(totalCharges.toString());
@@ -210,6 +239,7 @@ export default function ComptaClient({
   const [simTarif, setSimTarif] = useState(actualAverageBasket);
   const [simRdv, setSimRdv] = useState(actualRdv);
   const [simCharges, setSimCharges] = useState(totalCharges);
+  const simRdvMax = Math.max(300, actualRdv + 50);
 
   // Synchroniser le simulateur si les données réelles changent (changement de mois par ex)
   useEffect(() => {
@@ -233,16 +263,37 @@ export default function ComptaClient({
   const netParRdv = simTarif * (1 - urssafRate);
   const requiredRdv = netParRdv > 0 ? Math.ceil((Number(simObjRevenu) + Number(simObjCharges)) / netParRdv) : 0;
 
-  const chartData1 = [
-    { value: 12 }, { value: 18 }, { value: 15 }, { value: 20 }, { value: 10 }, { value: 25 }
-  ];
+  const monthStart = new Date(`${filterMonth}-01T00:00:00Z`);
+  const daysInMonth = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).getDate();
+  const bucketCount = 6;
+  const bucketWidth = Math.max(1, Math.ceil(daysInMonth / bucketCount));
+  const incomeBuckets = Array.from({ length: bucketCount }, () => ({ revenue: 0, count: 0 }));
 
-  const chartData2 = [
-    { value: 15 }, { value: 10 }, { value: 22 }, { value: 18 }, { value: 25 }, { value: 30 }
-  ];
+  data.transactions
+    .filter((transaction) => transaction.type === "INCOME")
+    .forEach((transaction) => {
+      const date = new Date(transaction.transactionDate);
+      const bucketIndex = Math.min(bucketCount - 1, Math.floor((date.getDate() - 1) / bucketWidth));
+      incomeBuckets[bucketIndex].revenue += Number(transaction.amount || 0);
+      incomeBuckets[bucketIndex].count += 1;
+    });
+
+  const chartData1 = (statsData?.monthlyBenefitTrend && statsData.monthlyBenefitTrend.length > 0
+    ? statsData.monthlyBenefitTrend
+    : incomeBuckets.map((bucket, index) => ({ label: `Bloc ${index + 1}`, value: bucket.revenue }))
+  );
+  const chartData2 = (statsData?.monthlyBasketTrend && statsData.monthlyBasketTrend.length > 0
+    ? statsData.monthlyBasketTrend
+    : incomeBuckets.map((bucket, index) => ({ label: `Bloc ${index + 1}`, value: bucket.count > 0 ? bucket.revenue / bucket.count : 0 }))
+  );
 
   const urssafTax = caMois * urssafRate;
   const beneficeNet = caMois - totalCharges - urssafTax;
+  const benefitTopValue = statsData?.monthlyBenefitTrend?.at(-1)?.value ?? beneficeNet;
+  const newClientsCount = statsData?.newClientsCount ?? 0;
+  const newClients = statsData?.newClients ?? [];
+  const recurringChargesMax = chargesRecurrentes > 0 ? chargesRecurrentes : 1;
+  const materialChargesMax = chargesMateriels > 0 ? chargesMateriels : 1;
 
   const mappedTransactions: DisplayTransaction[] = data.transactions.map((t: TransactionItem) => ({
     id: t.id,
@@ -530,11 +581,23 @@ export default function ComptaClient({
             <div className={styles.statCardLarge}>
               <div className={styles.statHeader}>
                 <div className={styles.statTitleBlock}>
-                  <div className={styles.statTitle}>Revenu a l&apos;heure</div>
+                  <div className={styles.statTitle}>Revenu &agrave; l&apos;heure</div>
+                  <div className={styles.statSubtitle}>RDV termin&eacute;s encaiss&eacute;s</div>
                 </div>
               </div>
               <div className={styles.statBigText}>
-                --<span>/h</span>
+                {actualRevenuePerHour.toFixed(2)} <span>&euro;/h</span>
+              </div>
+              <div className={styles.hourlyDetails}>
+                {revenuePerHourHours > 0 ? (
+                  <>
+                    <span>{revenuePerHourRevenue.toFixed(2)} &euro; encaiss&eacute;s</span>
+                    <span>{revenuePerHourHours.toFixed(1)} h termin&eacute;es</span>
+                    <span>{revenuePerHourAppointments} RDV termin&eacute;s</span>
+                  </>
+                ) : (
+                  <span>Aucun RDV termin&eacute; sur ce mois</span>
+                )}
               </div>
             </div>
           </section>
@@ -643,7 +706,7 @@ export default function ComptaClient({
               <div className={styles.simSliderWrapper}>
                 <input 
                   type="range" 
-                  min="10" max="100" 
+                  min="10" max={simRdvMax}
                   className={styles.simSlider} 
                   value={simRdv}
                   onChange={(e) => setSimRdv(Number(e.target.value))}
@@ -757,7 +820,7 @@ export default function ComptaClient({
                   <div className={styles.statListItem} key={idx}>
                     <span className={styles.statListLabel}>{r.label} :</span>
                     <div className={styles.statListBar}>
-                      <div className={styles.statListBarFill} style={{ width: `${Math.min(100, (r.amount / chargesRecurrentes) * 100)}%` }}></div>
+                      <div className={styles.statListBarFill} style={{ width: `${Math.min(100, (r.amount / recurringChargesMax) * 100)}%` }}></div>
                     </div>
                     <span className={styles.statListValue}>{r.amount.toFixed(2)} €</span>
                   </div>
@@ -784,7 +847,7 @@ export default function ComptaClient({
                   <div className={styles.statListItem} key={idx}>
                     <span className={styles.statListLabel}>{t.label || t.category || "Dépense"} :</span>
                     <div className={styles.statListBar}>
-                      <div className={styles.statListBarFill} style={{ width: `${Math.min(100, (t.amount / chargesMateriels) * 100)}%` }}></div>
+                      <div className={styles.statListBarFill} style={{ width: `${Math.min(100, (t.amount / materialChargesMax) * 100)}%` }}></div>
                     </div>
                     <span className={styles.statListValue}>{t.amount.toFixed(2)} €</span>
                   </div>
@@ -802,7 +865,7 @@ export default function ComptaClient({
                   <div className={styles.statTitle}>Bénéfices</div>
                   <div className={styles.statSubtitle}>-21.2% URSSAF</div>
                 </div>
-                <div className={styles.statTopValue}>{beneficeNet >= 0 ? '+' : ''}{beneficeNet.toFixed(2)} €</div>
+                <div className={styles.statTopValue}>{benefitTopValue >= 0 ? '+' : ''}{benefitTopValue.toFixed(2)} €</div>
               </div>
               <div className={styles.chartContainer}>
                 <SparkBarChart data={chartData1} color="#FCD7D1" />
@@ -814,23 +877,23 @@ export default function ComptaClient({
               <div className={styles.statHeader}>
                 <div className={styles.statTitleBlock}>
                   <div className={styles.statTitle}>Nouveaux <span>clients</span></div>
-                  <div className={styles.statSubtitle}>MARS 2026</div>
+                  <div className={styles.statSubtitle}>{new Date(filterMonth + "-01").toLocaleDateString("fr-FR", { month: "long", year: "numeric" }).toUpperCase()}</div>
                 </div>
-                <div className={styles.statTopValue}>+3</div>
+                <div className={styles.statTopValue}>+{newClientsCount}</div>
               </div>
               <div className={styles.statTextList}>
-                <div className={styles.statTextItem}>
-                  <span className={styles.statTextLabel}>Mélanie Doe :</span>
-                  <span className={styles.statTextValue}>+1 Remplissage</span>
-                </div>
-                <div className={styles.statTextItem}>
-                  <span className={styles.statTextLabel}>Céline Doe :</span>
-                  <span className={styles.statTextValue}>+1 Cils à cils</span>
-                </div>
-                <div className={styles.statTextItem}>
-                  <span className={styles.statTextLabel}>Laura Doe :</span>
-                  <span className={styles.statTextValue}>+1 Cils à cils</span>
-                </div>
+                {newClients.length > 0 ? (
+                  newClients.map((client) => (
+                    <div className={styles.statTextItem} key={client.id}>
+                      <span className={styles.statTextLabel}>{client.name} :</span>
+                      <span className={styles.statTextValue}>{client.firstService}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className={styles.statTextItem}>
+                    <span className={styles.statTextLabel}>Aucune donnée</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -840,7 +903,7 @@ export default function ComptaClient({
                 <div className={styles.statTitleBlock}>
                   <div className={styles.statTitle}>Panier moyen</div>
                 </div>
-                <div className={styles.statTopValue}>+82 €</div>
+                <div className={styles.statTopValue}>{actualAverageBasket.toFixed(2)} €</div>
               </div>
               <div className={styles.chartContainer}>
                 <SparkBarChart data={chartData2} color="#FCD7D1" />

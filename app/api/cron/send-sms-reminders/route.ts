@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { AppointmentStatus, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import prisma from "../../../../lib/prisma";
+import { REMINDER_ELIGIBLE_APPOINTMENT_STATUSES } from "../../../../lib/appointmentStatus";
 import { getSubscriptionAccessFromTenant } from "../../../../lib/subscription";
 import { sendSms } from "../../../../lib/twilio";
 
 const REMINDER_TYPE = "SMS_24H_REMINDER";
-const ACTIVE_APPOINTMENT_STATUSES: AppointmentStatus[] = ["SCHEDULED", "CONFIRMED"];
 const WINDOW_BEFORE_MS = 23.5 * 60 * 60 * 1000;
 const WINDOW_AFTER_MS = 24.5 * 60 * 60 * 1000;
 
@@ -161,7 +161,7 @@ export async function GET(request: Request) {
     const appointments = await prisma.appointment.findMany({
       where: {
         scheduledAt: { gte: windowStart, lte: windowEnd },
-        status: { in: ACTIVE_APPOINTMENT_STATUSES },
+        status: { in: [...REMINDER_ELIGIBLE_APPOINTMENT_STATUSES] },
         isDraft: false,
       },
       include: {

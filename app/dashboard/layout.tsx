@@ -2,6 +2,9 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Navbar from "../components/Navbar";
 import GlobalHeader from "../components/GlobalHeader";
+import QuickAgendaDrawer from "../components/QuickAgendaDrawer";
+import { getAgendaPanelData } from "../../lib/agendaPanelData";
+import { getTenantId } from "../../lib/tenant";
 import styles from "./layout.module.css";
 
 export default async function DashboardLayout({
@@ -10,23 +13,29 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const DEV_BYPASS_AUTH = process.env.NODE_ENV === "development";
+  let userId: string | null = null;
 
   if (!DEV_BYPASS_AUTH) {
-    const { userId } = await auth();
+    const authResult = await auth();
+    userId = authResult.userId;
     if (!userId) {
       redirect("/sign-in");
     }
   }
 
+  const tenantId = await getTenantId();
+  const quickAgendaData = await getAgendaPanelData(tenantId, userId);
+
   return (
     <>
       <Navbar />
-        <GlobalHeader />
-    <div className={styles.layoutWrapper}>
-      <div className={styles.mainContent}>
-        {children}
+      <GlobalHeader />
+      <QuickAgendaDrawer agendaData={quickAgendaData} />
+      <div className={styles.layoutWrapper}>
+        <div className={styles.mainContent}>
+          {children}
+        </div>
       </div>
-    </div>
     </>
   );
 }

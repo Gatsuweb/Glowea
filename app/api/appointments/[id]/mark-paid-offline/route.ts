@@ -6,6 +6,7 @@ import {
   getAppointmentFinancialSummary,
   normalizeAppointmentPaymentMethod,
 } from "@/lib/appointmentFinance";
+import { getAppointmentServicesLabel } from "@/lib/appointmentServices";
 import { recordAppointmentPayment } from "@/lib/appointmentPayments";
 import { getTenantId } from "@/lib/tenant";
 
@@ -32,6 +33,10 @@ export async function POST(
     where: { id: appointmentId, tenantId },
     include: {
       Service: true,
+      AppointmentService: {
+        include: { Service: true },
+        orderBy: { position: "asc" },
+      },
       Session: true,
     },
   });
@@ -53,7 +58,7 @@ export async function POST(
     amountCents: remainingAmount,
     paymentType: "offline",
     paymentMethod: normalizedMethod,
-    sourceLabel: `Paiement hors ligne - ${appointment.Service?.name || "Rendez-vous"}`,
+    sourceLabel: `Paiement hors ligne - ${getAppointmentServicesLabel(appointment)}`,
     sessionId: appointment.Session?.id || null,
     externalPaymentId: `manual:${appointmentId}:offline:${normalizedMethod}`,
     transactionDate: new Date(),
@@ -66,8 +71,6 @@ export async function POST(
   await prisma.appointment.update({
     where: { id: appointment.id },
     data: {
-      status: "COMPLETED",
-      completedAt: new Date(),
       paymentMethod: normalizedMethod,
       paymentStatus: "paid_offline",
       updatedAt: new Date(),

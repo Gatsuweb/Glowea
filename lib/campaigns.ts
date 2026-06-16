@@ -1,5 +1,9 @@
 import type { CampaignChannel, CampaignTargetSegment, MessageTemplate } from "@prisma/client";
 import prisma from "./prisma";
+import {
+  COMPLETED_APPOINTMENT_STATUSES,
+  REMINDER_ELIGIBLE_APPOINTMENT_STATUSES,
+} from "./appointmentStatus";
 
 export type CampaignPreviewRecipient = {
   id: string;
@@ -194,7 +198,7 @@ export async function getSegmentClients(tenantId: string, segment: CampaignTarge
       Appointment: {
         where: {
           status: {
-            in: ["COMPLETED", "CONFIRMED", "SCHEDULED"],
+            in: [...COMPLETED_APPOINTMENT_STATUSES, ...REMINDER_ELIGIBLE_APPOINTMENT_STATUSES],
           },
         },
         select: {
@@ -255,7 +259,7 @@ export async function getClientsByIds(tenantId: string, clientIds: string[]) {
       Appointment: {
         where: {
           status: {
-            in: ["COMPLETED", "CONFIRMED", "SCHEDULED"],
+            in: [...COMPLETED_APPOINTMENT_STATUSES, ...REMINDER_ELIGIBLE_APPOINTMENT_STATUSES],
           },
         },
         select: {

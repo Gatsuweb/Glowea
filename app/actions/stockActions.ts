@@ -28,6 +28,7 @@ export async function createProduct(data: {
   alertThreshold?: number | null;
   expireAt?: Date | null;
   categoryId?: string | null;
+  trackingType?: "UNIDOSE" | "MULTIDOSE";
 }) {
   const TENANT_ID = await getTenantId();
   const access = await requireTenantMutationAccess(TENANT_ID);
@@ -56,7 +57,7 @@ export async function createProduct(data: {
         alertThreshold: data.alertThreshold ?? null,
         productCategoryId: categoryId,
         unitType: "UNIT",
-        trackingType: "UNIDOSE",
+        trackingType: data.trackingType || "MULTIDOSE",
         updatedAt: new Date(),
       },
     });
@@ -103,6 +104,7 @@ export async function updateProduct(id: string, data: {
   price: number;
   alertThreshold?: number | null;
   categoryId?: string | null;
+  trackingType?: "UNIDOSE" | "MULTIDOSE";
 }) {
   const TENANT_ID = await getTenantId();
   const access = await requireTenantMutationAccess(TENANT_ID);
@@ -117,6 +119,19 @@ export async function updateProduct(id: string, data: {
       return { success: false, error: "Categorie invalide pour cet espace" };
     }
 
+    const existingProduct = await prisma.product.findFirst({
+      where: {
+        id,
+        tenantId: TENANT_ID,
+        isActive: true,
+      },
+      select: { trackingType: true },
+    });
+
+    if (!existingProduct) {
+      return { success: false, error: "Produit introuvable" };
+    }
+
     const product = await prisma.product.update({
       where: { id, tenantId: TENANT_ID },
       data: {
@@ -125,6 +140,7 @@ export async function updateProduct(id: string, data: {
         defaultUnitCost: data.price,
         alertThreshold: data.alertThreshold ?? null,
         productCategoryId: categoryId,
+        trackingType: data.trackingType || existingProduct.trackingType,
         updatedAt: new Date(),
       },
     });

@@ -25,6 +25,7 @@ type ProductFormData = {
   alertThreshold?: number | null;
   categoryId?: string | null;
   expireAt?: string | Date | null;
+  trackingType?: "UNIDOSE" | "MULTIDOSE";
 };
 
 interface NewProductModalProps {
@@ -133,6 +134,7 @@ export default function NewProductModal({
   const [alertThreshold, setAlertThreshold] = useState("");
   const [initialStock, setInitialStock] = useState("1");
   const [expireAt, setExpireAt] = useState("");
+  const [trackingType, setTrackingType] = useState<"UNIDOSE" | "MULTIDOSE">("MULTIDOSE");
   const [family, setFamily] = useState<ProductFamily>("NAILS");
   const [categoryId, setCategoryId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -153,6 +155,7 @@ export default function NewProductModal({
       setPrice(initialData.rawPrice?.toString() || "");
       setAlertThreshold(initialData.alertThreshold?.toString() || "");
       setInitialStock(initialData.count?.toString() || "0");
+      setTrackingType(initialData.trackingType || "MULTIDOSE");
       setCategoryId(initialData.categoryId || "");
       setFamily(selectedCategory?.family || "NAILS");
 
@@ -169,6 +172,7 @@ export default function NewProductModal({
       setAlertThreshold("");
       setInitialStock("1");
       setExpireAt("");
+      setTrackingType("MULTIDOSE");
       setFamily("NAILS");
       setCategoryId("");
     }
@@ -221,6 +225,7 @@ export default function NewProductModal({
           price: parseFloat(price) || 0,
           alertThreshold: alertThreshold === "" ? null : parseFloat(alertThreshold) || 0,
           categoryId: categoryId || null,
+          trackingType,
         });
 
         if (!res.success) {
@@ -236,6 +241,7 @@ export default function NewProductModal({
           alertThreshold: alertThreshold === "" ? null : parseFloat(alertThreshold) || 0,
           expireAt: expireAt ? new Date(expireAt) : null,
           categoryId: categoryId || null,
+          trackingType,
         });
 
         if (!res.success) {
@@ -402,6 +408,28 @@ export default function NewProductModal({
                 value={alertThreshold}
                 onChange={(e) => setAlertThreshold(e.target.value)}
               />
+            </div>
+            <div className={styles.productField}>
+              <label>Type de produit</label>
+              <div className={styles.trackingTypeGrid}>
+                <button
+                  type="button"
+                  className={`${styles.trackingTypeBtn} ${trackingType === "UNIDOSE" ? styles.trackingTypeBtnActive : ""}`}
+                  onClick={() => setTrackingType("UNIDOSE")}
+                >
+                  Unidose
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.trackingTypeBtn} ${trackingType === "MULTIDOSE" ? styles.trackingTypeBtnActive : ""}`}
+                  onClick={() => setTrackingType("MULTIDOSE")}
+                >
+                  Multidose
+                </button>
+              </div>
+              <p className={styles.trackingTypeHelp}>
+                Unidose = le stock diminue à chaque utilisation. Multidose = le stock ne diminue pas automatiquement.
+              </p>
             </div>
             {!initialData && (
               <div className={styles.productField}>

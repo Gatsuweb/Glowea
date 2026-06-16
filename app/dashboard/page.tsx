@@ -1,9 +1,14 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import DashboardClientWrapper from "../components/DashboardClientWrapper";
 import prisma from "../../lib/prisma";
-import { getAgendaPanelData } from "../../lib/agendaPanelData";
 import { getTenantSubscriptionAccess } from "../../lib/subscription";
 import { syncCheckoutSessionById } from "../../lib/stripeSubscriptionSync";
+import {
+  COMPLETED_APPOINTMENT_STATUSES,
+  getActiveStatsAppointmentWhere,
+  isActiveStatsAppointment,
+} from "../../lib/appointmentStatus";
+import { getAppointmentServicesSummary } from "../../lib/appointmentServices";
 
 export const dynamic = "force-dynamic";
 
@@ -90,10 +95,7 @@ export default async function DashboardPage({
     checkoutSyncState = "pending";
   }
 
-  const [subscriptionAccess, quickAgendaData] = await Promise.all([
-    getTenantSubscriptionAccess(tenantId),
-    getAgendaPanelData(tenantId, userId),
-  ]);
+  const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
 
   const [profileUser, profileTenant, paymentSettings] = await Promise.all([
     prisma.user.findUnique({ where: { id: tenantId } }),
@@ -154,6 +156,10 @@ export default async function DashboardPage({
         },
       },
       Service: true,
+      AppointmentService: {
+        include: { Service: true },
+        orderBy: { position: "asc" },
+      },
       AppointmentAttachment: {
         orderBy: { createdAt: "desc" },
         take: 1,
@@ -220,7 +226,7 @@ export default async function DashboardPage({
     where: {
       tenantId,
       scheduledAt: { gte: sevenDaysAgo, lte: todayEnd },
-      status: { not: 'CANCELED' }
+      ...getActiveStatsAppointmentWhere(),
     },
     include: { Service: true }
   });
@@ -303,17 +309,24 @@ export default async function DashboardPage({
     where: {
       tenantId,
       scheduledAt: { gte: threeWeeksAgoStart, lte: threeWeeksAgoEnd },
-      status: 'COMPLETED'
+      status: { in: [...COMPLETED_APPOINTMENT_STATUSES] },
     },
     include: {
       Client: {
         include: {
           Appointment: {
-            where: { scheduledAt: { gte: todayStart } } // Future appointments
+            where: {
+              scheduledAt: { gte: todayStart },
+              ...getActiveStatsAppointmentWhere(),
+            }
           }
         }
       },
-      Service: true
+      Service: true,
+      AppointmentService: {
+        include: { Service: true },
+        orderBy: { position: "asc" },
+      },
     }
   });
 
@@ -327,7 +340,7 @@ export default async function DashboardPage({
           id: app.clientId,
           name: `${app.Client.firstName} ${app.Client.lastName || ''}`.trim(),
           lastVisit: app.scheduledAt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
-          serviceName: app.Service?.name || 'Prestation'
+          serviceName: getAppointmentServicesSummary(app).label
         });
       }
       return acc;
@@ -366,7 +379,7 @@ export default async function DashboardPage({
 
   const topClients = clients
     .map(client => {
-      const visits = client.Appointment.filter((app) => app.status !== "CANCELED" && app.status !== "NO_SHOW").length;
+      const visits = client.Appointment.filter((app) => isActiveStatsAppointment(app)).length;
       const totalAmount = appointmentIncomeTransactions
         .filter((transaction) => transaction.Appointment?.clientId === client.id)
         .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
@@ -382,6 +395,8 @@ export default async function DashboardPage({
 
   // Format data for the client wrapper
   const formattedAppointments = upcomingAppointments.map(app => {
+    const serviceSummary = getAppointmentServicesSummary(app);
+    const primaryService = app.AppointmentService[0]?.Service || app.Service;
     const appointmentDocument = app.AppointmentAttachment[0]?.url
       || app.ConsentDocument[0]?.pdfUrl
       || app.Client?.ConsentDocument[0]?.pdfUrl
@@ -390,15 +405,15 @@ export default async function DashboardPage({
     return {
       id: app.id,
       clientId: app.clientId,
-      serviceId: app.serviceId,
+      serviceId: serviceSummary.primaryServiceId || app.serviceId,
       scheduledAt: app.scheduledAt.toISOString(),
       notes: app.notes || "",
       time: app.scheduledAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
       clientName: `${app.Client?.firstName} ${app.Client?.lastName || ''}`.trim(),
       clientEmail: app.Client?.email || "",
       clientPhone: app.Client?.phone || "",
-      serviceName: app.Service?.name || 'Prestation',
-      servicePrice: app.Service?.price ? Number(app.Service.price) : 0,
+      serviceName: serviceSummary.label,
+      servicePrice: serviceSummary.totalPriceCents / 100,
       price: app.price,
       depositAmount: app.depositAmount,
       depositPaidAmount: app.depositPaidAmount,
@@ -406,7 +421,7 @@ export default async function DashboardPage({
       remainingAmount: app.remainingAmount,
       paymentMethod: app.paymentMethod,
       paymentStatus: app.paymentStatus,
-      serviceDurationMin: app.Service?.durationMin || 60,
+      serviceDurationMin: serviceSummary.totalDurationMin,
       documentUrl: appointmentDocument,
       hasDocument: Boolean(appointmentDocument),
       status: app.status,
@@ -416,11 +431,19 @@ export default async function DashboardPage({
         name: `${app.Client?.firstName} ${app.Client?.lastName || ''}`.trim(),
       },
       service: {
-        id: app.Service?.id || app.serviceId || "",
-        name: app.Service?.name || "Prestation",
-        price: app.Service?.price ? Number(app.Service.price) : 0,
-        durationMin: app.Service?.durationMin || 60,
+        id: serviceSummary.primaryServiceId || app.Service?.id || app.serviceId || "",
+        name: serviceSummary.label,
+        price: serviceSummary.totalPriceCents / 100,
+        durationMin: serviceSummary.totalDurationMin,
+        color: primaryService?.color || null,
       },
+      appointmentServices: serviceSummary.services.map((service) => ({
+        serviceId: service.serviceId,
+        name: service.nameSnapshot,
+        price: service.priceSnapshot / 100,
+        durationMin: service.durationSnapshot,
+        position: service.position,
+      })),
     };
   });
   const serializedAppointments = serializeValue(formattedAppointments);
@@ -476,7 +499,7 @@ export default async function DashboardPage({
     where: {
       tenantId,
       scheduledAt: { gte: tomorrowStart, lte: tomorrowEnd },
-      status: { notIn: ['CANCELED', 'NO_SHOW'] },
+      ...getActiveStatsAppointmentWhere(),
     },
   });
 
@@ -591,7 +614,6 @@ export default async function DashboardPage({
         defaultDepositAmount: Number(paymentSettings?.defaultDepositAmount || 0),
         defaultDepositType: paymentSettings?.defaultDepositType || "fixed",
       }}
-      quickAgenda={quickAgendaData}
       checkoutSuccess={resolvedSearchParams.success === "true"}
       checkoutSyncState={checkoutSyncState}
     />

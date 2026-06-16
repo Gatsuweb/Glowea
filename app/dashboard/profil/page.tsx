@@ -16,7 +16,7 @@ const planDetails: Record<ProfileData["subscriptionPlan"], {
   FREE: {
     name: "Gratuit",
     price: "0 EUR",
-    description: "Votre espace est prêt. Choisissez une formule pour utiliser Glowea au quotidien.",
+    description: "Votre espace est pret. Choisissez une formule pour utiliser Glowea au quotidien.",
     features: ["Compte Glowea", "Preparation de l'espace"],
   },
   ESSENTIAL: {
@@ -770,7 +770,7 @@ export default function ProfilPage() {
               </div>
               
               <p className={`${styles.legalText} ${styles.templatesIntro}`}>
-                Personnalisez les templates SMS et email utilisés pour les campagnes. Ces modèles sont réutilisables dans l&apos;écran Envoyer une campagne.
+                Personnalisez les templates SMS et email utilises pour les campagnes. Ces modeles sont reutilisables dans l&apos;ecran Envoyer une campagne.
               </p>
 
               <div className={styles.templateList}>
@@ -778,7 +778,7 @@ export default function ProfilPage() {
                   <div className={styles.newTemplateIcon}>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                   </div>
-                  <h4 className={styles.newTemplateText}>Créer un nouveau template</h4>
+                  <h4 className={styles.newTemplateText}>Creer un nouveau template</h4>
                 </div>
 
                 {isLoadingTemplates && (

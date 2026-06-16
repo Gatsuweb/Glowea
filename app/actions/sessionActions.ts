@@ -1,9 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 import prisma from "../../lib/prisma";
 import { getSupabaseAdminClient, publicStorageBucket } from "../../lib/supabaseAdmin";
 import { getTenantId } from "../../lib/tenant";
+import { getProductCategoryBySlug } from "../../src/constants/productCategories";
+import { getAppointmentServicesSummary } from "../../lib/appointmentServices";
 
 type SessionStatusInput = "DRAFT" | "COMPLETED" | "IN_PROGRESS";
 
@@ -13,6 +16,7 @@ type ProductUsageInput = {
   quantityUsed?: number;
   usageRole?: string;
   notes?: string;
+  consumeStock?: boolean;
 };
 
 type PhotoInput = {
@@ -66,7 +70,7 @@ type SaveSessionBase = {
   photos?: PhotoInput[];
 };
 
-type SessionGlobalParams = Record<string, unknown>;
+type SessionGlobalParams = Prisma.InputJsonObject;
 
 async function getTenantAppointment(tenantId: string, appointmentId: string, clientId?: string) {
   const appointment = await prisma.appointment.findFirst({
@@ -163,6 +167,7 @@ async function syncSessionProductUsages(
     });
 
     if (!product) continue;
+    const shouldConsumeUsage = product.trackingType === "UNIDOSE" || Boolean(usage.consumeStock);
 
     const lot = usage.productLotId
       ? await prisma.productLot.findFirst({ where: { id: usage.productLotId, productId: product.id } })
@@ -184,7 +189,7 @@ async function syncSessionProductUsages(
     const previousQuantity = previousQuantityByProduct[product.id] || 0;
     const delta = usage.quantityUsed - previousQuantity;
 
-    if (shouldConsumeStock && lot && delta > 0) {
+    if (shouldConsumeStock && shouldConsumeUsage && lot && delta > 0) {
       const remaining = Math.max(Number(lot.quantityRemaining || 0) - delta, 0);
 
       await prisma.productLot.update({
@@ -315,10 +320,11 @@ async function syncSessionPhotos(
   }
 }
 
-export async function getSessionModalData(clientId: string | undefined) {
+export async function getSessionModalData(clientId: string | undefined, appointmentId?: string) {
   const TENANT_ID = await getTenantId();
   try {
     let clientInfo = null;
+    let appointmentServices = null;
 
     if (clientId) {
       const client = await prisma.client.findUnique({
@@ -345,6 +351,35 @@ export async function getSessionModalData(clientId: string | undefined) {
       }
     }
 
+    if (appointmentId) {
+      const appointment = await prisma.appointment.findFirst({
+        where: { id: appointmentId, tenantId: TENANT_ID },
+        include: {
+          Service: true,
+          AppointmentService: {
+            include: { Service: true },
+            orderBy: { position: "asc" },
+          },
+        },
+      });
+
+      if (appointment) {
+        const summary = getAppointmentServicesSummary(appointment);
+        appointmentServices = {
+          label: summary.label,
+          totalDurationMin: summary.totalDurationMin,
+          totalPriceCents: summary.totalPriceCents,
+          services: summary.services.map((service) => ({
+            serviceId: service.serviceId,
+            name: service.nameSnapshot,
+            durationMin: service.durationSnapshot,
+            priceCents: service.priceSnapshot,
+            position: service.position,
+          })),
+        };
+      }
+    }
+
     const productsData = await prisma.product.findMany({
       where: { tenantId: TENANT_ID, isActive: true },
       include: {
@@ -357,22 +392,20 @@ export async function getSessionModalData(clientId: string | undefined) {
 
     const products = productsData.map(p => {
       const totalStock = p.ProductLot.reduce((sum, lot) => sum + Number(lot.quantityRemaining || 0), 0);
+      const businessCategory = getProductCategoryBySlug(p.ProductCategory?.slug);
       return {
         id: p.id,
         name: p.name,
         stock: `Stock ${totalStock}`,
         categorySlug: p.ProductCategory?.slug || null,
-        categoryLabel: p.ProductCategory?.name || null,
-        categoryFamily: p.ProductCategory?.slug?.startsWith("nails-")
-          ? "NAILS"
-          : p.ProductCategory?.slug?.startsWith("lashes-")
-            ? "LASHES"
-            : null,
+        categoryLabel: businessCategory?.label || p.ProductCategory?.name || null,
+        categoryFamily: businessCategory?.family || null,
+        trackingType: p.trackingType,
         checked: false
       };
     });
 
-    return { success: true, clientInfo, products };
+    return { success: true, clientInfo, products, appointmentServices };
   } catch (error) {
     console.error("Error fetching session modal data:", error);
     return { success: false, error: "Erreur lors de la récupération des données" };

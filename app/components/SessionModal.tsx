@@ -1,7 +1,8 @@
-/* eslint-disable react-hooks/set-state-in-effect, react-hooks/immutability, @typescript-eslint/no-explicit-any, @next/next/no-img-element, @typescript-eslint/no-unused-vars, react/no-unescaped-entities */
+/* eslint-disable react-hooks/set-state-in-effect, @typescript-eslint/no-explicit-any, @next/next/no-img-element, @typescript-eslint/no-unused-vars, react/no-unescaped-entities */
 
 import React, { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import styles from './SessionModal.module.css';
 import {
   saveLashSession,
@@ -196,11 +197,31 @@ type SessionProduct = {
   name: string;
   stock: string;
   checked: boolean;
+  trackingType?: "UNIDOSE" | "MULTIDOSE" | "NON_STOCKED" | null;
+  consumeStock?: boolean;
   defaultTime?: number;
   categorySlug?: string | null;
   categoryLabel?: string | null;
   categoryFamily?: string | null;
 };
+
+type SessionProductUsage = {
+  productId: string;
+  quantityUsed?: number | null;
+  usageRole?: string | null;
+};
+
+type AppointmentSessionService = {
+  serviceId: string;
+  name: string;
+  durationMin: number;
+  priceCents: number;
+  position: number;
+};
+
+type SessionTab = "Cils" | "Browlift" | "Rehaussement de cils" | "Ongles";
+
+const SESSION_TABS: SessionTab[] = ["Cils", "Browlift", "Rehaussement de cils", "Ongles"];
 
 type ProductQuickFilter =
   | "all"
@@ -223,6 +244,8 @@ const PRODUCT_QUICK_FILTERS: Array<{ id: ProductQuickFilter; label: string }> = 
   { id: "ongles", label: "Ongles" },
 ];
 
+const NAIL_PRODUCT_QUICK_FILTERS = PRODUCT_QUICK_FILTERS.filter((filter) => filter.id === "all" || filter.id === "ongles");
+
 const normalizeSearchValue = (value: string) =>
   value
     .toLowerCase()
@@ -232,12 +255,37 @@ const normalizeSearchValue = (value: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+function isNailCatalogProduct(product: Pick<SessionProduct, "name" | "categorySlug" | "categoryLabel" | "categoryFamily">) {
+  const normalizedName = normalizeSearchValue(product.name);
+  const normalizedSlug = normalizeSearchValue(product.categorySlug || "");
+  const normalizedLabel = normalizeSearchValue(product.categoryLabel || "");
+
+  if (product.categoryFamily === "NAILS" || normalizedSlug.startsWith("nails")) return true;
+  if (product.categoryFamily || normalizedSlug || normalizedLabel) return false;
+
+  return [
+    "ongle",
+    "nail",
+    "vernis",
+    "semi",
+    "gel",
+    "acrygel",
+    "base",
+    "top coat",
+    "primer",
+    "chablon",
+    "capsule",
+    "cuticule",
+    "lime",
+  ].some((keyword) => normalizedName.includes(keyword));
+}
+
 const getProductQuickFilter = (product: Pick<SessionProduct, "name" | "categorySlug" | "categoryLabel" | "categoryFamily">): ProductQuickFilter => {
   const normalizedName = normalizeSearchValue(product.name);
   const normalizedSlug = normalizeSearchValue(product.categorySlug || "");
   const normalizedLabel = normalizeSearchValue(product.categoryLabel || "");
 
-  if (product.categoryFamily === "NAILS" || normalizedSlug.startsWith("nails")) {
+  if (isNailCatalogProduct(product)) {
     return "ongles";
   }
   if (normalizedSlug.includes("remover") || normalizedLabel.includes("remover") || normalizedName.includes("remover")) {
@@ -401,8 +449,33 @@ const buildTreatmentProducts = (
         ...product,
         checked: savedProduct?.checked ?? false,
         defaultTime: savedProduct?.defaultTime ?? 5,
+        consumeStock: savedProduct?.consumeStock ?? product.trackingType === "UNIDOSE",
       };
     });
+};
+
+const normalizeCatalogProduct = (product: SessionProduct): SessionProduct => ({
+  ...product,
+  defaultTime: product.defaultTime ?? 5,
+  consumeStock: product.trackingType === "UNIDOSE",
+});
+
+const applySessionProductUsages = (
+  products: SessionProduct[],
+  productUsages: SessionProductUsage[] | undefined,
+  shouldRestoreProduct: (product: SessionProduct) => boolean
+) => {
+  if (!productUsages) return products;
+
+  const usedIds = new Set(productUsages.map((usage) => usage.productId));
+  return products.map((product) => {
+    const isSelected = usedIds.has(product.id) && shouldRestoreProduct(product);
+    return {
+      ...product,
+      checked: isSelected,
+      consumeStock: isSelected ? product.trackingType === "UNIDOSE" : product.trackingType === "UNIDOSE",
+    };
+  });
 };
 
 type SessionPhoto = {
@@ -416,12 +489,45 @@ type SessionPhoto = {
   previewUrl?: string;
 };
 
-const getInitialSessionTab = (category?: string) => {
+const getInitialSessionTab = (category?: string): SessionTab => {
   const value = (category || "").toLowerCase();
   if (value.includes("brow")) return "Browlift";
   if (value.includes("rehaussement") || value.includes("lash lift")) return "Rehaussement de cils";
   if (value.includes("ongle") || value.includes("nail") || value.includes("gel") || value.includes("semi")) return "Ongles";
   return "Cils";
+};
+
+const getSessionTabFromServiceName = (serviceName: string): SessionTab | null => {
+  const value = normalizeSearchValue(serviceName);
+
+  if (value.includes("brow") || value.includes("sourcil")) return "Browlift";
+  if (value.includes("rehaussement") || value.includes("lash lift")) return "Rehaussement de cils";
+  if (
+    value.includes("ongle") ||
+    value.includes("nail") ||
+    value.includes("manucure") ||
+    value.includes("gainage") ||
+    value.includes("vernis") ||
+    value.includes("semi") ||
+    value.includes("gel")
+  ) {
+    return "Ongles";
+  }
+  if (value.includes("cil") || value.includes("lash") || value.includes("pose") || value.includes("depose")) return "Cils";
+
+  return null;
+};
+
+const getTabsFromAppointmentServices = (
+  services: AppointmentSessionService[],
+  fallbackCategory?: string
+): SessionTab[] => {
+  const tabs = services
+    .map((service) => getSessionTabFromServiceName(service.name))
+    .filter((tab): tab is SessionTab => Boolean(tab));
+  const uniqueTabs = Array.from(new Set(tabs));
+  if (uniqueTabs.length > 0) return uniqueTabs;
+  return [getInitialSessionTab(fallbackCategory)];
 };
 
 const getSessionCategory = (tab: string): "LASHES" | "BROWLIFT" | "LASH_LIFT" | "NAILS" => {
@@ -430,6 +536,27 @@ const getSessionCategory = (tab: string): "LASHES" | "BROWLIFT" | "LASH_LIFT" | 
   if (tab === "Ongles") return "NAILS";
   return "LASHES";
 };
+
+const nailShapeOptions = [
+  { value: "Coffin", label: "Ballerine", icon: "/ongles/icones/coffin.svg" },
+  { value: "Carré", label: "Carré", icon: "/ongles/icones/square.svg" },
+  { value: "Amande", label: "Amande", icon: "/ongles/icones/almond.svg" },
+  { value: "Stiletto", label: "Stiletto", icon: "/ongles/icones/stiletto.svg" },
+  { value: "Rond", label: "Rond", icon: "/ongles/icones/round.svg" },
+  { value: "Ovale", label: "Ovale", icon: "/ongles/icones/oval.svg" },
+  { value: "Autre", label: "Autre", icon: "/ongles/icones/other.svg" },
+];
+
+const predefinedNailShapeValues = nailShapeOptions
+  .filter((shape) => shape.value !== "Autre")
+  .map((shape) => shape.value);
+
+const isCustomNailShape = (value: string) =>
+  Boolean(value) && !predefinedNailShapeValues.includes(value);
+
+const COURBURES = ["C", "CC", "D", "DD", "L", "M", "J", "B"];
+const EPAISSEURS = ["0.03", "0.05", "0.07", "0.10", "0.12", "0.15", "0.18", "0.20", "0.25"];
+const LONGUEURS = ["6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25"];
 
 export default function SessionModal({ 
   isOpen, 
@@ -444,18 +571,21 @@ export default function SessionModal({
   startOnOpen = true,
   onPaymentRequest
 }: SessionModalProps) {
+  const router = useRouter();
   
   const [activeTab, setActiveTab] = useState(() => getInitialSessionTab(category));
   const [technique, setTechnique] = useState("Cil à cil");
   const [typeCils, setTypeCils] = useState("Fait main");
 
   // Arrays for parameters
-  const courbures = ["C", "CC", "D", "DD", "L", "M", "J", "B", "Autre"];
-  const epaisseurs = ["0.03", "0.05", "0.07", "0.10", "0.12", "0.15", "0.18", "0.20", "0.25"];
-  const longueurs = ["6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25"];
+  const courbures = COURBURES;
+  const epaisseurs = EPAISSEURS;
+  const longueurs = LONGUEURS;
 
   const [courbure, setCourbure] = useState("D");
   const [epaisseur, setEpaisseur] = useState("0.10");
+  const [customCourbureInput, setCustomCourbureInput] = useState("");
+  const [customEpaisseurInput, setCustomEpaisseurInput] = useState("");
   const [longueurActives, setLongueurActives] = useState<string[]>(["11", "12", "13"]);
 
   const [lashBrand, setLashBrand] = useState("");
@@ -468,16 +598,19 @@ export default function SessionModal({
   const [productQuickFilter, setProductQuickFilter] = useState<ProductQuickFilter>("all");
   const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
   const [clientDetails, setClientDetails] = useState<any>(null);
+  const [savedSessionTabs, setSavedSessionTabs] = useState<SessionTab[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [photos, setPhotos] = useState<SessionPhoto[]>([]);
   const [isSavingSession, setIsSavingSession] = useState(false);
   const productPickerRef = useRef<HTMLDivElement | null>(null);
+  const customNailShapeInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     async function loadData() {
       if (isOpen) {
         const initialTab = getInitialSessionTab(category);
         setActiveTab(initialTab);
+        setSavedSessionTabs([]);
         setPhotos((current) => {
           current.forEach((photo) => {
             if (photo.previewUrl) URL.revokeObjectURL(photo.previewUrl);
@@ -486,6 +619,8 @@ export default function SessionModal({
         });
         setCourbure("D");
         setEpaisseur("0.10");
+        setCustomCourbureInput("");
+        setCustomEpaisseurInput("");
         setLongueurActives(["11", "12", "13"]);
         setCourbureOeilG("D");
         setCourbureOeilD("D");
@@ -503,26 +638,31 @@ export default function SessionModal({
         setProductQuickFilter("all");
         setIsProductDropdownOpen(false);
         setIsLoadingData(true);
+        const res = await getSessionModalData(clientId, appointmentId);
+        let resolvedInitialTab = initialTab;
+        if (res.success) {
+          if (res.clientInfo) setClientDetails(res.clientInfo);
+          if (res.appointmentServices) {
+            const detectedTabs = getTabsFromAppointmentServices(res.appointmentServices.services, category);
+            if (detectedTabs.length > 0) {
+              resolvedInitialTab = detectedTabs[0];
+              setActiveTab(resolvedInitialTab);
+            }
+          }
+          if (res.products) {
+            const catalogProducts = res.products.map(normalizeCatalogProduct);
+            setProducts(catalogProducts);
+            setBrowliftProducts((currentSelection) => buildTreatmentProducts(catalogProducts, "BROWLIFT", currentSelection.length > 0 ? currentSelection : null, true));
+            setRehaussementProducts((currentSelection) => buildTreatmentProducts(catalogProducts, "LASH_LIFT", currentSelection.length > 0 ? currentSelection : null));
+          }
+        }
         if (!isReadOnly && startOnOpen && appointmentId && clientId) {
           await startSession({
             appointmentId,
             clientId,
             serviceId,
-            category: getSessionCategory(initialTab),
+            category: getSessionCategory(resolvedInitialTab),
           });
-        }
-        const res = await getSessionModalData(clientId);
-        if (res.success) {
-          if (res.clientInfo) setClientDetails(res.clientInfo);
-          if (res.products) {
-            const catalogProducts = res.products.map((product: SessionProduct) => ({
-              ...product,
-              defaultTime: product.defaultTime ?? 5,
-            }));
-            setProducts(catalogProducts);
-            setBrowliftProducts((currentSelection) => buildTreatmentProducts(catalogProducts, "BROWLIFT", currentSelection.length > 0 ? currentSelection : null, true));
-            setRehaussementProducts((currentSelection) => buildTreatmentProducts(catalogProducts, "LASH_LIFT", currentSelection.length > 0 ? currentSelection : null));
-          }
         }
         
         if (appointmentId) {
@@ -530,6 +670,7 @@ export default function SessionModal({
           const sessionRes = await getLashSessionByAppointmentId(appointmentId);
           if (sessionRes.success && sessionRes.lashSession) {
             setActiveTab("Cils");
+            setSavedSessionTabs((current) => Array.from(new Set([...current, "Cils"])));
             const ls = sessionRes.lashSession;
             setTechnique(ls.prestationType || "Cil à cil");
             setCourbure(ls.generalCurl || "D");
@@ -604,8 +745,11 @@ export default function SessionModal({
             }
             if (sessionRes.photos) setPhotos(sessionRes.photos);
             if (sessionRes.productUsages && res.products) {
-              const usedIds = new Set(sessionRes.productUsages.map((usage: any) => usage.productId));
-              setProducts(res.products.map((product: SessionProduct) => ({ ...product, checked: usedIds.has(product.id) })));
+              setProducts(applySessionProductUsages(
+                res.products.map(normalizeCatalogProduct),
+                sessionRes.productUsages,
+                (product) => !isNailCatalogProduct(product)
+              ));
             }
           }
 
@@ -613,6 +757,7 @@ export default function SessionModal({
           const browliftRes = await getBrowliftSessionByAppointmentId(appointmentId);
           if (browliftRes.success && browliftRes.browliftSession) {
             setActiveTab("Browlift");
+            setSavedSessionTabs((current) => Array.from(new Set([...current, "Browlift"])));
             const bs = browliftRes.browliftSession;
             setHasTeinture(bs.tintEnabled);
             setTintColorBrowlift(bs.tintColor || "Brun foncé");
@@ -628,6 +773,7 @@ export default function SessionModal({
           const lashLiftRes = await getLashLiftSessionByAppointmentId(appointmentId);
           if (lashLiftRes.success && lashLiftRes.lashLiftSession) {
             setActiveTab("Rehaussement de cils");
+            setSavedSessionTabs((current) => Array.from(new Set([...current, "Rehaussement de cils"])));
             const lls = lashLiftRes.lashLiftSession;
             setHasRehaussementTeinture(lls.tintEnabled);
             setTintColorRehaussement(lls.tintColor || "Brun foncé");
@@ -646,6 +792,7 @@ export default function SessionModal({
           const nailRes = await getNailSessionByAppointmentId(appointmentId);
           if (nailRes.success && nailRes.nailSession) {
             setActiveTab("Ongles");
+            setSavedSessionTabs((current) => Array.from(new Set([...current, "Ongles"])));
             const ns = nailRes.nailSession;
             setPrestationOngles(ns.prestationType || "");
             setTypePoseOngles(ns.poseType || "Pose complète");
@@ -663,6 +810,13 @@ export default function SessionModal({
               if (gp.capsulesDroite) setCapsulesDroite(gp.capsulesDroite);
             }
             if (nailRes.photos) setPhotos(nailRes.photos);
+            if (nailRes.productUsages && res.products) {
+              setProducts(applySessionProductUsages(
+                res.products.map(normalizeCatalogProduct),
+                nailRes.productUsages,
+                isNailCatalogProduct
+              ));
+            }
           }
         }
         
@@ -736,14 +890,21 @@ export default function SessionModal({
   };
 
   const getDisplayStock = (label: string, fallback: string) => findStockProduct(label)?.stock || fallback;
+  const getSelectedConsumeStock = (product: SessionProduct) => product.trackingType === "UNIDOSE" ? true : Boolean(product.consumeStock);
 
   const getSelectedProductUsages = () => {
     const selectedProducts = products
-      .filter((product) => product.checked)
+      .filter((product) => {
+        if (!product.checked) return false;
+        if (activeTab === "Ongles") return isNailCatalogProduct(product);
+        if (activeTab === "Cils") return !isNailCatalogProduct(product);
+        return false;
+      })
       .map((product) => ({
         productId: product.id,
         quantityUsed: 1,
         usageRole: activeTab,
+        consumeStock: getSelectedConsumeStock(product),
       }));
 
     const selectedTreatmentProducts = activeTab === "Browlift"
@@ -759,6 +920,7 @@ export default function SessionModal({
       productId: product.id,
       quantityUsed: 1,
       usageRole: activeTab,
+      consumeStock: getSelectedConsumeStock(product),
     }));
 
     return [...selectedProducts, ...matchedTreatmentProducts]
@@ -788,27 +950,60 @@ export default function SessionModal({
     });
   };
 
+  const removePhoto = (label: string) => {
+    setPhotos((current) => {
+      const photoToRemove = current.find((photo) => photo.label === label);
+      if (photoToRemove?.previewUrl) {
+        URL.revokeObjectURL(photoToRemove.previewUrl);
+      }
+      return current.filter((photo) => photo.label !== label);
+    });
+  };
+
   const getPhoto = (label: string) => photos.find((photo) => photo.label === label);
 
   const renderPhotoSlot = (label: string) => {
     const photo = getPhoto(label);
+    const inputId = `session-photo-${activeTab}-${label.toLowerCase().replace(/\s+/g, "-")}`;
 
     return (
-      <label className={styles.photoBox} style={{ cursor: isReadOnly ? 'default' : 'pointer', overflow: 'hidden' }}>
-        {photo ? (
-          <img src={photo.url} alt={label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        ) : (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-        )}
+      <div className={styles.photoBoxWrapper}>
+        <label
+          htmlFor={isReadOnly ? undefined : inputId}
+          className={styles.photoBox}
+          style={{ cursor: isReadOnly ? 'default' : 'pointer', overflow: 'hidden' }}
+        >
+          {photo ? (
+            <img src={photo.url} alt={label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+          )}
+        </label>
         {!isReadOnly && (
           <input
+            id={inputId}
             type="file"
             accept="image/*"
             style={{ display: 'none' }}
             onChange={(event) => handlePhotoChange(label, event.target.files?.[0] || null)}
           />
         )}
-      </label>
+        {!isReadOnly && photo && (
+          <button
+            type="button"
+            className={styles.photoRemoveBtn}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              removePhoto(label);
+            }}
+            aria-label={`Supprimer la photo ${label}`}
+            title="Supprimer la photo"
+          >
+            ×
+          </button>
+        )}
+      </div>
     );
   };
 
@@ -965,10 +1160,30 @@ export default function SessionModal({
     }
   };
 
+  useEffect(() => {
+    if (courbure && !courbures.includes(courbure)) {
+      setCustomCourbureInput(courbure);
+    }
+  }, [courbure, courbures]);
+
+  useEffect(() => {
+    if (epaisseur && !epaisseurs.includes(epaisseur)) {
+      setCustomEpaisseurInput(epaisseur);
+    }
+  }, [epaisseur, epaisseurs]);
+
   if (!isOpen) return null;
 
   const setProductChecked = (id: string | number, checked: boolean) => {
-    setProducts((current) => current.map((product) => (product.id === id ? { ...product, checked } : product)));
+    setProducts((current) => current.map((product) => (
+      product.id === id
+        ? {
+            ...product,
+            checked,
+            consumeStock: checked ? (product.trackingType === "UNIDOSE" ? true : Boolean(product.consumeStock)) : false,
+          }
+        : product
+    )));
   };
 
   const setTreatmentProductChecked = (
@@ -976,7 +1191,69 @@ export default function SessionModal({
     id: string | number,
     checked: boolean
   ) => {
-    setter((current) => current.map((product) => (product.id === id ? { ...product, checked } : product)));
+    setter((current) => current.map((product) => (
+      product.id === id
+        ? {
+            ...product,
+            checked,
+            consumeStock: checked ? (product.trackingType === "UNIDOSE" ? true : Boolean(product.consumeStock)) : false,
+          }
+        : product
+    )));
+  };
+
+  const setProductConsumeStock = (id: string | number, consumeStock: boolean) => {
+    setProducts((current) => current.map((product) => (
+      product.id === id ? { ...product, consumeStock } : product
+    )));
+  };
+
+  const setTreatmentProductConsumeStock = (
+    setter: React.Dispatch<React.SetStateAction<SessionProduct[]>>,
+    id: string | number,
+    consumeStock: boolean
+  ) => {
+    setter((current) => current.map((product) => (
+      product.id === id ? { ...product, consumeStock } : product
+    )));
+  };
+
+  const renderSelectedProductItem = (
+    product: SessionProduct,
+    onRemove: () => void,
+    onToggleConsumeStock: ((consumeStock: boolean) => void) | null = null
+  ) => {
+    const showManualStockControl = product.trackingType !== "UNIDOSE";
+    const consumeStock = getSelectedConsumeStock(product);
+
+    return (
+      <div key={product.id} className={styles.selectedProductItem}>
+        <div className={styles.selectedProductMeta}>
+          <span className={styles.selectedProductName}>{product.name}</span>
+          <span className={styles.selectedProductStock}>{getDisplayStock(product.name, product.stock)}</span>
+          <span className={styles.selectedProductTracking}>
+            {product.trackingType === "UNIDOSE" ? "Unidose" : "Multidose"}
+          </span>
+          {showManualStockControl && onToggleConsumeStock && (
+            <label className={styles.selectedProductConsumeRow}>
+              <input
+                type="checkbox"
+                checked={consumeStock}
+                onChange={(event) => onToggleConsumeStock(event.target.checked)}
+              />
+              <span>Flacon terminé, déduire 1 du stock</span>
+            </label>
+          )}
+        </div>
+        <button
+          type="button"
+          className={styles.selectedProductRemove}
+          onClick={onRemove}
+        >
+          Retirer
+        </button>
+      </div>
+    );
   };
 
   const toggleLongueur = (l: string) => {
@@ -1036,6 +1313,14 @@ export default function SessionModal({
     if (!manualEyeOverrides.G.thickness) setEpaisseurOeilG(value);
     if (!manualEyeOverrides.D.thickness) setEpaisseurOeilD(value);
   };
+
+  const getOptionsWithCurrentValue = (options: string[], currentValue: string) => {
+    if (!currentValue || options.includes(currentValue)) return options;
+    return [...options, currentValue];
+  };
+
+  const customCourbureIsActive = Boolean(customCourbureInput) && courbure === customCourbureInput;
+  const customEpaisseurIsActive = Boolean(customEpaisseurInput) && epaisseur === customEpaisseurInput;
 
   const handleEyeCourbureChange = (oeil: 'G' | 'D', value: string) => {
     setManualEyeOverrides((current) => ({
@@ -1109,7 +1394,9 @@ export default function SessionModal({
     }));
   };
 
-  const selectedCatalogProducts = products.filter((product) => product.checked);
+  const selectedCatalogProducts = products.filter((product) => product.checked && !isNailCatalogProduct(product));
+  const nailCatalogProducts = products.filter(isNailCatalogProduct);
+  const selectedNailProducts = nailCatalogProducts.filter((product) => product.checked);
   const selectedBrowliftProducts = browliftProducts.filter((product) => product.checked);
   const selectedRehaussementProducts = rehaussementProducts.filter((product) => product.checked);
 
@@ -1117,6 +1404,7 @@ export default function SessionModal({
     const query = normalizeSearchValue(productSearch);
 
     return products.filter((product) => {
+      if (isNailCatalogProduct(product)) return false;
       if (!matchesProductQuickFilter(product, productQuickFilter)) return false;
       if (!query) return true;
 
@@ -1150,6 +1438,18 @@ export default function SessionModal({
     });
   })();
 
+  const filteredNailProducts = (() => {
+    const query = normalizeSearchValue(productSearch);
+    const effectiveFilter = productQuickFilter === "all" || productQuickFilter === "ongles" ? productQuickFilter : "all";
+
+    return nailCatalogProducts.filter((product) => {
+      if (!matchesProductQuickFilter(product, effectiveFilter)) return false;
+      if (!query) return true;
+      const haystack = normalizeSearchValue([product.name, product.stock, product.categoryLabel || "", product.categorySlug || ""].join(" "));
+      return haystack.includes(query);
+    });
+  })();
+
   const openProductDropdown = () => setIsProductDropdownOpen(true);
   const closeProductDropdown = () => {
     window.setTimeout(() => {
@@ -1168,6 +1468,19 @@ export default function SessionModal({
     setProductSearch("");
     setIsProductDropdownOpen(true);
   };
+
+  const openStockCatalog = () => {
+    router.push('/dashboard/stock');
+  };
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab as SessionTab);
+    setProductSearch("");
+    setProductQuickFilter(tab === "Ongles" ? "ongles" : "all");
+    setIsProductDropdownOpen(false);
+  };
+
+  const visibleSessionTabs = SESSION_TABS;
 
   const browliftAdvice = (() => {
     const allergiesText = String(clientDetails?.allergies || "").toLowerCase();
@@ -1281,11 +1594,11 @@ export default function SessionModal({
         <div id="session-export-container" className={styles.exportContainer}>
           {/* Tabs */}
         <div className={styles.tabs}>
-          {["Cils", "Browlift", "Rehaussement de cils", "Ongles"].map(tab => (
+          {visibleSessionTabs.map(tab => (
             <button 
               key={tab}
               className={`${styles.tab} ${activeTab === tab ? styles.tabActive : styles.tabInactive}`}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => handleTabChange(tab)}
             >
               {tab}
             </button>
@@ -1431,21 +1744,15 @@ export default function SessionModal({
                     </div>
                     {selectedCatalogProducts.length > 0 ? (
                       <div className={styles.selectedProductList}>
-                        {selectedCatalogProducts.map((product) => (
-                          <div key={product.id} className={styles.selectedProductItem}>
-                            <div className={styles.selectedProductMeta}>
-                              <span className={styles.selectedProductName}>{product.name}</span>
-                              <span className={styles.selectedProductStock}>{product.stock}</span>
-                            </div>
-                            <button
-                              type="button"
-                              className={styles.selectedProductRemove}
-                              onClick={() => setProductChecked(product.id, false)}
-                            >
-                              Retirer
-                            </button>
-                          </div>
-                        ))}
+                        {selectedCatalogProducts.map((product) =>
+                          renderSelectedProductItem(
+                            product,
+                            () => setProductChecked(product.id, false),
+                            product.trackingType !== "UNIDOSE"
+                              ? (consumeStock) => setProductConsumeStock(product.id, consumeStock)
+                              : null
+                          )
+                        )}
                       </div>
                     ) : (
                       <div className={styles.selectedProductEmpty}>
@@ -1481,6 +1788,7 @@ export default function SessionModal({
                                     {filterLabel}
                                     {filterLabel && product.stock ? " • " : ""}
                                     {product.stock}
+                                    {product.trackingType ? ` • ${product.trackingType === "UNIDOSE" ? "Unidose" : "Multidose"}` : ""}
                                   </span>
                                 </div>
                                 <span className={styles.productDropdownAction}>
@@ -1491,7 +1799,15 @@ export default function SessionModal({
                           })
                         ) : (
                           <div className={styles.productDropdownEmpty}>
-                            Aucun produit ne correspond à cette recherche.
+                            <span>Aucun produit ne correspond à cette recherche.</span>
+                            <button
+                              type="button"
+                              className={styles.productDropdownEmptyCta}
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={openStockCatalog}
+                            >
+                              Gérer le stock produits
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1505,7 +1821,16 @@ export default function SessionModal({
                   )}
                 </div>
               ) : (
-                <div style={{ padding: '10px 0', color: '#888' }}>Aucun produit en stock.</div>
+                <div className={styles.productDropdownEmpty}>
+                  <span>Aucun produit en stock.</span>
+                  <button
+                    type="button"
+                    className={styles.productDropdownEmptyCta}
+                    onClick={openStockCatalog}
+                  >
+                    Ajouter un produit
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -1533,11 +1858,26 @@ export default function SessionModal({
                     <button
                       key={c}
                       className={`${styles.paramBtn} ${courbure === c ? styles.active : ''}`}
-                      onClick={() => handleGeneralCourbureChange(c)}
+                      onClick={() => {
+                        setCustomCourbureInput("");
+                        handleGeneralCourbureChange(c);
+                      }}
                     >
                       {c}
                     </button>
                   ))}
+                  <input
+                    className={`${styles.paramOtherInput} ${customCourbureIsActive ? styles.active : ''}`}
+                    type="text"
+                    value={customCourbureInput}
+                    onChange={(event) => {
+                      const value = event.target.value.toUpperCase();
+                      setCustomCourbureInput(value);
+                      if (value.trim()) handleGeneralCourbureChange(value.trim());
+                    }}
+                    placeholder="Autre"
+                    aria-label="Autre courbure"
+                  />
                 </div>
               </div>
 
@@ -1548,11 +1888,27 @@ export default function SessionModal({
                     <button
                       key={e}
                       className={`${styles.paramBtn} ${epaisseur === e ? styles.active : ''}`}
-                      onClick={() => handleGeneralEpaisseurChange(e)}
+                      onClick={() => {
+                        setCustomEpaisseurInput("");
+                        handleGeneralEpaisseurChange(e);
+                      }}
                     >
                       {e}
                     </button>
                   ))}
+                  <input
+                    className={`${styles.paramOtherInput} ${customEpaisseurIsActive ? styles.active : ''}`}
+                    type="text"
+                    inputMode="decimal"
+                    value={customEpaisseurInput}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setCustomEpaisseurInput(value);
+                      if (value.trim()) handleGeneralEpaisseurChange(value.trim());
+                    }}
+                    placeholder="Autre"
+                    aria-label="Autre epaisseur"
+                  />
                 </div>
               </div>
 
@@ -1562,13 +1918,13 @@ export default function SessionModal({
                     <div className={styles.selectGroup}>
                       <label>Courbure</label>
                       <select className={styles.selectInput} value={courbureOeilG} onChange={(event) => handleEyeCourbureChange('G', event.target.value)}>
-                        {courbures.map(c => <option key={c} value={c}>{c}</option>)}
+                        {getOptionsWithCurrentValue(courbures, courbureOeilG).map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                     <div className={styles.selectGroup}>
                       <label>Epaisseur</label>
                       <select className={styles.selectInput} value={epaisseurOeilG} onChange={(event) => handleEyeEpaisseurChange('G', event.target.value)}>
-                        {epaisseurs.map(e => <option key={e} value={e}>{e}</option>)}
+                        {getOptionsWithCurrentValue(epaisseurs, epaisseurOeilG).map(e => <option key={e} value={e}>{e}</option>)}
                       </select>
                     </div>
                   </div>
@@ -1585,13 +1941,13 @@ export default function SessionModal({
                     <div className={styles.selectGroup}>
                       <label>Courbure</label>
                       <select className={styles.selectInput} value={courbureOeilD} onChange={(event) => handleEyeCourbureChange('D', event.target.value)}>
-                        {courbures.map(c => <option key={c} value={c}>{c}</option>)}
+                        {getOptionsWithCurrentValue(courbures, courbureOeilD).map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                     <div className={styles.selectGroup}>
                       <label>Epaisseur</label>
                       <select className={styles.selectInput} value={epaisseurOeilD} onChange={(event) => handleEyeEpaisseurChange('D', event.target.value)}>
-                        {epaisseurs.map(e => <option key={e} value={e}>{e}</option>)}
+                        {getOptionsWithCurrentValue(epaisseurs, epaisseurOeilD).map(e => <option key={e} value={e}>{e}</option>)}
                       </select>
                     </div>
                   </div>
@@ -1731,21 +2087,15 @@ export default function SessionModal({
                       </div>
                       {selectedBrowliftProducts.length > 0 ? (
                         <div className={styles.selectedProductList}>
-                          {selectedBrowliftProducts.map((product) => (
-                            <div key={product.id} className={styles.selectedProductItem}>
-                              <div className={styles.selectedProductMeta}>
-                                <span className={styles.selectedProductName}>{product.name}</span>
-                                <span className={styles.selectedProductStock}>{getDisplayStock(product.name, product.stock)}</span>
-                              </div>
-                              <button
-                                type="button"
-                                className={styles.selectedProductRemove}
-                                onClick={() => setTreatmentProductChecked(setBrowliftProducts, product.id, false)}
-                              >
-                                Retirer
-                              </button>
-                            </div>
-                          ))}
+                          {selectedBrowliftProducts.map((product) =>
+                            renderSelectedProductItem(
+                              product,
+                              () => setTreatmentProductChecked(setBrowliftProducts, product.id, false),
+                              product.trackingType !== "UNIDOSE"
+                                ? (consumeStock) => setTreatmentProductConsumeStock(setBrowliftProducts, product.id, consumeStock)
+                                : null
+                            )
+                          )}
                         </div>
                       ) : (
                         <div className={styles.selectedProductEmpty}>
@@ -1781,6 +2131,7 @@ export default function SessionModal({
                                       {filterLabel}
                                       {filterLabel && product.stock ? " • " : ""}
                                       {product.stock}
+                                      {product.trackingType ? ` • ${product.trackingType === "UNIDOSE" ? "Unidose" : "Multidose"}` : ""}
                                     </span>
                                   </div>
                                   <span className={styles.productDropdownAction}>
@@ -1791,7 +2142,15 @@ export default function SessionModal({
                             })
                           ) : (
                             <div className={styles.productDropdownEmpty}>
-                              Aucun produit ne correspond à cette recherche.
+                              <span>Aucun produit ne correspond à cette recherche.</span>
+                              <button
+                                type="button"
+                                className={styles.productDropdownEmptyCta}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={openStockCatalog}
+                              >
+                                Gérer le stock produits
+                              </button>
                             </div>
                           )}
                         </div>
@@ -1966,21 +2325,15 @@ export default function SessionModal({
                       </div>
                       {selectedRehaussementProducts.length > 0 ? (
                         <div className={styles.selectedProductList}>
-                          {selectedRehaussementProducts.map((product) => (
-                            <div key={product.id} className={styles.selectedProductItem}>
-                              <div className={styles.selectedProductMeta}>
-                                <span className={styles.selectedProductName}>{product.name}</span>
-                                <span className={styles.selectedProductStock}>{getDisplayStock(product.name, product.stock)}</span>
-                              </div>
-                              <button
-                                type="button"
-                                className={styles.selectedProductRemove}
-                                onClick={() => setTreatmentProductChecked(setRehaussementProducts, product.id, false)}
-                              >
-                                Retirer
-                              </button>
-                            </div>
-                          ))}
+                          {selectedRehaussementProducts.map((product) =>
+                            renderSelectedProductItem(
+                              product,
+                              () => setTreatmentProductChecked(setRehaussementProducts, product.id, false),
+                              product.trackingType !== "UNIDOSE"
+                                ? (consumeStock) => setTreatmentProductConsumeStock(setRehaussementProducts, product.id, consumeStock)
+                                : null
+                            )
+                          )}
                         </div>
                       ) : (
                         <div className={styles.selectedProductEmpty}>
@@ -2016,6 +2369,7 @@ export default function SessionModal({
                                       {filterLabel}
                                       {filterLabel && product.stock ? " • " : ""}
                                       {product.stock}
+                                      {product.trackingType ? ` • ${product.trackingType === "UNIDOSE" ? "Unidose" : "Multidose"}` : ""}
                                     </span>
                                   </div>
                                   <span className={styles.productDropdownAction}>
@@ -2026,7 +2380,15 @@ export default function SessionModal({
                             })
                           ) : (
                             <div className={styles.productDropdownEmpty}>
-                              Aucun produit ne correspond à cette recherche.
+                              <span>Aucun produit ne correspond à cette recherche.</span>
+                              <button
+                                type="button"
+                                className={styles.productDropdownEmptyCta}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={openStockCatalog}
+                              >
+                                Gérer le stock produits
+                              </button>
                             </div>
                           )}
                         </div>
@@ -2214,8 +2576,6 @@ export default function SessionModal({
                         onClick={() => setTypePoseOngles(type)}
                       >
                         <span style={{fontSize: '0.75rem', fontWeight: 600, marginBottom: '5px'}}>{type}</span>
-                        {/* Placeholder icon for nail type */}
-                        <div style={{width: '24px', height: '35px', background: typePoseOngles === type ? '#8B4B54' : '#E5E5E5', borderRadius: '10px 10px 4px 4px', opacity: 0.8}}></div>
                       </div>
                     ))}
                   </div>
@@ -2239,20 +2599,80 @@ export default function SessionModal({
 
                 <div className={styles.paramGroup} style={{marginTop: '20px'}}>
                   <label className={styles.paramLabel}>FORME</label>
-                  <div style={{display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px', marginTop: '10px'}}>
-                    {["Coffin", "Carré", "Amande", "Stiletto", "Rond", "Ovale", "Autre"].map(f => (
-                      <div 
-                        key={f}
-                        className={styles.formeOngleItem}
-                        onClick={() => setFormeOngles(f)}
-                      >
-                        <div className={`${styles.formeOngleIcon} ${formeOngles === f ? styles.active : ''}`}>
-                          {/* Placeholder icon for nail shape */}
-                          <div style={{width: '18px', height: '30px', background: formeOngles === f ? '#8B4B54' : '#ccc', borderRadius: f === 'Stiletto' ? '50% 50% 0 0' : '8px 8px 0 0'}}></div>
-                        </div>
-                        <span style={{fontSize: '0.7rem', color: formeOngles === f ? '#8B4B54' : '#888', fontWeight: formeOngles === f ? 600 : 400}}>{f}</span>
-                      </div>
-                    ))}
+                  <div className={styles.formeOngleScroller}>
+                    <div className={styles.formeOngleGrid}>
+                      {nailShapeOptions.map((shape) => {
+                        const isCustomOption = shape.value === "Autre";
+                        const isSelected = isCustomOption
+                          ? isCustomNailShape(formeOngles) || formeOngles === "Autre"
+                          : formeOngles === shape.value;
+
+                        if (isCustomOption) {
+                          return (
+                            <div
+                              key={shape.value}
+                              className={`${styles.formeOngleItem} ${styles.formeOngleInputCard} ${isSelected ? styles.formeOngleItemSelected : ''}`}
+                              onClick={() => {
+                                customNailShapeInputRef.current?.focus();
+                                if (!isCustomNailShape(formeOngles)) {
+                                  setFormeOngles("");
+                                }
+                              }}
+                            >
+                              <div className={styles.formeOngleIcon}>
+                                <Image
+                                  src={shape.icon}
+                                  alt={shape.label}
+                                  width={44}
+                                  height={44}
+                                  className={styles.formeOngleSvg}
+                                />
+                              </div>
+                              <span className={`${styles.formeOngleLabel} ${isSelected ? styles.formeOngleLabelSelected : ''}`}>
+                                {shape.label}
+                              </span>
+                              <input
+                                ref={customNailShapeInputRef}
+                                type="text"
+                                value={isCustomNailShape(formeOngles) ? formeOngles : ""}
+                                onClick={(event) => event.stopPropagation()}
+                                onFocus={() => {
+                                  if (!isCustomNailShape(formeOngles)) {
+                                    setFormeOngles("");
+                                  }
+                                }}
+                                onChange={(event) => setFormeOngles(event.target.value)}
+                                placeholder="Nom de la forme"
+                                className={styles.formeOngleInput}
+                              />
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <button
+                            key={shape.value}
+                            type="button"
+                            className={`${styles.formeOngleItem} ${isSelected ? styles.formeOngleItemSelected : ''}`}
+                            onClick={() => setFormeOngles(shape.value)}
+                            aria-pressed={isSelected}
+                          >
+                            <div className={styles.formeOngleIcon}>
+                              <Image
+                                src={shape.icon}
+                                alt={shape.label}
+                                width={44}
+                                height={44}
+                                className={styles.formeOngleSvg}
+                              />
+                            </div>
+                            <span className={`${styles.formeOngleLabel} ${isSelected ? styles.formeOngleLabelSelected : ''}`}>
+                              {shape.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
@@ -2318,32 +2738,148 @@ export default function SessionModal({
                 <h3 className={styles.cardTitle}>PRODUITS UTILISÉS</h3>
                 <p className={styles.cardSubtitle}>Le stock se mettra à jour automatiquement.</p>
 
-                <div style={{display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '20px'}}>
-                  <div className={styles.inputGroup}>
-                    <label className={styles.paramLabel}>BASE</label>
-                    <select className={styles.selectInput} value={baseUsed} onChange={e => setBaseUsed(e.target.value)}><option value=""></option><option value="Base Clear">Base Clear</option></select>
+                {isLoadingData ? (
+                  <div style={{ padding: '10px 0', color: '#888' }}>Chargement des produits...</div>
+                ) : nailCatalogProducts.length > 0 ? (
+                  <div
+                    ref={productPickerRef}
+                    className={styles.productPicker}
+                    onFocusCapture={openProductDropdown}
+                    onBlurCapture={closeProductDropdown}
+                  >
+                    <div className={styles.productSearchBar}>
+                      <input
+                        type="search"
+                        value={productSearch}
+                        onChange={(event) => handleProductSearchChange(event.target.value)}
+                        onFocus={openProductDropdown}
+                        placeholder="Rechercher un produit ongles..."
+                        className={styles.productSearchInput}
+                      />
+                      {productSearch && (
+                        <button
+                          type="button"
+                          className={styles.productSearchClear}
+                          onClick={clearProductSearch}
+                          aria-label="Effacer la recherche"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+
+                    <div className={styles.productQuickFilters}>
+                      {NAIL_PRODUCT_QUICK_FILTERS.map((filter) => (
+                        <button
+                          key={filter.id}
+                          type="button"
+                          className={`${styles.productQuickFilterBtn} ${productQuickFilter === filter.id ? styles.productQuickFilterActive : ""}`}
+                          onClick={() => setProductQuickFilter(filter.id)}
+                        >
+                          {filter.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className={styles.selectedProductPanel}>
+                      <div className={styles.selectedProductHeader}>
+                        <span>Produits utilisés</span>
+                        <span>{selectedNailProducts.length}</span>
+                      </div>
+                      {selectedNailProducts.length > 0 ? (
+                        <div className={styles.selectedProductList}>
+                          {selectedNailProducts.map((product) =>
+                            renderSelectedProductItem(
+                              product,
+                              () => setProductChecked(product.id, false),
+                              product.trackingType !== "UNIDOSE"
+                                ? (consumeStock) => setProductConsumeStock(product.id, consumeStock)
+                                : null
+                            )
+                          )}
+                        </div>
+                      ) : (
+                        <div className={styles.selectedProductEmpty}>
+                          Aucun produit sélectionné pour cette séance.
+                        </div>
+                      )}
+                    </div>
+
+                    {isProductDropdownOpen && (
+                      <div className={styles.productDropdown}>
+                        <div className={styles.productDropdownHeader}>
+                          <span>{filteredNailProducts.length} résultat{filteredNailProducts.length > 1 ? "s" : ""}</span>
+                          <span>Tapez pour affiner la recherche</span>
+                        </div>
+
+                        <div className={styles.productDropdownList}>
+                          {filteredNailProducts.length > 0 ? (
+                            filteredNailProducts.slice(0, 60).map((product) => {
+                              const isSelected = product.checked;
+                              const filterLabel = PRODUCT_QUICK_FILTERS.find((item) => item.id === getProductQuickFilter(product))?.label || "";
+
+                              return (
+                                <button
+                                  key={product.id}
+                                  type="button"
+                                  className={`${styles.productDropdownItem} ${isSelected ? styles.productDropdownItemSelected : ""}`}
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onClick={() => setProductChecked(product.id, !isSelected)}
+                                >
+                                  <div className={styles.productDropdownText}>
+                                    <span className={styles.productDropdownName}>{product.name}</span>
+                                    <span className={styles.productDropdownMeta}>
+                                      {filterLabel}
+                                      {filterLabel && product.stock ? " • " : ""}
+                                      {product.stock}
+                                      {product.trackingType ? ` • ${product.trackingType === "UNIDOSE" ? "Unidose" : "Multidose"}` : ""}
+                                    </span>
+                                  </div>
+                                  <span className={styles.productDropdownAction}>
+                                    {isSelected ? "Retirer" : "Ajouter"}
+                                  </span>
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <div className={styles.productDropdownEmpty}>
+                              <span>Aucun produit ongles ne correspond à cette recherche.</span>
+                              <button
+                                type="button"
+                                className={styles.productDropdownEmptyCta}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={openStockCatalog}
+                              >
+                                Gérer le stock produits
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {filteredNailProducts.length > 60 && (
+                          <div className={styles.productDropdownFooter}>
+                            Affichage limité aux 60 premiers résultats. Affinez la recherche pour aller plus vite.
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div className={styles.inputGroup}>
-                    <label className={styles.paramLabel}>GEL</label>
-                    <select className={styles.selectInput} value={gelUsed} onChange={e => setGelUsed(e.target.value)}><option value=""></option><option value="Gel Construction">Gel Construction</option></select>
+                ) : (
+                  <div className={styles.productDropdownEmpty}>
+                    <span>Aucun produit ongles en stock.</span>
+                    <button
+                      type="button"
+                      className={styles.productDropdownEmptyCta}
+                      onClick={openStockCatalog}
+                    >
+                      Ajouter un produit
+                    </button>
                   </div>
-                  <div className={styles.inputGroup}>
-                    <label className={styles.paramLabel}>COULEUR</label>
-                    <select className={styles.selectInput} value={colorUsed} onChange={e => setColorUsed(e.target.value)}><option value=""></option><option value="Rouge">Rouge</option></select>
-                  </div>
-                  <div className={styles.inputGroup}>
-                    <label className={styles.paramLabel}>PRIMER</label>
-                    <select className={styles.selectInput} value={primerUsed} onChange={e => setPrimerUsed(e.target.value)}><option value=""></option><option value="Primer Acid Free">Primer Acid Free</option></select>
-                  </div>
-                  <div className={styles.inputGroup}>
-                    <label className={styles.paramLabel}>AUTRES PRODUITS</label>
-                    <select className={styles.selectInput} defaultValue=""><option value=""></option></select>
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* Right Column: Remarques, Photos, Infos */}
-              <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
+              <div className={styles.onglesSidebar}>
                 <div className={styles.card} style={{flex: 1}}>
                   <h3 className={styles.cardTitle}>REMARQUES</h3>
                   <textarea className={styles.textarea} value={remarks} onChange={e => setRemarks(e.target.value)} style={{height: 'calc(100% - 30px)'}}></textarea>

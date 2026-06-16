@@ -6,6 +6,7 @@ import styles from "./GlobalHeader.module.css";
 import NotificationBell from "./NotificationBell";
 import prisma from "../../lib/prisma";
 import { getTenantId } from "../../lib/tenant";
+import { REMINDER_ELIGIBLE_APPOINTMENT_STATUSES } from "../../lib/appointmentStatus";
 
 async function processHeaderReminders(tenantId: string) {
   const now = new Date();
@@ -16,7 +17,7 @@ async function processHeaderReminders(tenantId: string) {
       scheduledFor: { lte: now },
       Appointment: {
         scheduledAt: { gte: now },
-        status: { in: ["SCHEDULED", "CONFIRMED"] },
+        status: { in: [...REMINDER_ELIGIBLE_APPOINTMENT_STATUSES] },
       },
     },
     include: {

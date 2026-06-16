@@ -12,13 +12,13 @@ export default async function ComptaPage() {
     getStatsData(currentMonth)
   ]);
 
-  const initialData = response.success ? response.data : {
+  const initialData = response.success && response.data ? response.data : {
     transactions: [],
     prevTransactions: [],
     recurringExpenses: []
   };
 
-  const initialStatsData = statsResponse.success ? statsResponse.data : null;
+  const initialStatsData = statsResponse.success && statsResponse.data ? statsResponse.data : null;
 
   return <ComptaClient initialData={initialData} initialStatsData={initialStatsData} currentMonth={currentMonth} />;
 }

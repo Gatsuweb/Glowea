@@ -3,7 +3,7 @@
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "../../lib/tenant";
-import { getAppointmentFinancialSummary, normalizeAppointmentPaymentMethod } from "../../lib/appointmentFinance";
+import { normalizeAppointmentPaymentMethod } from "../../lib/appointmentFinance";
 import { recordAppointmentPayment } from "../../lib/appointmentPayments";
 
 
@@ -33,7 +33,6 @@ export async function processPayment(data: {
     }
 
     const normalizedMethod = normalizeAppointmentPaymentMethod(paymentMethod) || "other";
-    const currentFinance = getAppointmentFinancialSummary(appointment);
 
     const paymentResult = await recordAppointmentPayment({
       tenantId: TENANT_ID,
@@ -49,17 +48,6 @@ export async function processPayment(data: {
 
     if (!paymentResult.success) {
       return { success: false, error: paymentResult.error };
-    }
-
-    if (paymentResult.remainingAmountCents <= 0 || currentFinance.remainingAmountCents <= amount) {
-      await prisma.appointment.update({
-        where: { id: appointmentId },
-        data: {
-          status: "COMPLETED",
-          completedAt: new Date(),
-          updatedAt: new Date(),
-        }
-      });
     }
 
     revalidatePath("/dashboard");

@@ -3,6 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { getDepositAmountCents, assertPublicSlotAvailable } from "../../lib/bookingAvailability";
+import {
+  buildAppointmentServiceSelection,
+  normalizeAppointmentServiceIds,
+  replaceAppointmentServices,
+} from "../../lib/appointmentServices";
 import prisma from "../../lib/prisma";
 import { stripe } from "../../lib/stripe";
 import { getStoragePathFromPublicUrl, getSupabaseAdminClient, publicStorageBucket } from "../../lib/supabaseAdmin";
@@ -86,7 +91,8 @@ export type AvailabilityExceptionInput = {
 
 export type PublicBookingInput = {
   slug: string;
-  serviceId: string;
+  serviceId?: string;
+  serviceIds?: string[];
   date: string;
   time: string;
   firstName: string;
@@ -142,13 +148,6 @@ function toInt(value: unknown, fallback: number, min: number, max: number) {
 function isValidTime(value: unknown) {
   if (typeof value !== "string") return false;
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
-}
-
-function toCents(value: { toString: () => string } | number | null | undefined) {
-  if (value === null || value === undefined) return 0;
-  const amount = typeof value === "number" ? value : Number(value.toString());
-  if (!Number.isFinite(amount) || amount < 0) return 0;
-  return Math.round(amount * 100);
 }
 
 function getApplicationFeeAmount(amount: number) {
@@ -834,32 +833,50 @@ export async function createPublicBooking(input: PublicBookingInput) {
     return { success: false as const, error: "Cette page de reservation n'est pas disponible." };
   }
 
-  const service = await prisma.service.findFirst({
+  const serviceIds = normalizeAppointmentServiceIds({
+    serviceId: input.serviceId,
+    serviceIds: input.serviceIds,
+  });
+
+  if (serviceIds.length === 0) {
+    return { success: false as const, error: "Cette prestation n'est plus disponible." };
+  }
+
+  const publicServicesCount = await prisma.service.count({
     where: {
-      id: input.serviceId,
+      id: { in: serviceIds },
       tenantId: profile.tenantId,
       isActive: true,
       isPublic: true,
     },
-    select: { id: true, durationMin: true, name: true, price: true },
   });
 
-  if (!service) {
+  if (publicServicesCount !== serviceIds.length) {
     return { success: false as const, error: "Cette prestation n'est plus disponible." };
   }
 
-  const endAt = new Date(scheduledAt.getTime() + (service.durationMin || 60) * 60000);
+  const serviceSelection = await buildAppointmentServiceSelection({
+    tenantId: profile.tenantId,
+    serviceIds,
+  });
+
+  if ("error" in serviceSelection) {
+    return { success: false as const, error: serviceSelection.error };
+  }
+
+  const endAt = new Date(scheduledAt.getTime() + serviceSelection.totalDurationMin * 60000);
   const clientFullName = `${firstName} ${lastName}`.trim() || firstName;
   const timeLabel = scheduledAt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
   const dateLabel = scheduledAt.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" });
-  const priceCents = toCents(service.price);
+  const priceCents = serviceSelection.totalPriceCents;
+  const serviceLabel = serviceSelection.label;
 
   try {
     const reservation = await prisma.$transaction(async (tx) => {
       const availability = await assertPublicSlotAvailable({
         tx,
         tenantId: profile.tenantId,
-        serviceId: service.id,
+        serviceIds,
         scheduledAt,
         endAt,
       });
@@ -921,7 +938,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
           id: `app_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
           tenantId: profile.tenantId,
           clientId: client.id,
-          serviceId: service.id,
+          serviceId: serviceSelection.primaryServiceId,
           scheduledAt,
           endAt,
           source: "ONLINE_BOOKING",
@@ -938,6 +955,8 @@ export async function createPublicBooking(input: PublicBookingInput) {
         },
       });
 
+      await replaceAppointmentServices(tx, appointment.id, serviceSelection.snapshots);
+
       await tx.notification.create({
         data: {
           id: `not_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
@@ -946,7 +965,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
           appointmentId: appointment.id,
           type: "OTHER",
           title: "Nouveau rendez-vous via la page publique",
-          body: `${clientFullName} a reserve ${service.name} le ${dateLabel} a ${timeLabel}.`,
+          body: `${clientFullName} a reserve ${serviceLabel} le ${dateLabel} a ${timeLabel}.`,
         },
       });
 
@@ -1002,7 +1021,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
             currency: "eur",
             unit_amount: reservation.depositAmount,
             product_data: {
-              name: `Arrhes - ${service.name}`,
+              name: `Arrhes - ${serviceLabel}`,
               description: `${clientFullName} - ${dateLabel} a ${timeLabel}`,
             },
           },
@@ -1048,7 +1067,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
   return {
     success: true as const,
     appointmentId: reservation.appointment.id,
-    serviceName: service.name,
+    serviceName: serviceLabel,
     scheduledAt: reservation.appointment.scheduledAt.toISOString(),
     requiresPayment: reservation.requiresDeposit,
     checkoutUrl,

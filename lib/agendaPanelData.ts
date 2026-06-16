@@ -1,11 +1,13 @@
 import prisma from "./prisma";
+import type { AppointmentStatusValue } from "./appointmentStatus";
+import { getAppointmentServicesSummary } from "./appointmentServices";
 
 export type AgendaPanelData = {
   appointments: Array<{
     id: string;
     scheduledAt: string;
     endAt: string;
-    status: "SCHEDULED" | "PENDING_PAYMENT" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELED" | "EXPIRED" | "NO_SHOW";
+    status: AppointmentStatusValue;
     paymentStatus: string;
     price?: number | null;
     depositAmount?: number | null;
@@ -15,6 +17,7 @@ export type AgendaPanelData = {
     paymentMethod?: string | null;
     stripeCheckoutSessionId?: string | null;
     stripePaymentIntentId?: string | null;
+    expiresAt?: string | null;
     notes?: string;
     clientId: string;
     serviceId: string;
@@ -31,6 +34,13 @@ export type AgendaPanelData = {
       price: number | string;
       color?: string | null;
     };
+    appointmentServices: Array<{
+      serviceId: string;
+      name: string;
+      durationMin: number;
+      price: number;
+      position: number;
+    }>;
   }>;
   clients: Array<{ id: string; name: string }>;
   services: Array<{ id: string; name: string; price: string; durationMin: number }>;
@@ -61,6 +71,7 @@ export type AgendaPanelData = {
     defaultDepositAmount: number;
     defaultDepositType: "fixed" | "percent";
   };
+  onlineBookingUnreadCount: number;
 };
 
 const defaultBookingDays = [
@@ -124,12 +135,17 @@ export async function getAgendaPanelData(tenantId: string, userId?: string | nul
     agendaSettings,
     availabilityExceptionsData,
     paymentSettings,
+    onlineBookingUnreadCount,
   ] = await Promise.all([
     prisma.appointment.findMany({
       where: { tenantId },
       include: {
         Client: true,
         Service: true,
+        AppointmentService: {
+          include: { Service: true },
+          orderBy: { position: "asc" },
+        },
       },
       orderBy: { scheduledAt: "asc" },
     }),
@@ -161,41 +177,65 @@ export async function getAgendaPanelData(tenantId: string, userId?: string | nul
           },
         })
       : null,
+    prisma.notification.count({
+      where: {
+        tenantId,
+        readAt: null,
+        Appointment: {
+          is: {
+            source: "ONLINE_BOOKING",
+          },
+        },
+      },
+    }),
   ]);
 
-  const appointments = appointmentsData.map((app) => ({
-    id: app.id,
-    scheduledAt: app.scheduledAt.toISOString(),
-    endAt: app.endAt
-      ? app.endAt.toISOString()
-      : new Date(app.scheduledAt.getTime() + (app.Service?.durationMin || 60) * 60000).toISOString(),
-    status: app.status,
-    paymentStatus: app.paymentStatus,
-    price: app.price,
-    depositAmount: app.depositAmount,
-    depositPaidAmount: app.depositPaidAmount,
-    paidAmount: app.paidAmount,
-    remainingAmount: app.remainingAmount,
-    paymentMethod: app.paymentMethod,
-    stripeCheckoutSessionId: app.stripeCheckoutSessionId,
-    stripePaymentIntentId: app.stripePaymentIntentId,
-    notes: app.notes || "",
-    clientId: app.clientId,
-    serviceId: app.serviceId || "",
-    client: {
-      id: app.Client?.id || "",
-      name: `${app.Client?.firstName || ""} ${app.Client?.lastName || ""}`.trim(),
-      email: app.Client?.email || "",
-      phone: app.Client?.phone || "",
-    },
-    service: {
-      id: app.Service?.id || "",
-      name: app.Service?.name || "Prestation",
-      durationMin: app.Service?.durationMin || 60,
-      price: app.Service?.price ? Number(app.Service.price) : 0,
-      color: app.Service?.color || "var(--tertiary)",
-    },
-  }));
+  const appointments = appointmentsData.map((app) => {
+    const serviceSummary = getAppointmentServicesSummary(app);
+    const primaryService = app.AppointmentService[0]?.Service || app.Service;
+
+    return {
+      id: app.id,
+      scheduledAt: app.scheduledAt.toISOString(),
+      endAt: app.endAt
+        ? app.endAt.toISOString()
+        : new Date(app.scheduledAt.getTime() + serviceSummary.totalDurationMin * 60000).toISOString(),
+      status: app.status,
+      paymentStatus: app.paymentStatus,
+      price: app.price,
+      depositAmount: app.depositAmount,
+      depositPaidAmount: app.depositPaidAmount,
+      paidAmount: app.paidAmount,
+      remainingAmount: app.remainingAmount,
+      paymentMethod: app.paymentMethod,
+      stripeCheckoutSessionId: app.stripeCheckoutSessionId,
+      stripePaymentIntentId: app.stripePaymentIntentId,
+      expiresAt: app.expiresAt ? app.expiresAt.toISOString() : null,
+      notes: app.notes || "",
+      clientId: app.clientId,
+      serviceId: serviceSummary.primaryServiceId || app.serviceId || "",
+      client: {
+        id: app.Client?.id || "",
+        name: `${app.Client?.firstName || ""} ${app.Client?.lastName || ""}`.trim(),
+        email: app.Client?.email || "",
+        phone: app.Client?.phone || "",
+      },
+      service: {
+        id: serviceSummary.primaryServiceId || app.Service?.id || "",
+        name: serviceSummary.label,
+        durationMin: serviceSummary.totalDurationMin,
+        price: serviceSummary.totalPriceCents / 100,
+        color: primaryService?.color || "var(--tertiary)",
+      },
+      appointmentServices: serviceSummary.services.map((service) => ({
+        serviceId: service.serviceId,
+        name: service.nameSnapshot,
+        durationMin: service.durationSnapshot,
+        price: service.priceSnapshot / 100,
+        position: service.position,
+      })),
+    };
+  });
 
   return {
     appointments: serializeValue(appointments),
@@ -236,5 +276,6 @@ export async function getAgendaPanelData(tenantId: string, userId?: string | nul
       defaultDepositAmount: Number(paymentSettings?.defaultDepositAmount || 0),
       defaultDepositType: normalizeDepositType(paymentSettings?.defaultDepositType),
     },
+    onlineBookingUnreadCount,
   };
 }

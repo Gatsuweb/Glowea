@@ -23,6 +23,7 @@ type StockProduct = {
   categoryImage?: string | null;
   categoryLabel?: string | null;
   categoryFamily?: string | null;
+  trackingType?: "UNIDOSE" | "MULTIDOSE" | "NON_STOCKED" | null;
   expireAt?: string | Date | null;
 };
 
@@ -54,14 +55,39 @@ export default function StockClientWrapper({
   categories?: StockCategory[]
 }) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState("all");
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("all");
   const [isModalOpen, setModalOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<StockProduct | null>(null);
   const [loadingProductId, setLoadingProductId] = useState<string | null>(null);
 
-  const filteredProducts = initialProducts.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    p.desc.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredProducts = initialProducts.filter((p) => {
+    const query = searchQuery.toLowerCase();
+    const matchesSearch =
+      p.name.toLowerCase().includes(query) ||
+      p.desc.toLowerCase().includes(query);
+
+    const threshold = Number(p.alertThreshold ?? 5);
+    const isRupture = p.count === 0;
+    const isAlert = p.count > 0 && p.count <= threshold;
+    const isInStock = p.count > threshold;
+
+    const matchesStatus =
+      selectedStatusFilter === "all" ||
+      (selectedStatusFilter === "rupture" && isRupture) ||
+      (selectedStatusFilter === "alerte" && isAlert) ||
+      (selectedStatusFilter === "en_stock" && isInStock);
+
+    const matchesCategory =
+      selectedCategoryFilter === "all" ||
+      p.categoryId === selectedCategoryFilter;
+
+    return matchesSearch && matchesStatus && matchesCategory;
+  });
+
+  const activeFiltersCount =
+    Number(selectedStatusFilter !== "all") + Number(selectedCategoryFilter !== "all");
 
   const handleIncrement = async (productId: string) => {
     setLoadingProductId(productId);
@@ -89,11 +115,22 @@ export default function StockClientWrapper({
   };
 
   const totalValue = initialProducts.reduce((sum, p) => sum + (p.rawPrice * p.count), 0);
-  const rupturesCount = initialProducts.filter(p => p.count === 0).length;
+  const ruptures = initialProducts.filter(p => p.count === 0);
+  const rupturesCount = ruptures.length;
   const alertesCount = initialProducts.filter(p => {
     const threshold = Number(p.alertThreshold ?? 5);
     return p.count > 0 && p.count <= threshold;
   }).length;
+  const scrollToRuptures = () => {
+    document.getElementById("rupture-products")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+  const resetFilters = () => {
+    setSelectedStatusFilter("all");
+    setSelectedCategoryFilter("all");
+  };
 
   return (
     <main className={styles.layout}>
@@ -122,8 +159,55 @@ export default function StockClientWrapper({
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <button className={styles.filterBtn}>Filtrer</button>
+        <button
+          type="button"
+          className={styles.filterBtn}
+          onClick={() => setFilterPanelOpen((open) => !open)}
+          aria-expanded={filterPanelOpen}
+        >
+          Filtrer{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}
+        </button>
       </section>
+
+      {filterPanelOpen && (
+        <section className={styles.filterPanel}>
+          <label className={styles.filterField}>
+            <span>Statut</span>
+            <select
+              className={styles.filterSelect}
+              value={selectedStatusFilter}
+              onChange={(e) => setSelectedStatusFilter(e.target.value)}
+            >
+              <option value="all">Tous les statuts</option>
+              <option value="alerte">Alerte</option>
+              <option value="rupture">Rupture</option>
+              <option value="en_stock">En stock</option>
+            </select>
+          </label>
+          <label className={styles.filterField}>
+            <span>Catégorie</span>
+            <select
+              className={styles.filterSelect}
+              value={selectedCategoryFilter}
+              onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+            >
+              <option value="all">Toutes les catégories</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.label || category.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className={styles.filterResetBtn}
+            onClick={resetFilters}
+          >
+            Réinitialiser
+          </button>
+        </section>
+      )}
 
       {/* Stats Grids */}
       <section className={styles.statsGrid3}>
@@ -137,12 +221,78 @@ export default function StockClientWrapper({
           <div className={styles.statValue}>{alertesCount}</div>
           <div className={styles.statSub}>STOCK FAIBLE</div>
         </div>
-        <div className={styles.statCard}>
+        <div className={`${styles.statCard} ${styles.ruptureCard}`}>
           <div className={styles.statTitle}>Ruptures</div>
           <div className={styles.statValue}>{rupturesCount}</div>
           <div className={styles.statSub}>À COMMANDER</div>
+          {ruptures.length > 0 ? (
+            <>
+              <div className={styles.ruptureList}>
+                {ruptures.slice(0, 3).map(product => (
+                  <div key={product.id} className={styles.ruptureItem}>
+                    <div>
+                      <strong>{product.name}</strong>
+                      <span>{product.categoryLabel || product.tags[0] || "Produit"}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.ruptureRestockBtn}
+                      onClick={() => handleIncrement(product.id)}
+                      disabled={loadingProductId === product.id}
+                      title="Ajouter une unité"
+                    >
+                      {loadingProductId === product.id ? "..." : "+1"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className={styles.ruptureActionBtn}
+                onClick={scrollToRuptures}
+              >
+                Voir les produits en rupture
+              </button>
+            </>
+          ) : (
+            <div className={styles.ruptureEmpty}>Aucun produit en rupture.</div>
+          )}
         </div>
       </section>
+
+      {ruptures.length > 0 && (
+        <section className={styles.rupturePanel} id="rupture-products">
+          <div className={styles.rupturePanelHeader}>
+            <div>
+              <span className={styles.statSub}>Action stock</span>
+              <h2>Produits en rupture</h2>
+              <p>Ces références sont à recommander ou à remettre en stock.</p>
+            </div>
+          </div>
+          <div className={styles.rupturePanelList}>
+            {ruptures.map(product => (
+              <div key={product.id} className={styles.rupturePanelItem}>
+                <div>
+                  <strong>{product.name}</strong>
+                  <span>{product.categoryLabel || product.tags[0] || "Produit"}</span>
+                </div>
+                <div className={styles.rupturePanelActions}>
+                  <button type="button" onClick={() => handleEdit(product)}>
+                    Modifier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleIncrement(product.id)}
+                    disabled={loadingProductId === product.id}
+                  >
+                    {loadingProductId === product.id ? "Ajout..." : "Ajouter 1"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className={styles.statsGrid2}>
         <div className={styles.statCard}>
@@ -250,7 +400,7 @@ export default function StockClientWrapper({
       </section>
 
       {/* Mouvements */}
-      <h2 className={styles.sectionTitle}>Mouvement du stock</h2>
+      {/* <h2 className={styles.sectionTitle}>Mouvement du stock</h2>
       <section className={styles.movementsCard}>
         {movements.map(mov => (
           <div key={mov.id} className={styles.movementItem}>
@@ -281,7 +431,7 @@ export default function StockClientWrapper({
             Aucun mouvement récent.
           </div>
         )}
-      </section>
+      </section> */}
 
       <NewProductModal 
         isOpen={isModalOpen}

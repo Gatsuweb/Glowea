@@ -19,9 +19,13 @@ export async function GET(
   const params = await context.params;
   const url = new URL(req.url);
   const serviceId = url.searchParams.get("serviceId") || "";
+  const serviceIds = [
+    ...url.searchParams.getAll("serviceIds"),
+    ...(url.searchParams.get("serviceIds") || "").split(","),
+  ].map((id) => id.trim()).filter(Boolean);
   const date = parseDate(url.searchParams.get("date"));
 
-  if (!serviceId || !date) {
+  if ((!serviceId && serviceIds.length === 0) || !date) {
     return NextResponse.json({ success: false, error: "Prestation ou date invalide." }, { status: 400 });
   }
 
@@ -37,6 +41,7 @@ export async function GET(
   const availability = await getPublicAvailability({
     tenantId: profile.tenantId,
     serviceId,
+    serviceIds,
     date,
   });
 
@@ -50,5 +55,6 @@ export async function GET(
     durationMin: availability.durationMin,
     bookingSettings: availability.bookingSettings,
     depositAmount: availability.depositAmount,
+    priceCents: availability.priceCents,
   });
 }

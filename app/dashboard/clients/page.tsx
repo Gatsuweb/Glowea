@@ -31,6 +31,10 @@ export default async function ClientsPage() {
             Service: {
               include: { ServiceCategory: true }
             },
+            AppointmentService: {
+              include: { Service: true },
+              orderBy: { position: "asc" },
+            },
             Session: true,
           },
           orderBy: {

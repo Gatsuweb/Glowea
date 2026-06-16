@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import styles from "../dashboard/agenda/agenda.module.css";
@@ -13,11 +13,15 @@ import {
   getAppointmentFinancialSummary,
   getAppointmentPaymentLabel,
 } from "../../lib/appointmentFinance";
+import {
+  APPOINTMENT_STATUS_LABELS,
+  APPOINTMENT_STATUS_TRANSITION_LABELS,
+  type AppointmentStatusValue,
+  getAllowedAppointmentStatusTransitions,
+} from "../../lib/appointmentStatus";
 
 import { exportElementToPDF } from "../../lib/exportUtils";
 import { useRouter, useSearchParams } from "next/navigation";
-
-type AppointmentStatusValue = "SCHEDULED" | "PENDING_PAYMENT" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELED" | "EXPIRED" | "NO_SHOW";
 
 type AgendaClient = {
   id: string;
@@ -48,11 +52,19 @@ type AgendaAppointment = {
   paymentMethod?: string | null;
   stripeCheckoutSessionId?: string | null;
   stripePaymentIntentId?: string | null;
+  expiresAt?: string | null;
   notes?: string;
   clientId: string;
   serviceId: string;
   client: AgendaClient;
   service: AgendaService;
+  appointmentServices?: Array<{
+    serviceId: string;
+    name: string;
+    durationMin: number;
+    price: number;
+    position: number;
+  }>;
 };
 
 type BookingDay = {
@@ -119,6 +131,47 @@ const CALENDAR_START_HOUR = 7;
 const CALENDAR_END_HOUR = 22;
 const SLOT_MINUTES = 30;
 const SLOT_HEIGHT = 28;
+const DEFAULT_EVENT_COLOR = "#8B4B54";
+
+function normalizeHexColor(color?: string | null) {
+  const value = color?.trim();
+  if (!value) return DEFAULT_EVENT_COLOR;
+
+  const shortHex = value.match(/^#([0-9a-fA-F]{3})$/);
+  if (shortHex) {
+    return `#${shortHex[1].split("").map((char) => `${char}${char}`).join("")}`;
+  }
+
+  return /^#[0-9a-fA-F]{6}$/.test(value) ? value : DEFAULT_EVENT_COLOR;
+}
+
+function hexToRgb(hex: string) {
+  const normalized = normalizeHexColor(hex).slice(1);
+  return {
+    r: parseInt(normalized.slice(0, 2), 16),
+    g: parseInt(normalized.slice(2, 4), 16),
+    b: parseInt(normalized.slice(4, 6), 16),
+  };
+}
+
+function mixColorWithBlack(hex: string, amount: number) {
+  const { r, g, b } = hexToRgb(hex);
+  const ratio = Math.max(0, Math.min(amount, 1));
+  const toHex = (channel: number) => Math.round(channel * (1 - ratio)).toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+function getServiceEventStyle(color?: string | null): React.CSSProperties {
+  const hex = normalizeHexColor(color);
+  const { r, g, b } = hexToRgb(hex);
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+
+  return {
+    backgroundColor: `rgba(${r}, ${g}, ${b}, 0.18)`,
+    borderLeft: `4px solid ${hex}`,
+    color: luminance > 0.62 ? mixColorWithBlack(hex, 0.58) : mixColorWithBlack(hex, 0.18),
+  };
+}
 
 function getPaymentBadgeClass(status: string | undefined, stylesMap: Record<string, string>) {
   switch (status) {
@@ -232,6 +285,7 @@ export type AgendaClientWrapperProps = {
   bookingSettings?: AgendaBookingSettings;
   availabilityExceptions?: AgendaAvailabilityException[];
   paymentSettings?: PaymentSettings;
+  onlineBookingUnreadCount?: number;
   displayMode?: "page" | "panel";
 };
 
@@ -273,6 +327,8 @@ export default function AgendaClientWrapper({
   const [confirmedSelection, setConfirmedSelection] = useState<CalendarSelection | null>(null);
   const [managedItem, setManagedItem] = useState<ManagedCalendarItem | null>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const touchSelectionRef = useRef<CalendarSelection | null>(null);
+  const isTouchSelectingRef = useRef(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -413,6 +469,7 @@ export default function AgendaClientWrapper({
 
   function startSlotSelection(dayIndex: number, slotIndex: number, event: React.MouseEvent<HTMLDivElement>) {
     if (event.button !== 0) return;
+    event.preventDefault();
     const position = getViewportMenuPosition(event.clientX, event.clientY, "selection");
     setConfirmedSelection(null);
     setDragSelection({
@@ -432,6 +489,7 @@ export default function AgendaClientWrapper({
   }
 
   function finishSlotSelection(event: React.MouseEvent<HTMLDivElement>) {
+    event.preventDefault();
     setDragSelection((current) => {
       if (!current) return null;
       const position = getViewportMenuPosition(event.clientX, event.clientY, "selection");
@@ -442,6 +500,102 @@ export default function AgendaClientWrapper({
       });
       return null;
     });
+  }
+
+  function getSlotFromTouch(touch: React.Touch | Touch) {
+    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (!(target instanceof Element)) return null;
+
+    const cell = target.closest<HTMLElement>("[data-calendar-slot='true']");
+    if (!cell) return null;
+
+    const dayIndex = Number(cell.dataset.dayIndex);
+    const slotIndex = Number(cell.dataset.slotIndex);
+    if (!Number.isInteger(dayIndex) || !Number.isInteger(slotIndex)) return null;
+
+    return { dayIndex, slotIndex };
+  }
+
+  function startTouchSlotSelection(dayIndex: number, slotIndex: number, event: React.TouchEvent<HTMLDivElement>) {
+    if (event.touches.length !== 1) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const touch = event.touches[0];
+    const position = getViewportMenuPosition(touch.clientX, touch.clientY, "selection");
+    const selection = {
+      dayIndex,
+      startSlotIndex: slotIndex,
+      endSlotIndex: slotIndex,
+      menuX: position.x,
+      menuY: position.y,
+    };
+
+    isTouchSelectingRef.current = true;
+    touchSelectionRef.current = selection;
+    setConfirmedSelection(null);
+    setDragSelection(selection);
+  }
+
+  function moveTouchSlotSelection(event: React.TouchEvent<HTMLDivElement>) {
+    if (!isTouchSelectingRef.current || event.touches.length !== 1) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const touch = event.touches[0];
+    const slot = getSlotFromTouch(touch);
+    const current = touchSelectionRef.current;
+    if (!slot || !current || slot.dayIndex !== current.dayIndex) return;
+
+    const position = getViewportMenuPosition(touch.clientX, touch.clientY, "selection");
+    const nextSelection = {
+      ...current,
+      endSlotIndex: slot.slotIndex,
+      menuX: position.x,
+      menuY: position.y,
+    };
+
+    touchSelectionRef.current = nextSelection;
+    setDragSelection(nextSelection);
+  }
+
+  function finishTouchSlotSelection(event: React.TouchEvent<HTMLDivElement>) {
+    if (!isTouchSelectingRef.current) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const touch = event.changedTouches[0];
+    const current = touchSelectionRef.current;
+    const position = touch
+      ? getViewportMenuPosition(touch.clientX, touch.clientY, "selection")
+      : current
+        ? { x: current.menuX, y: current.menuY }
+        : null;
+
+    if (current && position) {
+      setConfirmedSelection({
+        ...current,
+        menuX: position.x,
+        menuY: position.y,
+      });
+    }
+
+    isTouchSelectingRef.current = false;
+    touchSelectionRef.current = null;
+    setDragSelection(null);
+  }
+
+  function cancelTouchSlotSelection(event: React.TouchEvent<HTMLDivElement>) {
+    if (!isTouchSelectingRef.current) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    isTouchSelectingRef.current = false;
+    touchSelectionRef.current = null;
+    setDragSelection(null);
   }
 
   function clearSelection() {
@@ -622,16 +776,8 @@ export default function AgendaClientWrapper({
     return `${dateStr} - ${todayCount} RENDEZ-VOUS AUJOURD'HUI`;
   };
 
-  const statusLabels: Record<string, string> = {
-    SCHEDULED: "Planifie",
-    PENDING_PAYMENT: "Attente paiement",
-    CONFIRMED: "Confirme",
-    IN_PROGRESS: "En cours",
-    COMPLETED: "Termine",
-    CANCELED: "Annule",
-    EXPIRED: "Expire",
-    NO_SHOW: "No-show",
-  };
+  const statusLabels = APPOINTMENT_STATUS_LABELS;
+  const statusTransitionLabels = APPOINTMENT_STATUS_TRANSITION_LABELS;
 
   const formatMoneyFromCents = (amount: number) => {
     return new Intl.NumberFormat("fr-FR", {
@@ -657,6 +803,16 @@ export default function AgendaClientWrapper({
       setActionAppointmentId(null);
     }
   };
+
+  function getAllowedStatusTransitions(app: AgendaAppointment) {
+    return getAllowedAppointmentStatusTransitions({
+      status: app.status,
+      expiresAt: app.expiresAt,
+      paymentStatus: app.paymentStatus,
+      paidAmount: app.paidAmount,
+      depositPaidAmount: app.depositPaidAmount,
+    });
+  }
 
   const handleDeleteAppointment = async (appointmentId: string) => {
     if (!confirm('Voulez-vous vraiment supprimer ce rendez-vous ?')) return;
@@ -1195,6 +1351,7 @@ export default function AgendaClientWrapper({
           const priceCents = finance.priceCents;
           const depositPaidCents = finance.depositPaidAmountCents;
           const remainingCents = finance.remainingAmountCents;
+          const allowedStatusTransitions = getAllowedStatusTransitions(app);
           
           return (
             <div key={app.id} className={styles.appointmentItem}>
@@ -1213,17 +1370,28 @@ export default function AgendaClientWrapper({
                   </div>
                   <div className={styles.tags}>
                     <span className={styles.tag}>{app.service.name}</span>
-                    <select
-                      className={styles.statusSelect}
-                      value={app.status}
-                      disabled={actionAppointmentId === app.id}
-                      onChange={(e) => handleStatusChange(app.id, e.target.value as AppointmentStatusValue)}
-                      title="Changer le statut"
-                    >
-                      {Object.entries(statusLabels).map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
-                      ))}
-                    </select>
+                    {allowedStatusTransitions.length > 0 ? (
+                      <select
+                        className={styles.statusSelect}
+                        value=""
+                        disabled={actionAppointmentId === app.id}
+                        onChange={(e) => {
+                          const nextStatus = e.target.value as AppointmentStatusValue;
+                          if (!nextStatus) return;
+                          handleStatusChange(app.id, nextStatus);
+                        }}
+                        title={`Statut actuel : ${statusLabels[app.status]}`}
+                      >
+                        <option value="">Statut : {statusLabels[app.status]}</option>
+                        {allowedStatusTransitions.map((value) => (
+                          <option key={value} value={value}>{statusTransitionLabels[value]}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className={styles.statusFinalBadge} title="Statut final">
+                        {statusLabels[app.status]}
+                      </span>
+                    )}
                     <span className={`${styles.paymentBadge} ${paymentBadgeClass}`}>{paymentLabel}</span>
                   </div>
                   <div className={styles.paymentSummary}>
@@ -1380,7 +1548,13 @@ export default function AgendaClientWrapper({
               </div>
               
               {/* Corps du calendrier scrollable */}
-              <div className={styles.gridBody} onMouseLeave={() => setDragSelection(null)}>
+              <div
+                className={styles.gridBody}
+                onMouseLeave={() => setDragSelection(null)}
+                onTouchMove={moveTouchSlotSelection}
+                onTouchEnd={finishTouchSlotSelection}
+                onTouchCancel={cancelTouchSlotSelection}
+              >
                 {/* Ligne indiquant l'heure actuelle */}
                 {isCurrentWeek() && (
                   <div className={styles.currentTimeLine} style={{ top: `${getRedLinePosition()}px` }}></div>
@@ -1407,9 +1581,13 @@ export default function AgendaClientWrapper({
                         <div
                           key={dayIndex}
                           className={`${styles.timeCell} ${isSlotSelected(dayIndex, slotIndex) ? styles.timeCellSelected : ""}`}
+                          data-calendar-slot="true"
+                          data-day-index={dayIndex}
+                          data-slot-index={slotIndex}
                           onMouseDown={(event) => startSlotSelection(dayIndex, slotIndex, event)}
                           onMouseEnter={() => extendSlotSelection(dayIndex, slotIndex)}
                           onMouseUp={finishSlotSelection}
+                          onTouchStart={(event) => startTouchSlotSelection(dayIndex, slotIndex, event)}
                           title={`Selectionner ${slot.label}`}
                         >
                           {dayExceptions.map((item) => {
@@ -1426,6 +1604,7 @@ export default function AgendaClientWrapper({
                                 style={{ top: `${topOffset}px`, height: `${height}px` }}
                                 title={item.title || "Indisponibilite"}
                                 onMouseDown={(event) => event.stopPropagation()}
+                                onTouchStart={(event) => event.stopPropagation()}
                                 onClick={(event) => openExceptionMenu(item, event)}
                               >
                                 <div className={styles.eventTitle}>{item.title || "Indisponibilite"}</div>
@@ -1448,6 +1627,7 @@ export default function AgendaClientWrapper({
                                 style={{ top: `${topOffset}px`, height: `${height}px` }}
                                 title="Modifier la pause"
                                 onMouseDown={(event) => event.stopPropagation()}
+                                onTouchStart={(event) => event.stopPropagation()}
                                 onClick={(event) => openPauseMenu(day.getDay(), pause.breakIndex, pause, event)}
                               >
                                 <div className={styles.eventTitle}>Pause</div>
@@ -1455,20 +1635,25 @@ export default function AgendaClientWrapper({
                               </div>
                             );
                           })}
-                          {dayAppointments.map((app, appIndex) => {
+                          {dayAppointments.map((app) => {
                             const appDate = new Date(app.scheduledAt);
                             const endAt = new Date(app.endAt);
                             const durationMinutes = (endAt.getTime() - appDate.getTime()) / 60000;
                             const topOffset = ((appDate.getMinutes() - slot.minute) / SLOT_MINUTES) * SLOT_HEIGHT;
                             const height = Math.max(28, (durationMinutes / SLOT_MINUTES) * SLOT_HEIGHT);
-                            const styleClass = appIndex % 3 === 0 ? styles.event1 : (appIndex % 3 === 1 ? styles.event2 : styles.event3);
+                            const serviceEventStyle = getServiceEventStyle(app.service.color);
 
                             return (
                               <div 
                                 key={app.id} 
-                                className={`${styles.eventBlock} ${styleClass}`} 
-                                style={{ top: `${topOffset}px`, height: `${height}px` }}
+                                className={styles.eventBlock}
+                                style={{
+                                  top: `${topOffset}px`,
+                                  height: `${height}px`,
+                                  ...serviceEventStyle,
+                                }}
                                 onMouseDown={(event) => event.stopPropagation()}
+                                onTouchStart={(event) => event.stopPropagation()}
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   openEditAppointment(app);

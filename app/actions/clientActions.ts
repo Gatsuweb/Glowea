@@ -204,3 +204,126 @@ export async function updateClientProfile(data: {
     return { success: false, error: "Erreur lors de la mise a jour du client" };
   }
 }
+
+export async function updateClientGalleryProject(data: {
+  clientId: string;
+  sessionId: string;
+  title: string;
+  description: string;
+}) {
+  const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
+  try {
+    const existingSession = await prisma.session.findFirst({
+      where: {
+        id: data.sessionId,
+        clientId: data.clientId,
+        tenantId: TENANT_ID,
+      },
+      select: { id: true },
+    });
+
+    if (!existingSession) {
+      return { success: false, error: "Projet introuvable pour cette cliente" };
+    }
+
+    const title = data.title.trim();
+    const description = data.description.trim();
+
+    await prisma.session.update({
+      where: { id: data.sessionId },
+      data: {
+        title: title || null,
+        generalNotes: description || null,
+        updatedAt: new Date(),
+      },
+    });
+
+    revalidatePath("/dashboard/clients");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating client gallery project:", error);
+    return { success: false, error: "Erreur lors de la mise a jour du projet" };
+  }
+}
+
+export async function deleteClientGalleryProject(data: {
+  clientId: string;
+  sessionId?: string | null;
+  mediaIds?: string[];
+}) {
+  const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
+  try {
+    const existingClient = await prisma.client.findFirst({
+      where: {
+        id: data.clientId,
+        tenantId: TENANT_ID,
+        archivedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!existingClient) {
+      return { success: false, error: "Cliente introuvable pour ce compte" };
+    }
+
+    let mediaIds = data.mediaIds || [];
+
+    if (data.sessionId) {
+      const session = await prisma.session.findFirst({
+        where: {
+          id: data.sessionId,
+          clientId: data.clientId,
+          tenantId: TENANT_ID,
+        },
+        select: {
+          SessionMedia: {
+            select: { mediaId: true },
+          },
+        },
+      });
+
+      if (!session) {
+        return { success: false, error: "Projet introuvable pour cette cliente" };
+      }
+
+      mediaIds = session.SessionMedia.map((item) => item.mediaId);
+    }
+
+    if (mediaIds.length === 0) {
+      return { success: false, error: "Aucune photo a supprimer de la galerie" };
+    }
+
+    const allowedMedia = await prisma.media.findMany({
+      where: {
+        tenantId: TENANT_ID,
+        id: { in: mediaIds },
+      },
+      select: { id: true },
+    });
+
+    await prisma.clientMedia.deleteMany({
+      where: {
+        clientId: data.clientId,
+        mediaId: { in: allowedMedia.map((item) => item.id) },
+      },
+    });
+
+    revalidatePath("/dashboard/clients");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting client gallery project:", error);
+    return { success: false, error: "Erreur lors de la suppression du projet" };
+  }
+}

@@ -100,6 +100,7 @@ export default async function StockPage() {
       rawPrice: prod.defaultUnitCost ? Number(prod.defaultUnitCost) : 0,
       expire: lot?.expiresAt ? lot.expiresAt.toLocaleDateString("fr-FR") : "N/A",
       expireAt: lot?.expiresAt ? lot.expiresAt.toISOString() : null,
+      trackingType: prod.trackingType,
     };
   });
 

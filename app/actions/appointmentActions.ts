@@ -9,31 +9,32 @@ import {
   getAppointmentFinancialSummary,
   isOfflinePaymentMethod,
 } from "../../lib/appointmentFinance";
+import {
+  buildAppointmentServiceSelection,
+  getAppointmentServicesSummary,
+  normalizeAppointmentServiceIds,
+  replaceAppointmentServices,
+} from "../../lib/appointmentServices";
+import {
+  type AppointmentStatusValue,
+  BLOCKING_APPOINTMENT_STATUSES,
+  REMINDER_ELIGIBLE_APPOINTMENT_STATUSES,
+  canTransitionAppointmentStatus,
+  getBlockingAppointmentWhere,
+  isValidAppointmentStatus,
+} from "../../lib/appointmentStatus";
 
-type AppointmentStatusInput =
-  | "SCHEDULED"
-  | "PENDING_PAYMENT"
-  | "CONFIRMED"
-  | "IN_PROGRESS"
-  | "COMPLETED"
-  | "CANCELED"
-  | "EXPIRED"
-  | "NO_SHOW";
+type AppointmentStatusInput = AppointmentStatusValue;
 
 type AppointmentMutationInput = {
   clientId: string;
-  serviceId: string;
+  serviceId?: string;
+  serviceIds?: string[];
   scheduledAt: Date;
   endAt?: Date;
   price?: number;
   notes?: string;
 };
-
-const ACTIVE_CONFLICT_STATUSES: AppointmentStatusInput[] = [
-  "SCHEDULED",
-  "CONFIRMED",
-  "IN_PROGRESS",
-];
 
 function get24hReminderScheduledFor(scheduledAt: Date) {
   return new Date(scheduledAt.getTime() - 24 * 60 * 60 * 1000);
@@ -55,11 +56,11 @@ function normalizePrice(price?: number) {
 }
 
 function isValidStatus(status: string): status is AppointmentStatusInput {
-  return ["SCHEDULED", "PENDING_PAYMENT", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELED", "EXPIRED", "NO_SHOW"].includes(status);
+  return isValidAppointmentStatus(status);
 }
 
 function statusCanConflict(status: AppointmentStatusInput) {
-  return ACTIVE_CONFLICT_STATUSES.includes(status) || status === "PENDING_PAYMENT";
+  return [...BLOCKING_APPOINTMENT_STATUSES, "PENDING_PAYMENT"].includes(status);
 }
 
 function revalidateAgendaViews() {
@@ -68,27 +69,17 @@ function revalidateAgendaViews() {
   revalidatePath("/dashboard/clients");
 }
 
-async function getOwnedClientAndService(tenantId: string, clientId: string, serviceId: string) {
-  const [client, service] = await Promise.all([
-    prisma.client.findFirst({
-      where: { id: clientId, tenantId, archivedAt: null },
-      select: { id: true },
-    }),
-    prisma.service.findFirst({
-      where: { id: serviceId, tenantId, isActive: true },
-      select: { id: true, durationMin: true },
-    }),
-  ]);
+async function getOwnedClient(tenantId: string, clientId: string) {
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, tenantId, archivedAt: null },
+    select: { id: true },
+  });
 
   if (!client) {
     return { error: "Cliente introuvable pour ce compte" };
   }
 
-  if (!service) {
-    return { error: "Prestation introuvable pour ce compte" };
-  }
-
-  return { client, service };
+  return { client };
 }
 
 function getAppointmentEndAt(scheduledAt: Date, endAt: Date | undefined, durationMin: number | null) {
@@ -140,18 +131,15 @@ async function findConflictingAppointment(params: {
     where: {
       tenantId: params.tenantId,
       id: params.excludeAppointmentId ? { not: params.excludeAppointmentId } : undefined,
-      OR: [
-        { status: { in: ACTIVE_CONFLICT_STATUSES } },
-        {
-          status: "PENDING_PAYMENT",
-          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-        },
-      ],
+      ...getBlockingAppointmentWhere(),
       scheduledAt: { gte: dayStart, lte: dayEnd },
     },
     include: {
       Client: true,
       Service: true,
+      AppointmentService: {
+        orderBy: { position: "asc" },
+      },
     },
     orderBy: { scheduledAt: "asc" },
   });
@@ -160,7 +148,7 @@ async function findConflictingAppointment(params: {
     const existingStart = appointment.scheduledAt;
     const existingEnd =
       appointment.endAt ||
-      new Date(existingStart.getTime() + (appointment.Service?.durationMin || 60) * 60000);
+      new Date(existingStart.getTime() + getAppointmentServicesSummary(appointment).totalDurationMin * 60000);
 
     return params.scheduledAt < existingEnd && params.endAt > existingStart;
   });
@@ -193,7 +181,7 @@ export async function schedule24hRemindersForUpcomingAppointments() {
     where: {
       tenantId,
       scheduledAt: { gte: now },
-      status: { in: ["SCHEDULED", "CONFIRMED"] },
+      status: { in: [...REMINDER_ELIGIBLE_APPOINTMENT_STATUSES] },
     },
     select: {
       id: true,
@@ -224,7 +212,7 @@ export async function processDueAppointmentReminders() {
       scheduledFor: { lte: now },
       Appointment: {
         scheduledAt: { gte: now },
-        status: { in: ["SCHEDULED", "CONFIRMED"] },
+        status: { in: [...REMINDER_ELIGIBLE_APPOINTMENT_STATUSES] },
       },
     },
     include: {
@@ -292,6 +280,27 @@ export async function markAllNotificationsRead() {
   return { success: true, updated: res.count };
 }
 
+export async function markOnlineBookingNotificationsRead() {
+  const tenantId = await getTenantId();
+  const now = new Date();
+
+  const res = await prisma.notification.updateMany({
+    where: {
+      tenantId,
+      readAt: null,
+      Appointment: {
+        is: {
+          source: "ONLINE_BOOKING",
+        },
+      },
+    },
+    data: { readAt: now },
+  });
+
+  revalidateAgendaViews();
+  return { success: true, updated: res.count };
+}
+
 export async function createAppointment(data: AppointmentMutationInput) {
   const tenantId = await getTenantId();
   const { userId } = await auth();
@@ -301,7 +310,13 @@ export async function createAppointment(data: AppointmentMutationInput) {
   }
 
   try {
-    if (!data.clientId || !data.serviceId) {
+    const requestedServiceIds = normalizeAppointmentServiceIds({
+      serviceId: data.serviceId,
+      serviceIds: data.serviceIds,
+    });
+    const hasMultipleServices = requestedServiceIds.length > 1;
+
+    if (!data.clientId || requestedServiceIds.length === 0) {
       return { success: false, error: "Cliente et prestation sont obligatoires" };
     }
 
@@ -309,12 +324,22 @@ export async function createAppointment(data: AppointmentMutationInput) {
       return { success: false, error: "Date de rendez-vous invalide" };
     }
 
-    const owned = await getOwnedClientAndService(tenantId, data.clientId, data.serviceId);
+    const owned = await getOwnedClient(tenantId, data.clientId);
     if ("error" in owned) {
       return { success: false, error: owned.error };
     }
 
-    const finalEndAt = getAppointmentEndAt(data.scheduledAt, data.endAt, owned.service.durationMin);
+    const serviceSelection = await buildAppointmentServiceSelection({
+      tenantId,
+      serviceIds: requestedServiceIds,
+    });
+    if ("error" in serviceSelection) {
+      return { success: false, error: serviceSelection.error };
+    }
+
+    const finalEndAt = hasMultipleServices
+      ? getAppointmentEndAt(data.scheduledAt, undefined, serviceSelection.totalDurationMin)
+      : getAppointmentEndAt(data.scheduledAt, data.endAt, serviceSelection.totalDurationMin);
     if (finalEndAt <= data.scheduledAt) {
       return { success: false, error: "L'heure de fin doit être après l'heure de début" };
     }
@@ -329,24 +354,36 @@ export async function createAppointment(data: AppointmentMutationInput) {
       return { success: false, error: formatConflictMessage(conflict) };
     }
 
-    const appointment = await prisma.appointment.create({
-      data: {
-        id: `app_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
-        tenantId,
-        clientId: data.clientId,
-        serviceId: data.serviceId,
-        createdByUserId: userId,
-        scheduledAt: data.scheduledAt,
-        endAt: finalEndAt,
-        price: normalizePrice(data.price),
-        depositPaidAmount: 0,
-        paidAmount: 0,
-        remainingAmount: normalizePrice(data.price) ?? 0,
-        notes: normalizeNotes(data.notes),
-        status: "SCHEDULED",
-        paymentStatus: "none",
-        updatedAt: new Date(),
-      },
+    const finalPriceCents = hasMultipleServices
+      ? serviceSelection.totalPriceCents
+      : normalizePrice(data.price) ?? serviceSelection.totalPriceCents;
+    const serviceSnapshots = serviceSelection.snapshots.length === 1
+      ? [{ ...serviceSelection.snapshots[0], priceSnapshot: finalPriceCents }]
+      : serviceSelection.snapshots;
+
+    const appointment = await prisma.$transaction(async (tx) => {
+      const createdAppointment = await tx.appointment.create({
+        data: {
+          id: `app_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+          tenantId,
+          clientId: data.clientId,
+          serviceId: serviceSelection.primaryServiceId,
+          createdByUserId: userId,
+          scheduledAt: data.scheduledAt,
+          endAt: finalEndAt,
+          price: finalPriceCents,
+          depositPaidAmount: 0,
+          paidAmount: 0,
+          remainingAmount: finalPriceCents,
+          notes: normalizeNotes(data.notes),
+          status: "SCHEDULED",
+          paymentStatus: "none",
+          updatedAt: new Date(),
+        },
+      });
+
+      await replaceAppointmentServices(tx, createdAppointment.id, serviceSnapshots);
+      return createdAppointment;
     });
 
     await upsert24hReminderForAppointment({
@@ -376,7 +413,12 @@ export async function updateAppointment(
   try {
     const existingAppointment = await prisma.appointment.findFirst({
       where: { id, tenantId },
-      include: { Service: true },
+      include: {
+        Service: true,
+        AppointmentService: {
+          orderBy: { position: "asc" },
+        },
+      },
     });
 
     if (!existingAppointment) {
@@ -384,15 +426,39 @@ export async function updateAppointment(
     }
 
     const finalClientId = data.clientId || existingAppointment.clientId;
-    const finalServiceId = data.serviceId || existingAppointment.serviceId;
+    const servicesInputProvided = data.serviceIds !== undefined || data.serviceId !== undefined;
+    const existingServiceSummary = getAppointmentServicesSummary(existingAppointment);
+    const requestedServiceIds = servicesInputProvided
+      ? normalizeAppointmentServiceIds({
+          serviceId: data.serviceId,
+          serviceIds: data.serviceIds,
+        })
+      : existingServiceSummary.services.map((service) => service.serviceId);
 
-    if (!finalServiceId) {
+    if (requestedServiceIds.length === 0) {
       return { success: false, error: "Une prestation est obligatoire" };
     }
 
-    const owned = await getOwnedClientAndService(tenantId, finalClientId, finalServiceId);
+    const owned = await getOwnedClient(tenantId, finalClientId);
     if ("error" in owned) {
       return { success: false, error: owned.error };
+    }
+
+    const serviceSelection = servicesInputProvided
+      ? await buildAppointmentServiceSelection({
+          tenantId,
+          serviceIds: requestedServiceIds,
+        })
+      : {
+          snapshots: existingServiceSummary.services,
+          primaryServiceId: existingServiceSummary.primaryServiceId,
+          totalPriceCents: existingServiceSummary.totalPriceCents,
+          totalDurationMin: existingServiceSummary.totalDurationMin,
+          label: existingServiceSummary.label,
+        };
+
+    if ("error" in serviceSelection) {
+      return { success: false, error: serviceSelection.error };
     }
 
     const finalScheduledAt = data.scheduledAt || existingAppointment.scheduledAt;
@@ -400,7 +466,9 @@ export async function updateAppointment(
       return { success: false, error: "Date de rendez-vous invalide" };
     }
 
-    const finalEndAt = getAppointmentEndAt(finalScheduledAt, data.endAt, owned.service.durationMin);
+    const finalEndAt = servicesInputProvided && requestedServiceIds.length > 1
+      ? getAppointmentEndAt(finalScheduledAt, undefined, serviceSelection.totalDurationMin)
+      : getAppointmentEndAt(finalScheduledAt, data.endAt, serviceSelection.totalDurationMin);
     if (finalEndAt <= finalScheduledAt) {
       return { success: false, error: "L'heure de fin doit être après l'heure de début" };
     }
@@ -410,11 +478,35 @@ export async function updateAppointment(
       return { success: false, error: "Statut de rendez-vous invalide" };
     }
 
+    if (finalStatus !== existingAppointment.status) {
+      const transition = canTransitionAppointmentStatus({
+        from: existingAppointment.status,
+        to: finalStatus,
+        expiresAt: existingAppointment.expiresAt,
+        paymentStatus: existingAppointment.paymentStatus,
+        paidAmount: existingAppointment.paidAmount,
+        depositPaidAmount: existingAppointment.depositPaidAmount,
+      });
+
+      if (!transition.allowed) {
+        return { success: false, error: transition.reason };
+      }
+    }
+
     const existingFinance = getAppointmentFinancialSummary(existingAppointment);
     const nextPriceCents =
-      data.price !== undefined
+      servicesInputProvided && requestedServiceIds.length > 1
+        ? serviceSelection.totalPriceCents
+        : data.price !== undefined
         ? normalizePrice(data.price) ?? existingFinance.priceCents
-        : existingFinance.priceCents;
+        : servicesInputProvided
+          ? serviceSelection.totalPriceCents
+          : existingFinance.priceCents;
+    const nextStoredPrice = data.price !== undefined || servicesInputProvided ? nextPriceCents : existingAppointment.price;
+    const serviceSnapshots = serviceSelection.snapshots.length === 1
+      ? [{ ...serviceSelection.snapshots[0], priceSnapshot: nextPriceCents }]
+      : serviceSelection.snapshots;
+    const shouldReplaceServices = servicesInputProvided || (data.price !== undefined && serviceSnapshots.length === 1);
     const nextDepositPaidCents = Math.min(existingFinance.depositPaidAmountCents, nextPriceCents);
     const nextPaidAmountCents = Math.min(existingFinance.paidAmountCents, nextPriceCents);
     const nextRemainingAmountCents = Math.max(nextPriceCents - nextPaidAmountCents, 0);
@@ -443,27 +535,35 @@ export async function updateAppointment(
     }
 
     const now = new Date();
-    const appointment = await prisma.appointment.update({
-      where: { id, tenantId },
-      data: {
-        clientId: finalClientId,
-        serviceId: finalServiceId,
-        scheduledAt: finalScheduledAt,
-        endAt: finalEndAt,
-        price: data.price !== undefined ? normalizePrice(data.price) : existingAppointment.price,
-        depositPaidAmount: nextDepositPaidCents,
-        paidAmount: nextPaidAmountCents,
-        remainingAmount: nextRemainingAmountCents,
-        paymentStatus: nextPaymentStatus,
-        notes: data.notes !== undefined ? normalizeNotes(data.notes) : existingAppointment.notes,
-        status: finalStatus,
-        cancelledAt: finalStatus === "CANCELED" ? now : null,
-        completedAt: finalStatus === "COMPLETED" ? now : null,
-        updatedAt: now,
-      },
+    const appointment = await prisma.$transaction(async (tx) => {
+      const updatedAppointment = await tx.appointment.update({
+        where: { id, tenantId },
+        data: {
+          clientId: finalClientId,
+          serviceId: serviceSelection.primaryServiceId,
+          scheduledAt: finalScheduledAt,
+          endAt: finalEndAt,
+          price: nextStoredPrice,
+          depositPaidAmount: nextDepositPaidCents,
+          paidAmount: nextPaidAmountCents,
+          remainingAmount: nextRemainingAmountCents,
+          paymentStatus: nextPaymentStatus,
+          notes: data.notes !== undefined ? normalizeNotes(data.notes) : existingAppointment.notes,
+          status: finalStatus,
+          cancelledAt: finalStatus === "CANCELED" ? now : null,
+          completedAt: finalStatus === "COMPLETED" ? now : null,
+          updatedAt: now,
+        },
+      });
+
+      if (shouldReplaceServices) {
+        await replaceAppointmentServices(tx, updatedAppointment.id, serviceSnapshots);
+      }
+
+      return updatedAppointment;
     });
 
-    if (appointment.status === "SCHEDULED" || appointment.status === "CONFIRMED") {
+    if ((REMINDER_ELIGIBLE_APPOINTMENT_STATUSES as readonly string[]).includes(appointment.status)) {
       await upsert24hReminderForAppointment({
         tenantId,
         appointmentId: appointment.id,

@@ -14,7 +14,6 @@ import SessionModal from "./SessionModal";
 import SendPromoModal from "./SendPromoModal";
 import WeeklyBriefModal from "./WeeklyBriefModal";
 import InstallAppModal from "./InstallAppModal";
-import AgendaClientWrapper, { type AgendaClientWrapperProps } from "./AgendaClientWrapper";
 import type { SubscriptionAccess } from "../../lib/subscription";
 import {
   getAppointmentFinancialSummary,
@@ -69,6 +68,14 @@ type ServiceOption = {
   color?: string | null;
 };
 
+type AppointmentServiceOption = {
+  serviceId: string;
+  name: string;
+  price: number;
+  durationMin: number;
+  position: number;
+};
+
 type DashboardAppointment = {
   id: string;
   clientId: string;
@@ -89,6 +96,7 @@ type DashboardAppointment = {
   paymentMethod?: string | null;
   paymentStatus?: string;
   serviceDurationMin?: number;
+  appointmentServices?: AppointmentServiceOption[];
   documentUrl?: string;
   hasDocument?: boolean;
   status?: string;
@@ -111,6 +119,7 @@ type EditableAppointment = {
   notes?: string | null;
   client?: ClientOption | null;
   service?: ServiceOption | null;
+  appointmentServices?: AppointmentServiceOption[];
 };
 
 type TopClient = {
@@ -164,7 +173,6 @@ export default function DashboardClientWrapper({
     defaultDepositAmount: 0,
     defaultDepositType: "fixed",
   },
-  quickAgenda,
   checkoutSuccess = false,
   checkoutSyncState = null,
 }: { 
@@ -188,7 +196,6 @@ export default function DashboardClientWrapper({
   insights?: SmartInsight[];
   subscriptionAccess: SubscriptionAccess;
   paymentSettings?: PaymentSettings;
-  quickAgenda?: AgendaClientWrapperProps;
   checkoutSuccess?: boolean;
   checkoutSyncState?: "activated" | "pending" | "error" | null;
 }) {
@@ -206,26 +213,6 @@ export default function DashboardClientWrapper({
   const [isSendPromoModalOpen, setSendPromoModalOpen] = useState(false);
   const [isWeeklyBriefOpen, setWeeklyBriefOpen] = useState(false);
   const [isInstallModalOpen, setInstallModalOpen] = useState(false);
-  const [isQuickAgendaOpen, setQuickAgendaOpen] = useState(false);
-
-  React.useEffect(() => {
-    if (!isQuickAgendaOpen) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setQuickAgendaOpen(false);
-      }
-    };
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isQuickAgendaOpen]);
 
   // Vérifier si on est Lundi et afficher la popup (une fois par jour)
   React.useEffect(() => {
@@ -299,6 +286,7 @@ export default function DashboardClientWrapper({
     paymentSettings.stripeConnected &&
     paymentSettings.stripeOnboardingComplete &&
     paymentSettings.paymentsEnabled;
+  const shouldShowPaymentShortcut = canUseStripePayments || subscriptionAccess.currentPlan === "ESSENTIAL";
   const todayAppointmentsCount = appointments.filter((appointment) => !appointment.isTomorrow).length;
   const limitedAccessTitle =
     subscriptionAccess.status === "PAST_DUE"
@@ -401,67 +389,13 @@ export default function DashboardClientWrapper({
       notes: appointment.notes || "",
       client: appointment.client,
       service: appointment.service,
+      appointmentServices: appointment.appointmentServices,
     });
     setNewAppointmentModalOpen(true);
   };
 
   return (
     <main className={styles.layout}>
-      {quickAgenda && (
-        <>
-          <button
-            type="button"
-            className={styles.quickAgendaTab}
-            onClick={() => setQuickAgendaOpen(true)}
-            aria-label="Ouvrir le planning rapide"
-            aria-expanded={isQuickAgendaOpen}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M8 2v4"></path>
-              <path d="M16 2v4"></path>
-              <rect x="3" y="4" width="18" height="18" rx="2"></rect>
-              <path d="M3 10h18"></path>
-              <path d="M11 14h1"></path>
-              <path d="M16 14h1"></path>
-              <path d="M7 18h1"></path>
-            </svg>
-          </button>
-
-          <div
-            className={`${styles.quickAgendaOverlay} ${isQuickAgendaOpen ? styles.quickAgendaOverlayOpen : ""}`}
-            onClick={() => setQuickAgendaOpen(false)}
-            aria-hidden={!isQuickAgendaOpen}
-          />
-
-          <aside
-            className={`${styles.quickAgendaPanel} ${isQuickAgendaOpen ? styles.quickAgendaPanelOpen : ""}`}
-            aria-hidden={!isQuickAgendaOpen}
-            aria-label="Planning rapide"
-          >
-            <div className={styles.quickAgendaPanelHeader}>
-              <div>
-                <span>Planning</span>
-                <strong>Semaine en cours</strong>
-              </div>
-              <button
-                type="button"
-                className={styles.quickAgendaClose}
-                onClick={() => setQuickAgendaOpen(false)}
-                aria-label="Fermer le planning rapide"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M18 6 6 18"></path>
-                  <path d="m6 6 12 12"></path>
-                </svg>
-              </button>
-            </div>
-            <div className={styles.quickAgendaPanelBody}>
-              <AgendaClientWrapper {...quickAgenda} displayMode="panel" />
-            </div>
-          </aside>
-        </>
-      )}
-
       {checkoutSuccess && (
         <section className={styles.subscriptionBannerSuccess} role="status">
           {checkoutSyncState === "activated"
@@ -582,7 +516,7 @@ export default function DashboardClientWrapper({
           <div className={styles.cardHeader}>
             <h2 className={styles.cardTitle}>Prochains <span>Rendez-vous</span></h2>
             <button type="button" className={styles.cardLinkBtn} onClick={openAgendaPage}>
-              Voir
+              Voir &rarr;
             </button>
           </div>
           <div className={styles.appointmentList}>
@@ -593,7 +527,7 @@ export default function DashboardClientWrapper({
             )}
             {appointments.length === 0 ? (
               <div className={styles.emptyState}>
-                <p>Aucun rendez-vous pr?vu aujourd&apos;hui ou demain</p>
+                <p>Aucun rendez-vous prévu aujourd&apos;hui ou demain</p>
                 <button className={styles.emptyStateBtn} onClick={() => guardMutation(() => setNewAppointmentModalOpen(true))}>
                   Créer un premier rendez-vous
                 </button>
@@ -684,16 +618,20 @@ export default function DashboardClientWrapper({
                               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                             </svg>
                           </button>
-                          {canUseStripePayments && (
+                          {shouldShowPaymentShortcut && (
                             <button
                               type="button"
                               className={styles.actionIcon}
                               onClick={() => {
+                                if (subscriptionAccess.currentPlan === "ESSENTIAL" && !canUseStripePayments) {
+                                  router.push("/pricing");
+                                  return;
+                                }
                                 setPaymentAppointmentData(app);
                                 setPaymentModalOpen(true);
                               }}
-                              title="Paiement du rendez-vous"
-                              aria-label={`Paiement du rendez-vous de ${app.clientName}`}
+                              title={canUseStripePayments ? "Paiement du rendez-vous" : "Activer les paiements"}
+                              aria-label={canUseStripePayments ? `Paiement du rendez-vous de ${app.clientName}` : "Voir les offres pour activer les paiements"}
                             >
                               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                                 <rect x="2" y="5" width="20" height="14" rx="2"></rect>
@@ -729,7 +667,7 @@ export default function DashboardClientWrapper({
           <div className={styles.cardHeader}>
             <h2 className={styles.cardTitle}>Statistique <span>des Revenus</span></h2>
             <button type="button" className={styles.cardLinkBtn} onClick={openComptaPage}>
-              Voir
+              Voir &rarr;
             </button>
           </div>
           <div style={{ height: '200px', width: '100%', minHeight: 0, minWidth: 0 }}>
@@ -775,7 +713,7 @@ export default function DashboardClientWrapper({
           <div className={styles.cardHeader}>
             <h2 className={styles.cardTitle}>Top <span>clientes</span></h2>
             <button type="button" className={styles.cardLinkBtn} onClick={openClientsPage}>
-              Voir
+              Voir &rarr;
             </button>
           </div>
           <div className={styles.topClientList}>

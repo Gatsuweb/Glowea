@@ -2,12 +2,18 @@
 
 import prisma from "../../lib/prisma";
 import { getTenantId } from "../../lib/tenant";
+import {
+  COMPLETED_APPOINTMENT_STATUSES,
+  getActiveStatsAppointmentWhere,
+  isActiveStatsAppointment,
+} from "../../lib/appointmentStatus";
 
 type AmountLike = {
   amount: number | { toString(): string };
 };
 
 type TransactionType = "INCOME" | "EXPENSE";
+type RecurringExpenseFrequencyValue = "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
 
 type TransactionLike = AmountLike & {
   id: string;
@@ -21,6 +27,7 @@ type RecurringExpenseLike = AmountLike & {
   id: string;
   label: string;
   category?: string | null;
+  frequency?: RecurringExpenseFrequencyValue;
 };
 
 type StockMovementLike = {
@@ -48,6 +55,7 @@ type NormalizedRecurringExpenseLike = {
   label: string;
   category?: string | null;
   amount: number;
+  frequency?: RecurringExpenseFrequencyValue;
 };
 
 type NormalizedStockTransactionLike = {
@@ -60,6 +68,50 @@ type NormalizedStockTransactionLike = {
   transactionDate: Date;
   isStock: true;
 };
+
+type NewClientStat = {
+  id: string;
+  name: string;
+  firstService: string;
+  firstVisitDate: Date;
+};
+
+type MonthlyTrendPoint = {
+  label: string;
+  value: number;
+};
+
+type CompletedAppointmentWithService = {
+  id: string;
+  scheduledAt: Date;
+  endAt: Date | null;
+  paidAmount: number | null;
+  Service?: {
+    durationMin: number | null;
+  } | null;
+};
+
+function getMonthlyRecurringAmount(expense: { amount: number | { toString(): string }; frequency?: string | null }) {
+  const amount = Number(expense.amount);
+
+  if (expense.frequency === "WEEKLY") return amount * 52 / 12;
+  if (expense.frequency === "QUARTERLY") return amount / 3;
+  if (expense.frequency === "YEARLY") return amount / 12;
+
+  return amount;
+}
+
+function getStockMovementAmount(movement: StockMovementLike) {
+  return Number(movement.quantity) * Number(movement.Product.defaultUnitCost || 0);
+}
+
+function getAppointmentDurationHours(appointment: CompletedAppointmentWithService) {
+  const durationMin = appointment.endAt
+    ? Math.max((appointment.endAt.getTime() - appointment.scheduledAt.getTime()) / 60000, 0)
+    : Number(appointment.Service?.durationMin || 60);
+
+  return durationMin / 60;
+}
 
 export async function getVueEnsembleData(monthString: string) {
 
@@ -149,7 +201,7 @@ export async function getVueEnsembleData(monthString: string) {
       id: sm.id,
       label: `Achat stock: ${sm.Product.name}`,
       category: 'Matériel',
-      amount: Number(sm.quantity) * Number(sm.Product.defaultUnitCost || 0),
+      amount: getStockMovementAmount(sm),
       type: "EXPENSE" as const,
       sourceType: "STOCK" as const,
       transactionDate: sm.createdAt,
@@ -174,7 +226,7 @@ export async function getVueEnsembleData(monthString: string) {
       id: sm.id,
       label: `Achat stock: ${sm.Product.name}`,
       category: 'Matériel',
-      amount: Number(sm.quantity) * Number(sm.Product.defaultUnitCost || 0),
+      amount: getStockMovementAmount(sm),
       type: "EXPENSE" as const,
       sourceType: "STOCK" as const,
       transactionDate: sm.createdAt,
@@ -187,7 +239,8 @@ export async function getVueEnsembleData(monthString: string) {
       id: r.id,
       label: r.label,
       category: r.category,
-      amount: Number(r.amount),
+      amount: getMonthlyRecurringAmount(r),
+      frequency: r.frequency,
     }));
 
     return { success: true, data: { transactions, prevTransactions, recurringExpenses } };
@@ -234,12 +287,13 @@ export async function getStatsData(monthString: string) {
 
     const prevMonthStart = new Date(startDate.getFullYear(), startDate.getMonth() - 1, 1);
     const prevMonthEnd = new Date(startDate.getFullYear(), startDate.getMonth(), 0, 23, 59, 59, 999);
+    const trendStart = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() - 5, 1));
 
     const appointmentsThisMonth = await prisma.appointment.findMany({
       where: {
         tenantId: TENANT_ID,
         scheduledAt: { gte: startDate, lte: endDate },
-        status: { notIn: ['CANCELED', 'NO_SHOW'] }
+        ...getActiveStatsAppointmentWhere(),
       },
       include: {
         Client: true,
@@ -251,8 +305,31 @@ export async function getStatsData(monthString: string) {
       where: {
         tenantId: TENANT_ID,
         scheduledAt: { gte: prevMonthStart, lte: prevMonthEnd },
-        status: { notIn: ['CANCELED', 'NO_SHOW'] }
+        ...getActiveStatsAppointmentWhere(),
       }
+    });
+
+    const completedAppointmentsAllTime = await prisma.appointment.findMany({
+      where: {
+        tenantId: TENANT_ID,
+        status: { in: [...COMPLETED_APPOINTMENT_STATUSES] },
+      },
+      select: {
+        clientId: true,
+        scheduledAt: true,
+        Client: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+        Service: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: { scheduledAt: "asc" },
     });
 
     const clientsForFollowUp = await prisma.client.findMany({
@@ -267,9 +344,7 @@ export async function getStatsData(monthString: string) {
         email: true,
         Appointment: {
           where: {
-            status: {
-              in: ["COMPLETED", "CONFIRMED", "SCHEDULED"],
-            },
+            ...getActiveStatsAppointmentWhere(),
           },
           select: {
             scheduledAt: true,
@@ -310,10 +385,183 @@ export async function getStatsData(monthString: string) {
       }
     });
 
+    const monthlyTransactions = await prisma.financialTransaction.findMany({
+      where: {
+        tenantId: TENANT_ID,
+        transactionDate: { gte: trendStart, lte: endDate },
+      },
+      select: {
+        id: true,
+        amount: true,
+        type: true,
+        transactionDate: true,
+        sourceType: true,
+        appointmentId: true,
+      },
+    });
+
+    const monthlyStockMovements = await prisma.stockMovement.findMany({
+      where: {
+        tenantId: TENANT_ID,
+        type: "IN",
+        createdAt: { gte: trendStart, lte: endDate },
+      },
+      include: {
+        Product: true,
+      },
+    });
+
+    const monthlyAppointments = await prisma.appointment.findMany({
+      where: {
+        tenantId: TENANT_ID,
+        scheduledAt: { gte: trendStart, lte: endDate },
+        ...getActiveStatsAppointmentWhere(),
+      },
+      select: {
+        scheduledAt: true,
+        endAt: true,
+        Service: {
+          select: {
+            durationMin: true,
+          },
+        },
+      },
+      orderBy: { scheduledAt: "asc" },
+    });
+
+    const monthlyRecurringExpenses = await prisma.recurringExpense.findMany({
+      where: {
+        tenantId: TENANT_ID,
+        isActive: true,
+        startDate: { lte: endDate },
+        OR: [
+          { endDate: null },
+          { endDate: { gte: trendStart } }
+        ]
+      },
+      select: {
+        amount: true,
+        frequency: true,
+        startDate: true,
+        endDate: true,
+      }
+    });
+
     const rdvThisMonth = appointmentsThisMonth.length;
     const rdvPrevMonth = appointmentsPrevMonth;
     const rdvTrend = rdvPrevMonth > 0 ? rdvThisMonth - rdvPrevMonth : 0;
     const rdvTrendStr = rdvTrend > 0 ? `+${rdvTrend}` : `${rdvTrend}`;
+    const totalRevenue = incomeTransactions.reduce((sum, transaction) => sum + Number(transaction.amount), 0);
+    const paidAppointmentKeys = new Set(
+      incomeTransactions.map((transaction) => transaction.appointmentId || transaction.id)
+    );
+    const averageBasket = paidAppointmentKeys.size > 0 ? totalRevenue / paidAppointmentKeys.size : 0;
+
+    const monthKeyFromDate = (date: Date) =>
+      `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+
+    const monthLabelFromDate = (date: Date) =>
+      date.toLocaleDateString("fr-FR", { month: "short", year: "2-digit" });
+
+    const monthlyBuckets = Array.from({ length: 6 }, (_, index) => {
+      const monthDate = new Date(Date.UTC(trendStart.getUTCFullYear(), trendStart.getUTCMonth() + index, 1));
+      return {
+        key: monthKeyFromDate(monthDate),
+        label: monthLabelFromDate(monthDate),
+        revenue: 0,
+        appointmentRevenue: 0,
+        expenses: 0,
+        appointments: 0,
+        paidAppointmentKeys: new Set<string>(),
+      };
+    });
+    const monthlyBucketMap = new Map(monthlyBuckets.map((bucket) => [bucket.key, bucket]));
+
+    monthlyTransactions.forEach((transaction) => {
+      const key = monthKeyFromDate(new Date(transaction.transactionDate));
+      const bucket = monthlyBucketMap.get(key);
+      if (!bucket) return;
+      const amount = Number(transaction.amount);
+      if (transaction.type === "INCOME") {
+        bucket.revenue += amount;
+        if (transaction.sourceType === "APPOINTMENT") {
+          bucket.appointmentRevenue += amount;
+          bucket.paidAppointmentKeys.add(transaction.appointmentId || transaction.id);
+        }
+      }
+      if (transaction.type === "EXPENSE") bucket.expenses += amount;
+    });
+
+    monthlyStockMovements.forEach((movement) => {
+      const key = monthKeyFromDate(movement.createdAt);
+      const bucket = monthlyBucketMap.get(key);
+      if (!bucket) return;
+      bucket.expenses += getStockMovementAmount(movement);
+    });
+
+    monthlyAppointments.forEach((appointment) => {
+      const key = monthKeyFromDate(appointment.scheduledAt);
+      const bucket = monthlyBucketMap.get(key);
+      if (!bucket) return;
+      bucket.appointments += 1;
+    });
+
+    const recurringExpenseValueByMonth = monthlyBuckets.map((bucket) => {
+      const monthStart = new Date(Date.UTC(Number(bucket.key.slice(0, 4)), Number(bucket.key.slice(5, 7)) - 1, 1));
+      const monthEnd = new Date(Date.UTC(Number(bucket.key.slice(0, 4)), Number(bucket.key.slice(5, 7)), 0, 23, 59, 59, 999));
+
+      return monthlyRecurringExpenses.reduce((sum, expense) => {
+        const startOk = expense.startDate <= monthEnd;
+        const endOk = expense.endDate === null || expense.endDate >= monthStart;
+        return startOk && endOk ? sum + getMonthlyRecurringAmount(expense) : sum;
+      }, 0);
+    });
+
+    const monthlyBenefitTrend: MonthlyTrendPoint[] = monthlyBuckets.map((bucket, index) => ({
+      label: bucket.label,
+      value: bucket.revenue - bucket.expenses - recurringExpenseValueByMonth[index] - bucket.revenue * 0.212,
+    }));
+
+    const monthlyBasketTrend: MonthlyTrendPoint[] = monthlyBuckets.map((bucket) => ({
+      label: bucket.label,
+      value: bucket.paidAppointmentKeys.size > 0 ? bucket.appointmentRevenue / bucket.paidAppointmentKeys.size : 0,
+    }));
+
+    const firstAppointmentByClient = new Map<string, NewClientStat>();
+    for (const appointment of completedAppointmentsAllTime) {
+      if (firstAppointmentByClient.has(appointment.clientId)) continue;
+      firstAppointmentByClient.set(appointment.clientId, {
+        id: appointment.clientId,
+        name: `${appointment.Client?.firstName || ""} ${appointment.Client?.lastName || ""}`.trim() || "Cliente",
+        firstService: appointment.Service?.name || "Prestation",
+        firstVisitDate: appointment.scheduledAt,
+      });
+    }
+
+    const newClients = Array.from(firstAppointmentByClient.values())
+      .filter((client) => client.firstVisitDate >= startDate && client.firstVisitDate <= endDate)
+      .sort((a, b) => b.firstVisitDate.getTime() - a.firstVisitDate.getTime());
+    const newClientsCount = newClients.length;
+
+    const completedAppointmentsThisMonth = appointmentsThisMonth.filter((appointment) =>
+      (COMPLETED_APPOINTMENT_STATUSES as readonly string[]).includes(appointment.status)
+    );
+    const completedAppointmentIds = new Set(completedAppointmentsThisMonth.map((appointment) => appointment.id));
+    const completedHours = completedAppointmentsThisMonth.reduce(
+      (sum, appointment) => sum + getAppointmentDurationHours(appointment),
+      0
+    );
+    const completedTransactionRevenue = incomeTransactions
+      .filter((transaction) => transaction.appointmentId && completedAppointmentIds.has(transaction.appointmentId))
+      .reduce((sum, transaction) => sum + Number(transaction.amount), 0);
+    const completedPaidAmountRevenue = completedAppointmentsThisMonth.reduce(
+      (sum, appointment) => sum + Number(appointment.paidAmount || 0) / 100,
+      0
+    );
+    const revenuePerHourRevenue = completedTransactionRevenue > 0
+      ? completedTransactionRevenue
+      : completedPaidAmountRevenue;
+    const revenuePerHour = completedHours > 0 ? revenuePerHourRevenue / completedHours : 0;
 
     const prestationsMap: Record<string, number> = {};
     const clientsMap: Record<string, number> = {};
@@ -414,11 +662,12 @@ export async function getStatsData(monthString: string) {
     const relanceCandidates = clientsForFollowUp
       .map((client) => {
         const upcomingAppointment = client.Appointment.find((appointment) =>
-          ["CONFIRMED", "SCHEDULED"].includes(appointment.status) &&
+          !(COMPLETED_APPOINTMENT_STATUSES as readonly string[]).includes(appointment.status) &&
+          isActiveStatsAppointment(appointment) &&
           new Date(appointment.scheduledAt) >= now
         );
         const lastCompletedAppointment = client.Appointment.find(
-          (appointment) => appointment.status === "COMPLETED"
+          (appointment) => (COMPLETED_APPOINTMENT_STATUSES as readonly string[]).includes(appointment.status)
         );
 
         if (upcomingAppointment || !lastCompletedAppointment) {
@@ -458,6 +707,13 @@ export async function getStatsData(monthString: string) {
       data: {
         rdvThisMonth,
         rdvTrendStr,
+        averageBasket,
+        revenuePerHour,
+        revenuePerHourRevenue,
+        revenuePerHourHours: completedHours,
+        revenuePerHourAppointments: completedAppointmentsThisMonth.length,
+        monthlyBenefitTrend,
+        monthlyBasketTrend,
         topPrestations,
         maxPrestationAmount,
         topClients,
@@ -465,7 +721,13 @@ export async function getStatsData(monthString: string) {
         daysData,
         meilleureSemaine,
         relanceCandidates,
-        relancePotentialRevenue
+        relancePotentialRevenue,
+        newClientsCount,
+        newClients: newClients.slice(0, 3).map((client) => ({
+          id: client.id,
+          name: client.name,
+          firstService: client.firstService,
+        })),
       }
     };
 

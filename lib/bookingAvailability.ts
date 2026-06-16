@@ -1,4 +1,6 @@
 import prisma from "./prisma";
+import { getBlockingAppointmentWhere, isBlockingAppointment } from "./appointmentStatus";
+import { getAppointmentServicesSummary, normalizeAppointmentServiceIds } from "./appointmentServices";
 import type { Prisma } from "@prisma/client";
 
 type BreakWindow = {
@@ -200,13 +202,23 @@ function appointmentBlocksSlot(appointment: {
   expiresAt?: Date | null;
   status: string;
   Service?: { durationMin: number | null } | null;
+  AppointmentService?: Array<{
+    serviceId: string;
+    nameSnapshot: string;
+    priceSnapshot: number;
+    durationSnapshot: number;
+    position: number | null;
+  }> | null;
 }, now: Date) {
-  if (appointment.status === "PENDING_PAYMENT" && appointment.expiresAt && appointment.expiresAt <= now) {
+  if (!isBlockingAppointment(appointment, now)) {
     return null;
   }
 
   const startAt = appointment.scheduledAt;
-  const endAt = appointment.endAt || new Date(startAt.getTime() + (appointment.Service?.durationMin || 60) * 60000);
+  const fallbackDuration = appointment.AppointmentService && appointment.AppointmentService.length > 0
+    ? getAppointmentServicesSummary({ AppointmentService: appointment.AppointmentService }).totalDurationMin
+    : appointment.Service?.durationMin || 60;
+  const endAt = appointment.endAt || new Date(startAt.getTime() + fallbackDuration * 60000);
   return { startAt, endAt };
 }
 
@@ -220,6 +232,13 @@ function getAvailableSlotsFromWindows(params: {
     expiresAt?: Date | null;
     status: string;
     Service?: { durationMin: number | null } | null;
+    AppointmentService?: Array<{
+      serviceId: string;
+      nameSnapshot: string;
+      priceSnapshot: number;
+      durationSnapshot: number;
+      position: number | null;
+    }> | null;
   }>;
   exceptions: BusyWindow[];
   now?: Date;
@@ -270,21 +289,31 @@ function getAvailableSlotsFromWindows(params: {
 
 export async function getPublicAvailability(params: {
   tenantId: string;
-  serviceId: string;
+  serviceId?: string;
+  serviceIds?: string[];
   date: Date;
   now?: Date;
 }) {
   const { start, end } = getDayBounds(params.date);
-  const [settings, service, appointments, exceptions] = await Promise.all([
+  const serviceIds = normalizeAppointmentServiceIds({
+    serviceId: params.serviceId,
+    serviceIds: params.serviceIds,
+  });
+
+  if (serviceIds.length === 0) {
+    return { success: false as const, error: "Prestation introuvable." };
+  }
+
+  const [settings, services, appointments, exceptions] = await Promise.all([
     prisma.agendaSettings.findUnique({ where: { tenantId: params.tenantId } }),
-    prisma.service.findFirst({
-      where: { id: params.serviceId, tenantId: params.tenantId, isActive: true, isPublic: true },
+    prisma.service.findMany({
+      where: { id: { in: serviceIds }, tenantId: params.tenantId, isActive: true, isPublic: true },
       select: { id: true, durationMin: true, price: true },
     }),
     prisma.appointment.findMany({
       where: {
         tenantId: params.tenantId,
-        status: { in: ["SCHEDULED", "PENDING_PAYMENT", "CONFIRMED", "IN_PROGRESS"] },
+        ...getBlockingAppointmentWhere(),
         scheduledAt: { lte: end },
         OR: [{ endAt: null }, { endAt: { gte: start } }],
       },
@@ -294,6 +323,15 @@ export async function getPublicAvailability(params: {
         expiresAt: true,
         status: true,
         Service: { select: { durationMin: true } },
+        AppointmentService: {
+          select: {
+            serviceId: true,
+            nameSnapshot: true,
+            priceSnapshot: true,
+            durationSnapshot: true,
+            position: true,
+          },
+        },
       },
     }),
     prisma.availabilityException.findMany({
@@ -306,12 +344,20 @@ export async function getPublicAvailability(params: {
     }),
   ]);
 
-  if (!service) {
+  if (services.length !== serviceIds.length) {
     return { success: false as const, error: "Prestation introuvable." };
   }
 
+  const servicesById = new Map(services.map((service) => [service.id, service]));
   const bookingSettings = normalizePublicBookingSettings(settings);
-  const durationMin = service.durationMin || settings?.defaultAppointmentDuration || 60;
+  const durationMin = serviceIds.reduce((sum, serviceId) => {
+    const service = servicesById.get(serviceId);
+    return sum + (service?.durationMin || settings?.defaultAppointmentDuration || 60);
+  }, 0);
+  const priceCents = serviceIds.reduce((sum, serviceId) => {
+    const service = servicesById.get(serviceId);
+    return sum + (service?.price ? Math.round(Number(service.price.toString()) * 100) : 0);
+  }, 0);
   const slots = getAvailableSlotsFromWindows({
     date: params.date,
     durationMin,
@@ -327,32 +373,43 @@ export async function getPublicAvailability(params: {
     durationMin,
     bookingSettings,
     depositAmount: getDepositAmountCents({
-      priceCents: service.price ? Math.round(Number(service.price.toString()) * 100) : 0,
+      priceCents,
       bookingSettings,
     }),
+    priceCents,
   };
 }
 
 export async function assertPublicSlotAvailable(params: {
   tx: Prisma.TransactionClient;
   tenantId: string;
-  serviceId: string;
+  serviceId?: string;
+  serviceIds?: string[];
   scheduledAt: Date;
   endAt: Date;
   now?: Date;
 }) {
   const now = params.now || new Date();
   const { start, end } = getDayBounds(params.scheduledAt);
-  const [settings, service, appointments, exceptions] = await Promise.all([
+  const serviceIds = normalizeAppointmentServiceIds({
+    serviceId: params.serviceId,
+    serviceIds: params.serviceIds,
+  });
+
+  if (serviceIds.length === 0) {
+    return { success: false as const, error: "Cette prestation n'est plus disponible." };
+  }
+
+  const [settings, services, appointments, exceptions] = await Promise.all([
     params.tx.agendaSettings.findUnique({ where: { tenantId: params.tenantId } }),
-    params.tx.service.findFirst({
-      where: { id: params.serviceId, tenantId: params.tenantId, isActive: true, isPublic: true },
+    params.tx.service.findMany({
+      where: { id: { in: serviceIds }, tenantId: params.tenantId, isActive: true, isPublic: true },
       select: { id: true },
     }),
     params.tx.appointment.findMany({
       where: {
         tenantId: params.tenantId,
-        status: { in: ["SCHEDULED", "PENDING_PAYMENT", "CONFIRMED", "IN_PROGRESS"] },
+        ...getBlockingAppointmentWhere(),
         scheduledAt: { lte: end },
         OR: [{ endAt: null }, { endAt: { gte: start } }],
       },
@@ -362,6 +419,15 @@ export async function assertPublicSlotAvailable(params: {
         expiresAt: true,
         status: true,
         Service: { select: { durationMin: true } },
+        AppointmentService: {
+          select: {
+            serviceId: true,
+            nameSnapshot: true,
+            priceSnapshot: true,
+            durationSnapshot: true,
+            position: true,
+          },
+        },
       },
     }),
     params.tx.availabilityException.findMany({
@@ -374,7 +440,7 @@ export async function assertPublicSlotAvailable(params: {
     }),
   ]);
 
-  if (!service) {
+  if (services.length !== serviceIds.length) {
     return { success: false as const, error: "Cette prestation n'est plus disponible." };
   }
 

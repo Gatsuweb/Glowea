@@ -358,6 +358,16 @@
   font-size: 0.95rem;
 }
 
+.contactLink {
+  color: var(--tertiary);
+  text-decoration: none;
+}
+
+.contactLink:hover,
+.contactLink:focus-visible {
+  text-decoration: underline;
+}
+
 /* Tabs */
 .tabs {
   display: flex;
@@ -550,6 +560,12 @@
   font-weight: 400;
 }
 
+.galleryCount {
+  color: #8a7d7d;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
 .projectGalleryList {
   display: grid;
   gap: 20px;
@@ -587,14 +603,142 @@
 }
 
 .projectDate {
-  background: #f8eee8;
-  border: 1px solid #ead8cf;
-  border-radius: 999px;
   color: var(--tertiary);
   font-size: 0.76rem;
   font-weight: 700;
   padding: 7px 12px;
   white-space: nowrap;
+}
+
+.projectCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.projectEditButton,
+.projectDeleteButton,
+.projectGhostButton,
+.galleryLoadMore {
+  cursor: pointer;
+  font-weight: 800;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.projectEditButton {
+  background: var(--tertiary);
+  border: none;
+  color: white;
+  padding: 8px 14px;
+}
+
+.projectDeleteButton {
+  background: #fff2f4;
+  border: 1px solid #f0b8c0;
+  color: #8b1e2d;
+  padding: 8px 14px;
+}
+
+.projectEditButton:hover,
+.galleryLoadMore:hover {
+  transform: translateY(-1px);
+}
+
+.projectDeleteButton:hover {
+  background: #ffe7eb;
+  border-color: #e79aaa;
+  transform: translateY(-1px);
+}
+
+.projectEditForm {
+  background: #fbf6f4;
+  border: 1px solid #eedfda;
+  border-radius: 16px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.projectEditForm label {
+  color: #5d5050;
+  display: grid;
+  font-size: 0.82rem;
+  font-weight: 800;
+  gap: 6px;
+}
+
+.projectEditForm input,
+.projectEditForm textarea {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  color: #333;
+  font: inherit;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.projectEditActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.projectGhostButton {
+  background: #fff;
+  border: 1px solid #ddd;
+  color: #6f6667;
+  padding: 10px 16px;
+}
+
+.projectGhostButton:hover {
+  background: #f7f2f1;
+}
+
+.galleryLoadMore {
+  justify-self: center;
+  background: #fff;
+  border: 1px solid #ead8cf;
+  color: var(--tertiary);
+  padding: 11px 18px;
+}
+
+.galleryPagination {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.galleryPagination span {
+  color: #8a7d7d;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.galleryPageButton {
+  background: #fff;
+  border: 1px solid #ead8cf;
+  border-radius: 999px;
+  color: var(--tertiary);
+  cursor: pointer;
+  font-weight: 800;
+  padding: 11px 18px;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.galleryPageButton:hover:not(:disabled) {
+  background: #f8eee8;
+  border-color: rgba(139, 75, 84, 0.3);
+  transform: translateY(-1px);
+}
+
+.galleryPageButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .projectImages {

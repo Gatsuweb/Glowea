@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { createPublicBooking } from "../../actions/publicPageActions";
 import styles from "./publicProfile.module.css";
 
@@ -46,7 +47,9 @@ export default function PublicBookingModal({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [serviceId, setServiceId] = useState(initialServiceId || services[0]?.id || "");
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>(() => (
+    initialServiceId ? [initialServiceId] : services[0]?.id ? [services[0].id] : []
+  ));
   const [date, setDate] = useState(getToday());
   const [time, setTime] = useState("");
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
@@ -61,13 +64,21 @@ export default function PublicBookingModal({
   const [instagram, setInstagram] = useState("");
   const [message, setMessage] = useState("");
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
 
-  const selectedService = useMemo(
-    () => services.find((service) => service.id === serviceId),
-    [serviceId, services]
+  const selectedServices = useMemo(
+    () => services.filter((service) => selectedServiceIds.includes(service.id)),
+    [selectedServiceIds, services]
   );
+  const selectedDurationMin = selectedServices.reduce((sum, service) => sum + service.durationMin, 0);
+  const selectedPriceCents = selectedServices.reduce((sum, service) => sum + Math.round(service.price * 100), 0);
+  const selectedServiceLabel = selectedServices.map((service) => service.name).join(" + ");
 
-  const remainingAmount = Math.max(((selectedService?.price || 0) * 100) - depositAmount, 0);
+  const remainingAmount = Math.max(selectedPriceCents - depositAmount, 0);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   function formatMoneyFromCents(amount: number) {
     return new Intl.NumberFormat("fr-FR", {
@@ -77,7 +88,7 @@ export default function PublicBookingModal({
   }
 
   useEffect(() => {
-    if (!isOpen || !serviceId || !date) return;
+    if (!isOpen || selectedServiceIds.length === 0 || !date) return;
 
     const controller = new AbortController();
 
@@ -86,7 +97,10 @@ export default function PublicBookingModal({
       setSlotError(null);
 
       try {
-        const response = await fetch(`/api/public-booking/${encodeURIComponent(slug)}/availability?serviceId=${encodeURIComponent(serviceId)}&date=${encodeURIComponent(date)}`, {
+        const params = new URLSearchParams();
+        selectedServiceIds.forEach((id) => params.append("serviceIds", id));
+        params.set("date", date);
+        const response = await fetch(`/api/public-booking/${encodeURIComponent(slug)}/availability?${params.toString()}`, {
           signal: controller.signal,
         });
         const data = await response.json();
@@ -110,7 +124,16 @@ export default function PublicBookingModal({
     void loadSlots();
 
     return () => controller.abort();
-  }, [date, isOpen, serviceId, slug]);
+  }, [date, isOpen, selectedServiceIds, slug]);
+
+  function toggleService(serviceId: string) {
+    setSelectedServiceIds((current) => {
+      const next = current.includes(serviceId)
+        ? current.filter((id) => id !== serviceId)
+        : [...current, serviceId];
+      return next.length > 0 ? next : current;
+    });
+  }
 
   function submitBooking(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -119,7 +142,8 @@ export default function PublicBookingModal({
     startTransition(async () => {
       const result = await createPublicBooking({
         slug,
-        serviceId,
+        serviceId: selectedServiceIds[0] || "",
+        serviceIds: selectedServiceIds,
         date,
         time,
         firstName,
@@ -131,7 +155,7 @@ export default function PublicBookingModal({
       });
 
       if (!result.success) {
-        setFeedback({ type: "error", message: result.error });
+        setFeedback({ type: "error", message: result.error || "Impossible de reserver ce creneau." });
         return;
       }
 
@@ -164,7 +188,7 @@ export default function PublicBookingModal({
         {triggerContent || triggerLabel}
       </button>
 
-      {isOpen && (
+      {isOpen && isMounted && createPortal(
         <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-label="Reservation">
           <div className={styles.modal}>
             <div className={styles.modalHeader}>
@@ -178,23 +202,32 @@ export default function PublicBookingModal({
             </div>
 
             <form className={styles.bookingForm} onSubmit={submitBooking}>
-              <label>
-                Prestation
-                <select value={serviceId} onChange={(event) => setServiceId(event.target.value)} required>
-                  {services.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.name} - {service.durationMin} min
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className={styles.bookingServicePicker}>
+                <span className={styles.bookingServicePickerLabel}>Prestations</span>
+                <div className={styles.bookingServiceOptions}>
+                  {services.map((service) => {
+                    const isSelected = selectedServiceIds.includes(service.id);
+                    return (
+                      <button
+                        key={service.id}
+                        type="button"
+                        className={`${styles.bookingServiceOption} ${isSelected ? styles.bookingServiceOptionSelected : ""}`}
+                        onClick={() => toggleService(service.id)}
+                      >
+                        <span>{service.name}</span>
+                        <small>{service.durationMin} min{service.price ? ` - ${formatMoneyFromCents(service.price * 100)}` : ""}</small>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-              {selectedService && (
+              {selectedServices.length > 0 && (
                 <div className={styles.selectedService}>
-                  <span>{selectedService.name}</span>
+                  <span>{selectedServiceLabel}</span>
                   <strong>
-                    {selectedService.durationMin} min
-                    {selectedService.price ? ` - ${formatMoneyFromCents(selectedService.price * 100)}` : ""}
+                    {selectedDurationMin} min
+                    {selectedPriceCents ? ` - ${formatMoneyFromCents(selectedPriceCents)}` : ""}
                   </strong>
                 </div>
               )}
@@ -266,12 +299,13 @@ export default function PublicBookingModal({
                 </div>
               )}
 
-              <button className={styles.submitButton} type="submit" disabled={isPending || !serviceId || !time}>
+              <button className={styles.submitButton} type="submit" disabled={isPending || selectedServiceIds.length === 0 || !time}>
                 {isPending ? "Envoi..." : bookingSettings?.depositsRequired ? "Continuer vers le paiement" : "Confirmer la reservation"}
               </button>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

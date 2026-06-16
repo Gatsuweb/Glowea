@@ -547,6 +547,21 @@
   font-family: var(--font-tertiary);
 }
 
+.hourlyDetails {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+  font-size: 0.82rem;
+  color: #6f6667;
+  font-weight: 600;
+}
+
+.hourlyDetails span {
+  padding: 7px 10px;
+  border-radius: 999px;
+}
+
 .dayBlocksContainer {
   display: flex;
   justify-content: space-between;

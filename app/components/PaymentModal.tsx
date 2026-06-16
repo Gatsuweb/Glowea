@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { QRCodeSVG } from "qrcode.react";
 
 import styles from "./PaymentModal.module.css";
 import {
@@ -77,6 +78,7 @@ export default function PaymentModal({
   const [offlinePaymentMethod, setOfflinePaymentMethod] = useState<PaymentMethod>("cash");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+  const [isQrExpanded, setIsQrExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const financialSummary = useMemo(
@@ -114,6 +116,7 @@ export default function PaymentModal({
     setIsSubmitting(true);
     setError(null);
     setPaymentUrl(null);
+    setIsQrExpanded(false);
 
     try {
       const response = await fetch(`/api/appointments/${appointmentId}/create-payment-link`, {
@@ -139,6 +142,7 @@ export default function PaymentModal({
     setIsSubmitting(true);
     setError(null);
     setPaymentUrl(null);
+    setIsQrExpanded(false);
 
     try {
       const response = await fetch(`/api/appointments/${appointmentId}/mark-paid-offline`, {
@@ -166,15 +170,42 @@ export default function PaymentModal({
     await navigator.clipboard.writeText(paymentUrl);
   }
 
+  async function sharePaymentLink() {
+    if (!paymentUrl) return;
+
+    const shareData = {
+      title: "Lien de paiement Glowea",
+      text: `Bonjour, voici le lien de paiement pour votre rendez-vous ${serviceName}.`,
+      url: paymentUrl,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        return;
+      }
+
+      await navigator.clipboard.writeText(paymentUrl);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setError(err instanceof Error ? err.message : "Impossible de partager le lien de paiement.");
+    }
+  }
+
+  function closeModal() {
+    setIsQrExpanded(false);
+    onClose();
+  }
+
   return (
-    <div className={styles.overlay} onClick={onClose}>
+    <div className={styles.overlay} onClick={closeModal}>
       <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
         <div className={styles.header}>
           <div className={styles.headerLeft}>
             <h2>{mode === "closeout" ? "Clôturer le rendez-vous" : "Paiement du rendez-vous"}</h2>
             <p>{clientName} - {serviceName}</p>
           </div>
-          <button className={styles.btnClose} onClick={onClose} type="button">x</button>
+          <button className={styles.btnClose} onClick={closeModal} type="button">x</button>
         </div>
 
         <div className={styles.body}>
@@ -245,9 +276,26 @@ export default function PaymentModal({
                 <button type="button" className={styles.btnCancel} onClick={copyPaymentLink}>
                   Copier
                 </button>
+                <button type="button" className={styles.btnCancel} onClick={sharePaymentLink}>
+                  Envoyer au client
+                </button>
                 <a className={styles.btnConfirmLink} href={paymentUrl} target="_blank" rel="noreferrer">
                   Ouvrir Stripe
                 </a>
+              </div>
+              <div className={styles.qrCodeBox}>
+                <div className={styles.qrCodeHeader}>
+                  <div>
+                    <strong>Faire scanner le QR code</strong>
+                    <p>La cliente scanne ce QR code pour régler depuis son téléphone.</p>
+                  </div>
+                  <button type="button" className={styles.btnCancel} onClick={() => setIsQrExpanded(true)}>
+                    Agrandir
+                  </button>
+                </div>
+                <div className={styles.qrCodeFrame}>
+                  <QRCodeSVG value={paymentUrl} size={190} level="M" includeMargin />
+                </div>
               </div>
             </div>
           )}
@@ -279,10 +327,28 @@ export default function PaymentModal({
         </div>
 
         <div className={styles.footer}>
-          <button className={styles.btnCancel} onClick={onClose} disabled={isSubmitting} type="button">
+          <button className={styles.btnCancel} onClick={closeModal} disabled={isSubmitting} type="button">
             Fermer sans paiement
           </button>
         </div>
+
+        {paymentUrl && isQrExpanded && (
+          <div className={styles.qrExpandedOverlay} onClick={() => setIsQrExpanded(false)}>
+            <div className={styles.qrExpandedModal} onClick={(event) => event.stopPropagation()}>
+              <div className={styles.qrExpandedHeader}>
+                <div>
+                  <strong>QR code de paiement</strong>
+                  <span>{clientName}</span>
+                </div>
+                <button className={styles.btnClose} type="button" onClick={() => setIsQrExpanded(false)}>x</button>
+              </div>
+              <div className={styles.qrExpandedFrame}>
+                <QRCodeSVG value={paymentUrl} size={320} level="M" includeMargin />
+              </div>
+              <p>La cliente scanne ce QR code pour ouvrir Stripe Checkout et régler depuis son téléphone.</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

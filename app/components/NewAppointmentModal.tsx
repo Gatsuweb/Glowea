@@ -7,6 +7,12 @@ import NewClientModal from './NewClientModal';
 import NewServiceModal from './NewServiceModal';
 import { createAppointment, updateAppointment } from '../actions/appointmentActions';
 import { useRouter } from 'next/navigation';
+import {
+  APPOINTMENT_STATUS_LABELS,
+  APPOINTMENT_STATUS_TRANSITION_LABELS,
+  type AppointmentStatusValue,
+  getAllowedAppointmentStatusTransitions,
+} from '../../lib/appointmentStatus';
 
 type ClientOption = {
   id: string;
@@ -27,11 +33,22 @@ type AppointmentInitialData = {
   id: string;
   scheduledAt: string | Date;
   endAt?: string | Date | null;
-  status?: "SCHEDULED" | "PENDING_PAYMENT" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELED" | "EXPIRED" | "NO_SHOW";
+  status?: AppointmentStatusValue;
+  expiresAt?: string | Date | null;
+  paymentStatus?: string | null;
+  paidAmount?: number | null;
+  depositPaidAmount?: number | null;
   price?: number | null;
   notes?: string | null;
   client?: ClientOption | null;
   service?: ServiceOption | null;
+  appointmentServices?: Array<{
+    serviceId: string;
+    name: string;
+    price: number;
+    durationMin: number;
+    position: number;
+  }>;
 };
 
 function formatDateInput(date: Date) {
@@ -54,12 +71,24 @@ function addMinutesToTime(time: string | null, minutesToAdd: number) {
   return formatTimeInput(date);
 }
 
+function formatServicePrice(value: string | number) {
+  const amount = Number(String(value).replace(",", "."));
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function getSelectedServiceIdsFromInitialData(initialData: AppointmentInitialData | null) {
+  const serviceIds = initialData?.appointmentServices?.map((service) => service.serviceId).filter(Boolean) || [];
+  if (serviceIds.length > 0) return serviceIds;
+  return initialData?.service?.id ? [initialData.service.id] : [];
+}
+
 interface NewAppointmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   clients?: ClientOption[];
   services?: ServiceOption[];
   initialData?: AppointmentInitialData | null;
+  initialClient?: ClientOption | null;
   initialScheduledAt?: string | Date | null;
   initialEndAt?: string | Date | null;
   onSaved?: () => void;
@@ -71,6 +100,7 @@ export default function NewAppointmentModal({
   clients = [], 
   services = [],
   initialData = null,
+  initialClient = null,
   initialScheduledAt = null,
   initialEndAt = null,
   onSaved,
@@ -78,7 +108,7 @@ export default function NewAppointmentModal({
   const router = useRouter();
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(formatDateInput(new Date()));
-  const [selectedPrestation, setSelectedPrestation] = useState<string | null>(null);
+  const [selectedPrestations, setSelectedPrestations] = useState<string[]>([]);
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [isDropdownOpen, setDropdownOpen] = useState(false);
@@ -86,13 +116,22 @@ export default function NewAppointmentModal({
   const [isCreatingService, setIsCreatingService] = useState(false);
   const [notes, setNotes] = useState('');
   const [durationMin, setDurationMin] = useState('60');
-  const [endTime, setEndTime] = useState('');
   const [priceEuros, setPriceEuros] = useState('0');
-  const [status, setStatus] = useState<"SCHEDULED" | "PENDING_PAYMENT" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELED" | "EXPIRED" | "NO_SHOW">("SCHEDULED");
+  const [status, setStatus] = useState<AppointmentStatusValue>("SCHEDULED");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localServices, setLocalServices] = useState(services);
   const [error, setError] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const currentPersistedStatus = initialData?.status || status;
+  const allowedStatusTransitions = initialData
+    ? getAllowedAppointmentStatusTransitions({
+        status: currentPersistedStatus,
+        expiresAt: initialData.expiresAt,
+        paymentStatus: initialData.paymentStatus,
+        paidAmount: initialData.paidAmount,
+        depositPaidAmount: initialData.depositPaidAmount,
+      })
+    : [];
 
   useEffect(() => {
     setIsMounted(true);
@@ -126,14 +165,13 @@ export default function NewAppointmentModal({
         setSelectedTime(timeStr);
         setClientSearch(initialData.client?.name || '');
         setSelectedClientId(initialData.client?.id || null);
-        setSelectedPrestation(initialData.service?.id || null);
+        setSelectedPrestations(getSelectedServiceIdsFromInitialData(initialData));
         setNotes(initialData.notes || '');
         const endAt = initialData.endAt ? new Date(initialData.endAt) : null;
         const computedDuration = endAt && endAt > date
           ? Math.round((endAt.getTime() - date.getTime()) / 60000)
           : Number(initialData.service?.durationMin || 60);
         setDurationMin(String(computedDuration || 60));
-        setEndTime(endAt && endAt > date ? formatTimeInput(endAt) : addMinutesToTime(timeStr, computedDuration || 60));
         setPriceEuros(initialData.price !== null && initialData.price !== undefined
           ? String(initialData.price / 100)
           : String(initialData.service?.price || 0));
@@ -148,22 +186,52 @@ export default function NewAppointmentModal({
           : 60;
         setSelectedTime(slotDate ? slotDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null);
         setSelectedDate(slotDate ? formatDateInput(slotDate) : formatDateInput(new Date()));
-        setSelectedPrestation(null);
-        setClientSearch('');
-        setSelectedClientId(null);
+        setSelectedPrestations([]);
+        setClientSearch(initialClient?.name || '');
+        setSelectedClientId(initialClient?.id || null);
         setNotes('');
         setDurationMin(String(selectedDuration));
-        setEndTime(slotDate ? addMinutesToTime(formatTimeInput(slotDate), selectedDuration) : "");
         setPriceEuros('0');
         setStatus("SCHEDULED");
         setError(null);
       }
     }
-  }, [isOpen, initialData, initialScheduledAt, initialEndAt]);
+  }, [isOpen, initialData, initialClient, initialScheduledAt, initialEndAt]);
 
   const filteredClients = clients.filter(client => 
     client.name.toLowerCase().includes(clientSearch.toLowerCase())
   );
+  const preservesCalendarSelection = Boolean(!initialData && initialScheduledAt && initialEndAt);
+  const currentPrestations = localServices;
+  const selectedServices = localServices.filter((service) => selectedPrestations.includes(service.id));
+  const selectedServicesTotalDuration = selectedServices.reduce((sum, service) => sum + (service.durationMin || 60), 0);
+  const selectedServicesTotalPrice = selectedServices.reduce((sum, service) => sum + formatServicePrice(service.price), 0);
+  const calculatedEndTime = selectedTime
+    ? addMinutesToTime(selectedTime, Number(durationMin) || 60)
+    : "";
+
+  useEffect(() => {
+    if (!isOpen || selectedPrestations.length === 0) return;
+
+    const totalDuration = selectedServicesTotalDuration || 60;
+    const totalPrice = selectedServicesTotalPrice;
+    const shouldSyncDuration = selectedPrestations.length > 1 || !preservesCalendarSelection;
+    const shouldSyncPrice = selectedPrestations.length > 1 || !initialData;
+
+    if (shouldSyncDuration) {
+      setDurationMin(String(totalDuration));
+    }
+    if (shouldSyncPrice) {
+      setPriceEuros(String(totalPrice));
+    }
+  }, [
+    initialData,
+    isOpen,
+    preservesCalendarSelection,
+    selectedPrestations.length,
+    selectedServicesTotalDuration,
+    selectedServicesTotalPrice,
+  ]);
 
   if (!isOpen || !isMounted) return null;
 
@@ -174,12 +242,32 @@ export default function NewAppointmentModal({
     timeSlots.push(`${hour.toString().padStart(2, '0')}:30`);
   }
 
-  // Filter services by category if needed, here we just show all services
-  const currentPrestations = localServices;
-  const preservesCalendarSelection = Boolean(!initialData && initialScheduledAt && initialEndAt);
+  const togglePrestation = (service: ServiceOption) => {
+    setSelectedPrestations((current) => {
+      const isSelected = current.includes(service.id);
+      const next = isSelected ? current.filter((id) => id !== service.id) : [...current, service.id];
+
+      if (next.length === 0) {
+        if (!preservesCalendarSelection) setDurationMin("60");
+        setPriceEuros("0");
+        return next;
+      }
+
+      const nextServices = localServices.filter((item) => next.includes(item.id));
+      const nextDuration = nextServices.reduce((sum, item) => sum + (item.durationMin || 60), 0) || 60;
+      const nextPrice = nextServices.reduce((sum, item) => sum + formatServicePrice(item.price), 0);
+
+      if (next.length > 1 || !preservesCalendarSelection) {
+        setDurationMin(String(nextDuration));
+      }
+      setPriceEuros(String(nextPrice));
+
+      return next;
+    });
+  };
 
   const handleSubmit = async () => {
-    if (!selectedClientId || !selectedPrestation || !selectedTime || !selectedDate) {
+    if (!selectedClientId || selectedPrestations.length === 0 || !selectedTime || !selectedDate) {
       setError("Veuillez remplir tous les champs obligatoires (client, date, heure, prestation).");
       return;
     }
@@ -191,17 +279,21 @@ export default function NewAppointmentModal({
     const scheduledAt = new Date(selectedDate);
     scheduledAt.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
 
-    const selectedService = currentPrestations.find((service) => service.id === selectedPrestation);
-    const finalDuration = Math.min(480, Math.max(15, Math.round(Number(durationMin) || Number(selectedService?.durationMin) || 60)));
+    const totalSelectedDuration = selectedServicesTotalDuration || Number(selectedServices[0]?.durationMin) || 60;
+    const totalSelectedPrice = selectedServicesTotalPrice;
+    const finalDuration = Math.min(480, Math.max(15, Math.round(Number(durationMin) || totalSelectedDuration)));
     const finalPriceEuros = Number(priceEuros.replace(",", "."));
     const endAt = new Date(scheduledAt.getTime() + finalDuration * 60000);
 
     const appointmentData = {
       clientId: selectedClientId,
-      serviceId: selectedPrestation,
+      serviceId: selectedPrestations[0],
+      serviceIds: selectedPrestations,
       scheduledAt,
       endAt,
-      price: Number.isFinite(finalPriceEuros) && finalPriceEuros >= 0 ? Math.round(finalPriceEuros * 100) : 0,
+      price: Number.isFinite(finalPriceEuros) && finalPriceEuros >= 0
+        ? Math.round(finalPriceEuros * 100)
+        : Math.round(totalSelectedPrice * 100),
       notes,
     };
 
@@ -304,9 +396,9 @@ export default function NewAppointmentModal({
           </div>
         </div>
 
-        {/* DATE & HEURES */}
+        {/* DATE & HEURE */}
         <div className={styles.sectionWhite}>
-          <div className={styles.sectionTitle}>DATE & HEURES</div>
+          <div className={styles.sectionTitle}>DATE & HEURE</div>
           <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
             <input 
               type="date" 
@@ -320,40 +412,21 @@ export default function NewAppointmentModal({
               className={styles.dateInput}
               aria-label="Heure de debut"
               value={selectedTime || ''}
-              onChange={(e) => {
-                setSelectedTime(e.target.value);
-                setEndTime(addMinutesToTime(e.target.value, Number(durationMin) || 60));
-              }}
+              onChange={(e) => setSelectedTime(e.target.value)}
               style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
-            />
-            <input
-              type="time"
-              className={styles.dateInput}
-              aria-label="Heure de fin"
-              value={endTime}
-              onChange={(e) => {
-                setEndTime(e.target.value);
-                if (!selectedTime) return;
-                const [startHours, startMinutes] = selectedTime.split(":").map(Number);
-                const [endHours, endMinutes] = e.target.value.split(":").map(Number);
-                const nextDuration = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
-                if (Number.isFinite(nextDuration) && nextDuration > 0) {
-                  setDurationMin(String(nextDuration));
-                }
-              }}
-              style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
-              title="Heure de fin"
             />
           </div>
+          {calculatedEndTime && (
+            <div className={styles.endTimeHint}>
+              Fin estim&eacute;e : {calculatedEndTime}
+            </div>
+          )}
           <div className={styles.timeSlots} style={{ maxHeight: '150px', overflowY: 'auto' }}>
             {timeSlots.map((time) => (
               <button 
                 key={time} 
                 className={`${styles.timeSlot} ${selectedTime === time ? styles.active : ''}`}
-                onClick={() => {
-                  setSelectedTime(time);
-                  setEndTime(addMinutesToTime(time, Number(durationMin) || 60));
-                }}
+                onClick={() => setSelectedTime(time)}
               >
                 {time}
               </button>
@@ -381,16 +454,8 @@ export default function NewAppointmentModal({
               {currentPrestations.map((prest) => (
                 <div 
                   key={prest.id} 
-                  className={`${styles.prestationCard} ${selectedPrestation === prest.id ? styles.active : ''}`}
-                  onClick={() => {
-                    setSelectedPrestation(prest.id);
-                    if (!preservesCalendarSelection) {
-                      const nextDuration = prest.durationMin || 60;
-                      setDurationMin(String(nextDuration));
-                      setEndTime(addMinutesToTime(selectedTime, nextDuration));
-                    }
-                    setPriceEuros(String(prest.price || 0));
-                  }}
+                  className={`${styles.prestationCard} ${selectedPrestations.includes(prest.id) ? styles.active : ''}`}
+                  onClick={() => togglePrestation(prest)}
                 >
                   <span className={styles.prestationTitle}>{prest.name}</span>
                   <span className={styles.prestationPrice}>{prest.price}€</span>
@@ -402,6 +467,29 @@ export default function NewAppointmentModal({
             <div style={{ textAlign: 'center', padding: '20px', color: '#666', fontStyle: 'italic', background: 'rgba(255,255,255,0.5)', borderRadius: '12px' }}>
               Aucune prestation disponible.<br />
               <span style={{ fontSize: '0.85rem' }}>Cliquez sur &quot;+ Nouvelle prestation&quot; pour en ajouter une.</span>
+            </div>
+          )}
+
+          {selectedServices.length > 0 && (
+            <div className={styles.selectedServicesPanel}>
+              <div className={styles.selectedServicesHeader}>
+                <span>{selectedServices.length} prestation{selectedServices.length > 1 ? "s" : ""} s&eacute;lectionn&eacute;e{selectedServices.length > 1 ? "s" : ""}</span>
+                <strong>{selectedServicesTotalDuration} min &middot; {selectedServicesTotalPrice.toFixed(2)} &euro;</strong>
+              </div>
+              <div className={styles.selectedServicesList}>
+                {selectedServices.map((service) => (
+                  <button
+                    key={service.id}
+                    type="button"
+                    className={styles.selectedServiceChip}
+                    onClick={() => togglePrestation(service)}
+                    title="Retirer la prestation"
+                  >
+                    <span>{service.name}</span>
+                    <small>{service.durationMin} min &middot; {formatServicePrice(service.price).toFixed(2)} &euro;</small>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -418,10 +506,7 @@ export default function NewAppointmentModal({
                 max="480"
                 step="15"
                 value={durationMin}
-                onChange={(e) => {
-                  setDurationMin(e.target.value);
-                  setEndTime(addMinutesToTime(selectedTime, Number(e.target.value) || 60));
-                }}
+                onChange={(e) => setDurationMin(e.target.value)}
               />
             </label>
             <label>
@@ -437,16 +522,16 @@ export default function NewAppointmentModal({
             {initialData && (
               <label>
                 Statut
-                <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
-                  <option value="SCHEDULED">Planifie</option>
-                  <option value="PENDING_PAYMENT">Attente paiement</option>
-                  <option value="CONFIRMED">Confirme</option>
-                  <option value="IN_PROGRESS">En cours</option>
-                  <option value="COMPLETED">Termine</option>
-                  <option value="CANCELED">Annule</option>
-                  <option value="EXPIRED">Expire</option>
-                  <option value="NO_SHOW">No-show</option>
-                </select>
+                {allowedStatusTransitions.length > 0 ? (
+                  <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
+                    <option value={status}>Statut : {APPOINTMENT_STATUS_LABELS[status]}</option>
+                    {allowedStatusTransitions.filter((value) => value !== status).map((value) => (
+                      <option key={value} value={value}>{APPOINTMENT_STATUS_TRANSITION_LABELS[value]}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className={styles.readonlyStatus}>{APPOINTMENT_STATUS_LABELS[status]}</span>
+                )}
               </label>
             )}
           </div>
@@ -494,11 +579,10 @@ export default function NewAppointmentModal({
         onClose={() => setIsCreatingService(false)} 
         onSave={(service) => {
           setLocalServices(prev => [...prev, service]);
-          setSelectedPrestation(service.id);
+          setSelectedPrestations((current) => Array.from(new Set([...current, service.id])));
           if (!preservesCalendarSelection) {
             const nextDuration = service.durationMin || 60;
             setDurationMin(String(nextDuration));
-            setEndTime(addMinutesToTime(selectedTime, nextDuration));
           }
           setPriceEuros(String(service.price || 0));
         }}

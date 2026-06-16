@@ -1,13 +1,18 @@
 "use client";
 
-import { BarChart, Bar, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, ResponsiveContainer, Cell, Tooltip, XAxis } from 'recharts';
 
 interface SparkBarChartProps {
-  data: { value: number }[];
+  data: { value: number; label?: string }[];
   color?: string;
 }
 
 export default function SparkBarChart({ data, color = "#FCD7D1" }: SparkBarChartProps) {
+  const chartData = data.map((entry, index) => ({
+    ...entry,
+    label: entry.label || `Point ${index + 1}`,
+  }));
+
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       {/* Custom Axes with arrows */}
@@ -57,9 +62,31 @@ export default function SparkBarChart({ data, color = "#FCD7D1" }: SparkBarChart
 
       <div style={{ width: '100%', height: '100%', paddingLeft: '5px', paddingBottom: '2px' }}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-          <BarChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+          <BarChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+            <XAxis dataKey="label" hide />
+            <Tooltip
+              cursor={{ fill: "rgba(139, 75, 84, 0.08)" }}
+              content={({ active, payload, label }) => {
+                if (!active || !payload || payload.length === 0) return null;
+                const value = Number(payload[0]?.value || 0);
+                return (
+                  <div style={{
+                    background: "rgba(255, 255, 255, 0.98)",
+                    border: "1px solid rgba(139, 75, 84, 0.16)",
+                    borderRadius: "10px",
+                    boxShadow: "0 10px 25px rgba(0, 0, 0, 0.08)",
+                    padding: "8px 10px",
+                    fontSize: "12px",
+                    color: "#333",
+                  }}>
+                    <div style={{ fontWeight: 700, marginBottom: "4px" }}>{String(label || "")}</div>
+                    <div>{value.toFixed(2)} €</div>
+                  </div>
+                );
+              }}
+            />
             <Bar dataKey="value" radius={[5, 5, 0, 0]}>
-              {data.map((entry, index) => (
+              {chartData.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={color} />
               ))}
             </Bar>
