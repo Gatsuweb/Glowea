@@ -30,7 +30,7 @@ export default function LandingNavbar() {
   return (
     <>
       <header className={styles.navbar}>
-        <Link href="/" className={styles.logo} aria-label="Glowea accueil">
+        <Link href="/" className={styles.logo} aria-label="Accueil Glowea">
           <Image src="/logo-glowea-fonce.png" alt="Glowea" width={125} height={40} priority />
         </Link>
 

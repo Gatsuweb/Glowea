@@ -8,14 +8,25 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const priceMap = {
-  essential: process.env.STRIPE_PRICE_ESSENTIAL || process.env.STRIPE_PRICE_STARTER,
-  pro: process.env.STRIPE_PRICE_PRO,
+  essential: {
+    monthly: process.env.STRIPE_PRICE_ESSENTIAL || process.env.STRIPE_PRICE_STARTER,
+    yearly: process.env.STRIPE_PRICE_ESSENTIAL_YEARLY,
+  },
+  pro: {
+    monthly: process.env.STRIPE_PRICE_PRO,
+    yearly: process.env.STRIPE_PRICE_PRO_YEARLY,
+  },
 };
 
 type CheckoutPlan = keyof typeof priceMap;
+type CheckoutBilling = "monthly" | "yearly";
 
 function isCheckoutPlan(value: unknown): value is CheckoutPlan {
   return value === "essential" || value === "pro";
+}
+
+function isCheckoutBilling(value: unknown): value is CheckoutBilling {
+  return value === "monthly" || value === "yearly";
 }
 
 export async function POST(req: Request) {
@@ -34,13 +45,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
   }
 
-  if (billing !== "monthly") {
+  if (!isCheckoutBilling(billing)) {
     return NextResponse.json({ error: "Invalid billing" }, { status: 400 });
   }
 
-  const priceId = priceMap[plan];
+  const priceId = priceMap[plan][billing];
   if (!priceId) {
-    return NextResponse.json({ error: "Missing Stripe price configuration" }, { status: 500 });
+    return NextResponse.json({ error: `Missing Stripe ${billing} price configuration` }, { status: 500 });
   }
 
   const tenant = await prisma.tenant.findUnique({

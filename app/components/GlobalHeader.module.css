@@ -17,7 +17,7 @@
 }
 
 .logoContainer {
-  background: var(--secondary);
+  background: rgba(250, 244, 245, 0.8);
   
   border-radius: 0 0 50px 0;
   padding: 15px 40px 25px 20px;

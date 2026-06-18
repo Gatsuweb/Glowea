@@ -34,7 +34,7 @@ export default function ModulesPreviewSection() {
               <strong>Planning de la semaine</strong>
             </div>
             <div className={styles.moduleCalendarBadge}>
-              <span>1 - 7 Juin</span>
+              <span>1 - 7 juin</span>
             </div>
           </div>
 
@@ -147,7 +147,7 @@ export default function ModulesPreviewSection() {
             <span className={styles.moduleGrowth}>+18%</span>
           </div>
 
-          <div className={styles.moduleStatsValue}>1 840 EUR</div>
+          <div className={styles.moduleStatsValue}>1 840 €</div>
 
           <div className={styles.moduleChart}>
             <span style={{ height: "32%" }}></span>
@@ -176,7 +176,7 @@ export default function ModulesPreviewSection() {
             </div>
 
             <div className={styles.modulePaymentAmount}>
-              <strong>30 EUR</strong>
+              <strong>30 €</strong>
               <span>✓ Confirmé</span>
             </div>
           </div>

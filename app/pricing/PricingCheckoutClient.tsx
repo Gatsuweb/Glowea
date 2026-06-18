@@ -2,6 +2,13 @@
 
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
+import {
+  PlanPriceDisplay,
+  PricingBillingProvider,
+  PricingBillingToggle,
+  type BillingCycle,
+  usePricingBilling,
+} from "../components/PricingBilling";
 import styles from "./pricing.module.css";
 
 type PlanKey = "essential" | "pro";
@@ -9,7 +16,6 @@ type PlanKey = "essential" | "pro";
 const plans: Array<{
   key: PlanKey;
   name: string;
-  price: string;
   description: string;
   features: string[];
   featured?: boolean;
@@ -17,7 +23,6 @@ const plans: Array<{
   {
     key: "essential",
     name: "Essentiel",
-    price: "39,90 EUR",
     description: "Pour gérer vos clientes, rendez-vous, sessions, stock et comptabilité.",
     features: [
       "Agenda et rendez-vous",
@@ -30,7 +35,6 @@ const plans: Array<{
   {
     key: "pro",
     name: "Pro",
-    price: "59,90 EUR",
     description: "Pour garder l'acces complet et automatiser la croissance de votre activite.",
     features: [
       "Tout Essentiel",
@@ -44,12 +48,21 @@ const plans: Array<{
 ];
 
 export default function PricingCheckoutClient() {
+  return (
+    <PricingBillingProvider defaultBilling="yearly">
+      <PricingCheckoutContent />
+    </PricingBillingProvider>
+  );
+}
+
+function PricingCheckoutContent() {
   const searchParams = useSearchParams();
   const canceled = searchParams.get("canceled") === "true";
+  const { billing } = usePricingBilling();
   const [loadingPlan, setLoadingPlan] = useState<PlanKey | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function startCheckout(plan: PlanKey) {
+  async function startCheckout(plan: PlanKey, selectedBilling: BillingCycle) {
     setLoadingPlan(plan);
     setError(null);
 
@@ -57,7 +70,7 @@ export default function PricingCheckoutClient() {
       const response = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, billing: "monthly" }),
+        body: JSON.stringify({ plan, billing: selectedBilling }),
       });
 
       const payload = await response.json();
@@ -95,6 +108,14 @@ export default function PricingCheckoutClient() {
         </div>
       )}
 
+      <PricingBillingToggle
+        className={styles.billingToggle}
+        optionClassName={styles.billingOption}
+        activeClassName={styles.billingOptionActive}
+        recommendedClassName={styles.billingOptionRecommended}
+        badgeClassName={styles.billingBadge}
+      />
+
       <section className={styles.grid}>
         {plans.map((plan) => (
           <article key={plan.key} className={`${styles.card} ${plan.featured ? styles.featured : ""}`}>
@@ -103,10 +124,12 @@ export default function PricingCheckoutClient() {
               <h2>{plan.name}</h2>
               <p>{plan.description}</p>
             </div>
-            <div className={styles.price}>
-              <strong>{plan.price}</strong>
-              <span>/ mois</span>
-            </div>
+            <PlanPriceDisplay
+              plan={plan.key}
+              priceClassName={styles.price}
+              noteClassName={styles.priceNote}
+              savingClassName={styles.savingBadge}
+            />
             <ul>
               {plan.features.map((feature) => (
                 <li key={feature}>{feature}</li>
@@ -115,7 +138,7 @@ export default function PricingCheckoutClient() {
             <button
               type="button"
               className={plan.featured ? styles.primaryButton : styles.secondaryButton}
-              onClick={() => startCheckout(plan.key)}
+              onClick={() => startCheckout(plan.key, billing)}
               disabled={loadingPlan !== null}
             >
               {loadingPlan === plan.key ? "Redirection..." : `Choisir ${plan.name}`}

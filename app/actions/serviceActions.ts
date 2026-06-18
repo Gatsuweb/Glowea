@@ -4,6 +4,30 @@ import prisma from "../../lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "../../lib/tenant";
 
+function revalidateServiceViews() {
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/agenda");
+  revalidatePath("/dashboard/clients");
+  revalidatePath("/dashboard/profil");
+  revalidatePath("/dashboard/page-publique");
+}
+
+function serializeService(service: {
+  id: string;
+  name: string;
+  price: { toString(): string } | number | string | null;
+  durationMin: number | null;
+  color: string | null;
+}) {
+  return {
+    id: service.id,
+    name: service.name,
+    price: service.price ? service.price.toString() : "0",
+    durationMin: service.durationMin || 60,
+    color: service.color,
+  };
+}
+
 export async function createService(data: {
   name: string;
   price?: number;
@@ -12,32 +36,48 @@ export async function createService(data: {
 }) {
   const TENANT_ID = await getTenantId();
   try {
-    const id = `srv_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
+    const name = data.name.trim();
+    if (!name) {
+      return { success: false, error: "Le nom de la prestation est obligatoire" };
+    }
 
-    const service = await prisma.service.create({
-      data: {
-        id,
-        tenantId: TENANT_ID,
-        name: data.name,
-        price: data.price,
-        durationMin: data.durationMin,
-        color: data.color,
-        updatedAt: new Date(),
-      }
+    const existingService = await prisma.service.findFirst({
+      where: { tenantId: TENANT_ID, name },
     });
 
-    revalidatePath("/dashboard");
-    revalidatePath("/dashboard/agenda");
-    revalidatePath("/dashboard/profil");
+    if (existingService?.isActive) {
+      return { success: false, error: "Une prestation avec ce nom existe déjà" };
+    }
+
+    const service = existingService
+      ? await prisma.service.update({
+          where: { id: existingService.id, tenantId: TENANT_ID },
+          data: {
+            price: data.price,
+            durationMin: data.durationMin,
+            color: data.color,
+            isActive: true,
+            isPublic: true,
+            updatedAt: new Date(),
+          },
+        })
+      : await prisma.service.create({
+          data: {
+            id: `srv_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+            tenantId: TENANT_ID,
+            name,
+            price: data.price,
+            durationMin: data.durationMin,
+            color: data.color,
+            updatedAt: new Date(),
+          },
+        });
+
+    revalidateServiceViews();
 
     return { 
       success: true, 
-      service: {
-        id: service.id,
-        name: service.name,
-        price: service.price ? service.price.toString() : '0',
-        durationMin: service.durationMin || 60,
-      } 
+      service: serializeService(service),
     };
   } catch (error) {
     console.error("Error creating service:", error);
@@ -49,7 +89,7 @@ export async function getServices() {
   const TENANT_ID = await getTenantId();
   try {
     const services = await prisma.service.findMany({
-      where: { tenantId: TENANT_ID },
+      where: { tenantId: TENANT_ID, isActive: true },
       orderBy: { name: 'asc' }
     });
     return { success: true, data: services };
@@ -75,9 +115,7 @@ export async function updateService(id: string, data: {
       }
     });
     
-    revalidatePath("/dashboard");
-    revalidatePath("/dashboard/agenda");
-    revalidatePath("/dashboard/profil");
+    revalidateServiceViews();
     
     return { success: true, data: service };
   } catch (error) {
@@ -89,13 +127,25 @@ export async function updateService(id: string, data: {
 export async function deleteService(id: string) {
   const TENANT_ID = await getTenantId();
   try {
-    await prisma.service.delete({
-      where: { id, tenantId: TENANT_ID }
+    const existingService = await prisma.service.findFirst({
+      where: { id, tenantId: TENANT_ID, isActive: true },
+      select: { id: true },
+    });
+
+    if (!existingService) {
+      return { success: false, error: "Prestation introuvable pour ce compte" };
+    }
+
+    await prisma.service.update({
+      where: { id, tenantId: TENANT_ID },
+      data: {
+        isActive: false,
+        isPublic: false,
+        updatedAt: new Date(),
+      },
     });
     
-    revalidatePath("/dashboard");
-    revalidatePath("/dashboard/agenda");
-    revalidatePath("/dashboard/profil");
+    revalidateServiceViews();
     
     return { success: true };
   } catch (error) {

@@ -1,7 +1,5 @@
 .page {
-  background:
-    radial-gradient(circle at top left, rgba(176, 92, 112, 0.12), transparent 32rem),
-    #fffaf6;
+
   color: #3a2827;
   display: grid;
   gap: 22px;

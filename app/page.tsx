@@ -4,6 +4,12 @@ import HeroTabletShowcase from "./components/HeroTabletShowcase";
 import LandingNavbar from "./components/LandingNavbar";
 import LandingLenis from "./components/LandingLenis";
 import ModulesPreviewSection from "./components/ModulesPreviewSection";
+import {
+  PlanPriceDisplay,
+  PricingBillingProvider,
+  PricingBillingToggle,
+  type PricingPlanKey,
+} from "./components/PricingBilling";
 import ProblemOrbitSection from "./components/ProblemOrbitSection";
 import SolutionConvergenceSection from "./components/SolutionConvergenceSection";
 import styles from "./page.module.css";
@@ -139,9 +145,7 @@ const renderPricingIcon = (icon: PricingIcon) => {
 const plans = [
   {
     name: "Essentiel",
-    monthlyPrice: "39,90 €",
-    yearlyPrice: "399 €",
-    yearlyNote: "Équivalent à 2 mois offerts",
+    billingPlan: "essential" as PricingPlanKey,
     positioning: "Pour organiser votre activité au quotidien.",
     text: "Une base claire, élégante et rassurante pour gérer vos rendez-vous, vos clientes et votre suivi sans friction.",
     primaryBenefits: ["Gérez votre activité simplement"],
@@ -177,9 +181,7 @@ const plans = [
   },
   {
     name: "Pro",
-    monthlyPrice: "59,90 €",
-    yearlyPrice: "599 €",
-    yearlyNote: "Équivalent à 2 mois offerts",
+    billingPlan: "pro" as PricingPlanKey,
     positioning: "Pour développer votre activité et sécuriser vos revenus.",
     text: "Le plan pensé pour automatiser vos relances, inspirer confiance et transformer Glowea en moteur de croissance.",
     primaryBenefits: [
@@ -407,104 +409,99 @@ export default function Home() {
           <span className={styles.eyebrow}>Tarifs</span>
           <h2>Choisissez la formule qui vous suffit.</h2>
         </div>
-        {/* <div className={styles.billingToggle} aria-label="Période de facturation">
-          <span className={`${styles.billingOption} ${styles.billingOptionActive}`}>
-            Mensuel
-          </span>
-          <span className={`${styles.billingOption} ${styles.billingOptionRecommended}`}>
-            Annuel
-            <span className={styles.billingBadge}>⭐ Économisez 17%</span>
-          </span>
-        </div> */}
-        <div className={styles.pricingGrid}>
-          {plans.map((plan) => (
-            <article
-              className={`${styles.priceCard} ${plan.featured ? styles.priceCardFeatured : ""}`}
-              key={plan.name}
-            >
-              <div className={styles.priceCardAura} aria-hidden="true"></div>
-              {plan.featured ? <span className={styles.badge}>{plan.badgeText}</span> : null}
-              <div className={styles.priceCardHeader}>
-                <div className={styles.priceCardHeading}>
-                  <span className={styles.planKicker}>{plan.name}</span>
-                  <h3>{plan.name}</h3>
-                  <p className={styles.planPositioning}>{plan.positioning}</p>
-                  <p className={styles.planSummary}>{plan.text}</p>
-                </div>
-                <div className={styles.priceStack}>
-                  <div className={styles.price}>
-                    <strong>{plan.monthlyPrice}</strong>
-                    <span>/ mois</span>
+        <PricingBillingProvider defaultBilling="yearly">
+          <PricingBillingToggle
+            className={styles.billingToggle}
+            optionClassName={styles.billingOption}
+            activeClassName={styles.billingOptionActive}
+            recommendedClassName={styles.billingOptionRecommended}
+            badgeClassName={styles.billingBadge}
+          />
+          <div className={styles.pricingGrid}>
+            {plans.map((plan) => (
+              <article
+                className={`${styles.priceCard} ${plan.featured ? styles.priceCardFeatured : ""}`}
+                key={plan.name}
+              >
+                <div className={styles.priceCardAura} aria-hidden="true"></div>
+                {/* {plan.featured ? <span className={styles.badge}>{plan.badgeText}</span> : null} */}
+                <div className={styles.priceCardHeader}>
+                  <div className={styles.priceCardHeading}>
+                    <span className={styles.planKicker}>{plan.name}</span>
+                    <h3>{plan.name}</h3>
+                    <p className={styles.planPositioning}>{plan.positioning}</p>
+                    <p className={styles.planSummary}>{plan.text}</p>
                   </div>
-                  <div className={styles.priceDivider}>ou</div>
-                  <div className={`${styles.price} ${styles.priceYearly}`}>
-                    <strong>{plan.yearlyPrice}</strong>
-                    <span>/ an</span>
-                  </div>
-                  <div className={styles.priceSaving}>{plan.yearlyNote}</div>
+                  <PlanPriceDisplay
+                    plan={plan.billingPlan}
+                    stackClassName={styles.priceStack}
+                    priceClassName={styles.price}
+                    noteClassName={styles.priceBillingNote}
+                    savingClassName={styles.priceSaving}
+                  />
                 </div>
-              </div>
 
-              <div className={`${styles.primaryBenefitCard} ${plan.featured ? styles.primaryBenefitCardFeatured : ""}`}>
-                <span className={styles.primaryBenefitEyebrow}>Bénéfice principal</span>
-                <ul className={styles.primaryBenefitList}>
-                  {plan.primaryBenefits.map((benefit) => (
-                    <li key={benefit}>
-                      <span className={styles.primaryBenefitCheck}>✓</span>
-                      <span>{benefit}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className={styles.metricsBadgeRow}>
-                {plan.metrics.map((metric) => (
-                  <span key={metric} className={`${styles.metricBadge} ${plan.featured ? styles.metricBadgeFeatured : ""}`}>
-                    {metric}
-                  </span>
-                ))}
-              </div>
-
-              {plan.featured ? (
-                <div className={styles.proIncludesBlock}>
-                  <span className={styles.proIncludesTitle}>Inclus dans Pro</span>
-                  <div className={styles.proIncludesGrid}>
-                    {plan.proIncludes.map((item) => (
-                      <div key={item.label} className={styles.proIncludeChip}>
-                        <span className={styles.proIncludeIcon}>
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                            {renderPricingIcon(item.icon)}
-                          </svg>
-                        </span>
-                        <span>{item.label}</span>
-                      </div>
+                <div className={`${styles.primaryBenefitCard} ${plan.featured ? styles.primaryBenefitCardFeatured : ""}`}>
+                  <span className={styles.primaryBenefitEyebrow}>Bénéfice principal</span>
+                  <ul className={styles.primaryBenefitList}>
+                    {plan.primaryBenefits.map((benefit) => (
+                      <li key={benefit}>
+                        <span className={styles.primaryBenefitCheck}>✓</span>
+                        <span>{benefit}</span>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 </div>
-              ) : null}
 
-              <div className={styles.planFeatureList}>
-                {plan.features.map((feature) => (
-                  <div key={feature.title} className={styles.planFeatureRow}>
-                    <span className={styles.planFeatureIcon}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                        {renderPricingIcon(feature.icon)}
-                      </svg>
+                {/* <div className={styles.metricsBadgeRow}>
+                  {plan.metrics.map((metric) => (
+                    <span key={metric} className={`${styles.metricBadge} ${plan.featured ? styles.metricBadgeFeatured : ""}`}>
+                      {metric}
                     </span>
-                    <div className={styles.planFeatureCopy}>
-                      <strong>{feature.title}</strong>
-                      <p>{feature.description}</p>
+                  ))}
+                </div> */}
+
+                {plan.featured ? (
+                  <div className={styles.proIncludesBlock}>
+                    <span className={styles.proIncludesTitle}>Inclus dans Pro</span>
+                    <div className={styles.proIncludesGrid}>
+                      {plan.proIncludes.map((item) => (
+                        <div key={item.label} className={styles.proIncludeChip}>
+                          <span className={styles.proIncludeIcon}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                              {renderPricingIcon(item.icon)}
+                            </svg>
+                          </span>
+                          <span>{item.label}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
+                ) : null}
 
-              <Link href="/sign-up" className={plan.featured ? styles.primaryButton : styles.secondaryButton}>
-                {plan.ctaLabel}
-              </Link>
-            </article>
-          ))}
-        </div>
+                <div className={styles.planFeatureList}>
+                  {plan.features.map((feature) => (
+                    <div key={feature.title} className={styles.planFeatureRow}>
+                      <span className={styles.planFeatureIcon}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          {renderPricingIcon(feature.icon)}
+                        </svg>
+                      </span>
+                      <div className={styles.planFeatureCopy}>
+                        <strong>{feature.title}</strong>
+                        <p>{feature.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <Link href="/sign-up" className={plan.featured ? styles.primaryButton : styles.secondaryButton}>
+                  {plan.ctaLabel}
+                </Link>
+              </article>
+            ))}
+          </div>
+        </PricingBillingProvider>
       </section>
 
       <section className={styles.faqSection} id="faq">

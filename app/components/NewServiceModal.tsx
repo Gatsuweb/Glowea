@@ -8,6 +8,7 @@ type CreatedService = {
   name: string;
   price: string;
   durationMin: number;
+  color?: string | null;
 };
 
 interface NewServiceModalProps {
@@ -42,7 +43,7 @@ export default function NewServiceModal({ isOpen, onClose, onSave }: NewServiceM
         durationMin: durationMin ? parseInt(durationMin, 10) : undefined,
       });
 
-      if (response.success) {
+      if (response.success && response.service) {
         if (onSave) {
           onSave(response.service);
         }

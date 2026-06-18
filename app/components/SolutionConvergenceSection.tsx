@@ -319,8 +319,8 @@ export default function SolutionConvergenceSection() {
             <div className={styles.solutionDashboardMain}>
               <div className={styles.solutionDashboardHero}>
                 <span>Tableau de bord central</span>
-                <strong>Toute l'activité se réunit ici</strong>
-                <p>Agenda, clientes, stock, photos et messages avancent ensemble dans le même flux.</p>
+                  <strong>Toute votre activité se réunit ici</strong>
+                  <p>Agenda, clientes, stock, photos et messages avancent ensemble dans le même flux.</p>
               </div>
 
               <div className={styles.solutionDashboardStats}>
@@ -330,7 +330,7 @@ export default function SolutionConvergenceSection() {
                 </article>
                 <article>
                   <span>Messages</span>
-                  <strong>0 attente</strong>
+                  <strong>0 en attente</strong>
                 </article>
                 <article>
                   <span>Stock</span>

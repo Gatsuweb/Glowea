@@ -66,6 +66,64 @@
   margin: 0 auto;
 }
 
+.billingToggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 24px;
+  padding: 6px;
+  border: 1px solid rgba(144, 87, 96, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 14px 34px rgba(72, 37, 35, 0.08);
+}
+
+.billingOption {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #5F5050;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.billingOptionActive {
+  background: rgba(139, 75, 84, 0.1);
+  color: var(--tertiary);
+}
+
+.billingOptionRecommended {
+  border: 1px solid rgba(139, 75, 84, 0.12);
+}
+
+.billingOptionRecommended.billingOptionActive {
+  background: var(--tertiary);
+  color: white;
+  box-shadow: 0 12px 28px rgba(139, 75, 84, 0.22);
+}
+
+.billingBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
 .card {
   position: relative;
   display: flex;
@@ -108,18 +166,57 @@
 }
 
 .price {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
+  display: grid;
+  gap: 5px;
+  align-items: start;
+  width: fit-content;
+  padding: 14px 16px;
+  border: 1px solid rgba(144, 87, 96, 0.12);
+  border-radius: 8px;
+  background: #FFF8F9;
+}
+
+.price > span {
+  color: #777;
+  font-weight: 800;
+}
+
+.price strong,
+.price > span {
+  display: inline-block;
+}
+
+.price strong + span {
+  margin-top: -3px;
+}
+
+.price strong {
+  line-height: 1;
 }
 
 .price strong {
   color: #222;
-  font-size: 2rem;
+  font-size: 2.45rem;
 }
 
-.price span {
-  color: #777;
+.priceNote {
+  color: #766A68;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.savingBadge {
+  width: fit-content;
+  margin-bottom: -12px;
+  padding: 5px 9px;
+  border: 1px solid rgba(144, 87, 96, 0.16);
+  border-radius: 999px;
+  background: #FFFFFF;
+  color: var(--tertiary);
+  font-size: 0.78rem;
+  font-weight: 850;
+  position: relative;
+  z-index: 1;
 }
 
 .card ul {
@@ -185,6 +282,22 @@
 
   .grid {
     grid-template-columns: 1fr;
+  }
+
+  .billingToggle {
+    align-items: stretch;
+    border-radius: 14px;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .billingOption {
+    border-radius: 10px;
+    width: 100%;
+  }
+
+  .billingBadge {
+    justify-content: center;
   }
 
   .card {

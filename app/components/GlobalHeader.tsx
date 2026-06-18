@@ -110,7 +110,7 @@ export default async function GlobalHeader() {
   return (
     <header className={styles.header}>
       <Link href="/dashboard" className={styles.logoContainer} aria-label="Retour au dashboard">
-        <Image src="/logo.svg" alt="Glowea" width={185} height={55} priority />
+        <Image src="/logo-glowea-fonce.png" alt="Glowea" width={185} height={55} priority />
       </Link>
       <div className={styles.userSection}>
         <Link href="/dashboard/page-publique" className={styles.iconBtn} title="Page publique" aria-label="Acceder a ma page publique">

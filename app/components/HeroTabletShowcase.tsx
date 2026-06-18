@@ -24,7 +24,7 @@ const heroCards = [
   {
     id: "acompte",
     label: "Acompte",
-    value: "80 EUR",
+    value: "80 €",
     className: styles.heroFloatTwo,
     duration: 6.8,
     x: [3, -3, 3],
@@ -180,7 +180,7 @@ export default function HeroTabletShowcase() {
             transition={{ duration: 0.9, ease: "easeOut", delay: 0.08 }}
           >
             <Image
-              src="/dashboard.png"
+              src="/mockup-dashboard-glowea.png"
               alt="Tablette affichant le dashboard Glowea"
               width={1712}
               height={1072}

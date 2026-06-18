@@ -78,6 +78,18 @@ export default function SendPromoModal({ isOpen, onClose }: SendPromoModalProps)
     () => templates.find((template) => template.id === selectedTemplateId) || null,
     [selectedTemplateId, templates]
   );
+  const visibleTemplates = useMemo(() => {
+    const expectedChannel = channel === "EMAIL" ? "EMAIL" : "SMS";
+    const seen = new Set<string>();
+
+    return templates.filter((template) => {
+      if (template.channel !== expectedChannel) return false;
+      const dedupeKey = `${template.channel}:${template.name.trim().toLowerCase()}`;
+      if (seen.has(dedupeKey)) return false;
+      seen.add(dedupeKey);
+      return true;
+    });
+  }, [channel, templates]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -94,7 +106,8 @@ export default function SendPromoModal({ isOpen, onClose }: SendPromoModalProps)
         if (ignore) return;
         if (!data.success) throw new Error(data.error || "Templates indisponibles");
         setTemplates(data.templates || []);
-        setSelectedTemplateId(data.templates?.[0]?.id || "");
+        const smsTemplate = data.templates?.find((template: Template) => template.channel === "SMS");
+        setSelectedTemplateId(smsTemplate?.id || data.templates?.[0]?.id || "");
       })
       .catch((err) => {
         if (!ignore) setError(err instanceof Error ? err.message : "Impossible de charger les templates");
@@ -107,6 +120,17 @@ export default function SendPromoModal({ isOpen, onClose }: SendPromoModalProps)
       ignore = true;
     };
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || isLoadingTemplates) return;
+    if (visibleTemplates.length === 0) {
+      setSelectedTemplateId("");
+      return;
+    }
+    if (!visibleTemplates.some((template) => template.id === selectedTemplateId)) {
+      setSelectedTemplateId(visibleTemplates[0].id);
+    }
+  }, [isLoadingTemplates, isOpen, selectedTemplateId, visibleTemplates]);
 
   useEffect(() => {
     if (!isOpen || !selectedTemplateId) {
@@ -253,7 +277,10 @@ export default function SendPromoModal({ isOpen, onClose }: SendPromoModalProps)
           {isLoadingTemplates && <div style={mutedStyle}>Chargement des templates...</div>}
 
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {templates.map((template) => (
+            {!isLoadingTemplates && visibleTemplates.length === 0 && (
+              <div style={mutedStyle}>Aucun template disponible pour ce canal.</div>
+            )}
+            {visibleTemplates.map((template) => (
               <button
                 key={template.id}
                 onClick={() => {

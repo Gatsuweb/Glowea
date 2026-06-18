@@ -127,10 +127,19 @@ type ManagedCalendarItem =
       menuY: number;
     };
 
+type TouchCalendarGesture = {
+  mode: "pending" | "scrolling" | "selecting";
+  dayIndex: number;
+  slotIndex: number;
+  startX: number;
+  startY: number;
+};
+
 const CALENDAR_START_HOUR = 7;
 const CALENDAR_END_HOUR = 22;
 const SLOT_MINUTES = 30;
 const SLOT_HEIGHT = 28;
+const TOUCH_DIRECTION_THRESHOLD_PX = 8;
 const DEFAULT_EVENT_COLOR = "#8B4B54";
 
 function normalizeHexColor(color?: string | null) {
@@ -328,6 +337,7 @@ export default function AgendaClientWrapper({
   const [managedItem, setManagedItem] = useState<ManagedCalendarItem | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const touchSelectionRef = useRef<CalendarSelection | null>(null);
+  const touchGestureRef = useRef<TouchCalendarGesture | null>(null);
   const isTouchSelectingRef = useRef(false);
 
   useEffect(() => {
@@ -519,32 +529,65 @@ export default function AgendaClientWrapper({
   function startTouchSlotSelection(dayIndex: number, slotIndex: number, event: React.TouchEvent<HTMLDivElement>) {
     if (event.touches.length !== 1) return;
 
-    event.preventDefault();
-    event.stopPropagation();
-
     const touch = event.touches[0];
-    const position = getViewportMenuPosition(touch.clientX, touch.clientY, "selection");
-    const selection = {
+    touchGestureRef.current = {
+      mode: "pending",
       dayIndex,
-      startSlotIndex: slotIndex,
-      endSlotIndex: slotIndex,
-      menuX: position.x,
-      menuY: position.y,
+      slotIndex,
+      startX: touch.clientX,
+      startY: touch.clientY,
     };
-
-    isTouchSelectingRef.current = true;
-    touchSelectionRef.current = selection;
-    setConfirmedSelection(null);
-    setDragSelection(selection);
+    isTouchSelectingRef.current = false;
+    touchSelectionRef.current = null;
+    setDragSelection(null);
   }
 
   function moveTouchSlotSelection(event: React.TouchEvent<HTMLDivElement>) {
-    if (!isTouchSelectingRef.current || event.touches.length !== 1) return;
+    const gesture = touchGestureRef.current;
+    if (!gesture || event.touches.length !== 1) return;
+
+    const touch = event.touches[0];
+    const deltaX = Math.abs(touch.clientX - gesture.startX);
+    const deltaY = Math.abs(touch.clientY - gesture.startY);
+
+    if (gesture.mode === "pending") {
+      if (deltaX <= TOUCH_DIRECTION_THRESHOLD_PX && deltaY <= TOUCH_DIRECTION_THRESHOLD_PX) return;
+
+      if (deltaX > deltaY && deltaX > TOUCH_DIRECTION_THRESHOLD_PX) {
+        touchGestureRef.current = { ...gesture, mode: "scrolling" };
+        isTouchSelectingRef.current = false;
+        touchSelectionRef.current = null;
+        setDragSelection(null);
+        return;
+      }
+
+      if (deltaY > deltaX && deltaY > TOUCH_DIRECTION_THRESHOLD_PX) {
+        const position = getViewportMenuPosition(touch.clientX, touch.clientY, "selection");
+        const slot = getSlotFromTouch(touch);
+        const selection = {
+          dayIndex: gesture.dayIndex,
+          startSlotIndex: gesture.slotIndex,
+          endSlotIndex: slot?.dayIndex === gesture.dayIndex ? slot.slotIndex : gesture.slotIndex,
+          menuX: position.x,
+          menuY: position.y,
+        };
+
+        event.preventDefault();
+        event.stopPropagation();
+        touchGestureRef.current = { ...gesture, mode: "selecting" };
+        isTouchSelectingRef.current = true;
+        touchSelectionRef.current = selection;
+        setConfirmedSelection(null);
+        setDragSelection(selection);
+        return;
+      }
+    }
+
+    if (gesture.mode === "scrolling") return;
 
     event.preventDefault();
     event.stopPropagation();
 
-    const touch = event.touches[0];
     const slot = getSlotFromTouch(touch);
     const current = touchSelectionRef.current;
     if (!slot || !current || slot.dayIndex !== current.dayIndex) return;
@@ -562,11 +605,19 @@ export default function AgendaClientWrapper({
   }
 
   function finishTouchSlotSelection(event: React.TouchEvent<HTMLDivElement>) {
-    if (!isTouchSelectingRef.current) return;
+    const gesture = touchGestureRef.current;
+    if (!gesture) return;
+
+    if (gesture.mode !== "selecting" || !isTouchSelectingRef.current) {
+      touchGestureRef.current = null;
+      isTouchSelectingRef.current = false;
+      touchSelectionRef.current = null;
+      setDragSelection(null);
+      return;
+    }
 
     event.preventDefault();
     event.stopPropagation();
-
     const touch = event.changedTouches[0];
     const current = touchSelectionRef.current;
     const position = touch
@@ -583,16 +634,21 @@ export default function AgendaClientWrapper({
       });
     }
 
+    touchGestureRef.current = null;
     isTouchSelectingRef.current = false;
     touchSelectionRef.current = null;
     setDragSelection(null);
   }
 
   function cancelTouchSlotSelection(event: React.TouchEvent<HTMLDivElement>) {
-    if (!isTouchSelectingRef.current) return;
+    const shouldPreventDefault = touchGestureRef.current?.mode === "selecting" && isTouchSelectingRef.current;
 
-    event.preventDefault();
-    event.stopPropagation();
+    if (shouldPreventDefault) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    touchGestureRef.current = null;
     isTouchSelectingRef.current = false;
     touchSelectionRef.current = null;
     setDragSelection(null);
@@ -601,6 +657,9 @@ export default function AgendaClientWrapper({
   function clearSelection() {
     setDragSelection(null);
     setConfirmedSelection(null);
+    touchGestureRef.current = null;
+    touchSelectionRef.current = null;
+    isTouchSelectingRef.current = false;
   }
 
   function formatSelectionRange(selection: CalendarSelection) {

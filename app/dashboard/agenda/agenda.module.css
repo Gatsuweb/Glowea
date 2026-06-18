@@ -689,7 +689,7 @@
   position: relative; /* CRITICAL FIX: Ensures absolute events stay inside the cell */
   -webkit-touch-callout: none;
   -webkit-user-select: none;
-  touch-action: none;
+  touch-action: pan-x;
   user-select: none;
 }
 

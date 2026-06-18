@@ -51,16 +51,16 @@ const emptyReview: ReviewState = {
 const tabs: Array<{ id: TabId; label: string }> = [
   { id: "profil", label: "Profil" },
   { id: "prestations", label: "Prestations" },
-  { id: "reservations", label: "Horaires & Reservations" },
+  { id: "reservations", label: "Horaires & Réservations" },
   { id: "galerie", label: "Galerie" },
   { id: "avis", label: "Avis" },
-  { id: "apercu", label: "Apercu" },
+  { id: "apercu", label: "Aperçu" },
 ];
 
 const dayLabels = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
 const exceptionLabels: Record<AvailabilityExceptionState["type"], string> = {
-  VACATION: "Conge",
+  VACATION: "Congé",
   ABSENCE: "Absence",
   PERSONAL_APPOINTMENT: "Rendez-vous personnel",
   TRAINING: "Formation",
@@ -69,7 +69,7 @@ const exceptionLabels: Record<AvailabilityExceptionState["type"], string> = {
 
 function formatPrice(value: number) {
   if (!value) return "Sur devis";
-  return `${value.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} EUR`;
+  return `${value.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} €`;
 }
 
 function formatDuration(value: number) {
@@ -293,7 +293,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
       }
 
       updateProfileField(field, result.imageUrl);
-      setFeedback("Image importee. Pensez a enregistrer la page.");
+      setFeedback("Image importée. Pensez à enregistrer la page.");
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Upload impossible.");
     } finally {
@@ -340,8 +340,8 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
         setGallery((current) => [...uploaded, ...current]);
         setFeedback(
           failedCount
-            ? `${uploaded.length} image${uploaded.length > 1 ? "s" : ""} ajoutee${uploaded.length > 1 ? "s" : ""}, ${failedCount} echec${failedCount > 1 ? "s" : ""}.`
-            : "Images ajoutees a la galerie."
+            ? `${uploaded.length} image${uploaded.length > 1 ? "s" : ""} ajoutée${uploaded.length > 1 ? "s" : ""}, ${failedCount} échec${failedCount > 1 ? "s" : ""}.`
+            : "Images ajoutées à la galerie."
         );
         router.refresh();
       } else if (failedCount) {
@@ -375,7 +375,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
       }
 
       updateService(index, { imageUrl: result.imageUrl });
-      setFeedback("Image de prestation importee. Pensez a enregistrer la prestation.");
+      setFeedback("Image de prestation importée. Pensez à enregistrer la prestation.");
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Upload impossible.");
     } finally {
@@ -392,7 +392,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
         setError(result.error);
         return;
       }
-      setFeedback("Page publique mise a jour.");
+      setFeedback("Page publique mise à jour.");
       router.refresh();
     });
   }
@@ -407,7 +407,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
         return;
       }
       setBookingSettings(result.bookingSettings);
-      setFeedback("Horaires et reservations enregistres.");
+      setFeedback("Horaires et réservations enregistrés.");
       router.refresh();
     });
   }
@@ -431,7 +431,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
           : [...current, result.exception].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
       });
       setExceptionDraft(createEmptyExceptionDraft());
-      setFeedback("Indisponibilite enregistree.");
+      setFeedback("Indisponibilité enregistrée.");
       router.refresh();
     });
   }
@@ -470,7 +470,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
       }
       setAvailabilityExceptions((current) => current.filter((item) => item.id !== id));
       if (exceptionDraft.id === id) setExceptionDraft(createEmptyExceptionDraft());
-      setFeedback("Indisponibilite supprimee.");
+      setFeedback("Indisponibilité supprimée.");
       router.refresh();
     });
   }
@@ -498,7 +498,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
         itemIndex === index ? { ...result.service, localId: item.localId } : item
       )));
       stopEditingService(service.localId);
-      setFeedback("Prestation enregistree.");
+      setFeedback("Prestation enregistrée.");
       router.refresh();
     });
   }
@@ -515,7 +515,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
     if (!service.id) {
       setServices((current) => current.filter((item) => item.localId !== localId));
       stopEditingService(localId);
-      setFeedback("Brouillon supprime.");
+      setFeedback("Brouillon supprimé.");
       return;
     }
 
@@ -529,7 +529,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
       }
       setServices((current) => current.filter((item) => item.localId !== localId));
       stopEditingService(localId);
-      setFeedback("Prestation supprimee.");
+      setFeedback("Prestation supprimée.");
       router.refresh();
     });
   }
@@ -545,7 +545,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
         return;
       }
       updateReview(index, result.review);
-      setFeedback("Avis enregistre.");
+      setFeedback("Avis enregistré.");
       router.refresh();
     });
   }
@@ -567,7 +567,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
         return;
       }
       setGallery((current) => current.filter((image) => image.id !== id));
-      setFeedback("Image retiree.");
+      setFeedback("Image retirée.");
       router.refresh();
     });
   }
@@ -594,14 +594,14 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
         return;
       }
       setReviews((current) => current.filter((review) => review.id !== id));
-      setFeedback("Avis supprime.");
+      setFeedback("Avis supprimé.");
       router.refresh();
     });
   }
 
   function copyPublicLink() {
     void navigator.clipboard?.writeText(publicUrl);
-    setFeedback("Lien public copie.");
+    setFeedback("Lien public copié.");
   }
 
   if (!initialData.isPro) {
@@ -610,7 +610,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
         <section className={styles.lockedCard}>
           <span className={styles.kicker}>Glowea Pro</span>
           <h1>La page publique est disponible avec Glowea Pro</h1>
-          <p>Activez votre mini-site beaute pour presenter vos prestations, votre galerie et recevoir des demandes de rendez-vous.</p>
+          <p>Activez votre mini-site beauté pour présenter vos prestations, votre galerie et recevoir des demandes de rendez-vous.</p>
           <Link className={styles.primaryButton} href="/pricing">Passer au Pro</Link>
         </section>
       </main>
@@ -623,10 +623,10 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
         <div>
           <span className={styles.kicker}>Mini-site public</span>
           <h1>Page publique Glowea</h1>
-          <p>Configurez votre vitrine, ajoutez vos visuels et partagez votre lien de reservation.</p>
+          <p>Configurez votre vitrine, ajoutez vos visuels et partagez votre lien de réservation.</p>
         </div>
         <div className={profile.isPublished ? styles.publishBadge : styles.unpublishedBadge}>
-          {profile.isPublished ? "Page publiee" : "Page non publiee"}
+          {profile.isPublished ? "Page publiée" : "Page non publiée"}
         </div>
         <div className={styles.linkBox}>
           <span>Lien public</span>
@@ -710,7 +710,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
               <label>Ville<input value={profile.city} onChange={(event) => updateProfileField("city", event.target.value)} /></label>
               <label className={styles.full}>Description<textarea value={profile.description} onChange={(event) => updateProfileField("description", event.target.value)} rows={4} /></label>
               <label>Adresse<input value={profile.address} onChange={(event) => updateProfileField("address", event.target.value)} /></label>
-              <label>Telephone<input value={profile.phone} onChange={(event) => updateProfileField("phone", event.target.value)} /></label>
+              <label>Téléphone<input value={profile.phone} onChange={(event) => updateProfileField("phone", event.target.value)} /></label>
               <label>Email<input value={profile.email} onChange={(event) => updateProfileField("email", event.target.value)} /></label>
               <label>Instagram<input value={profile.instagramUrl} onChange={(event) => updateProfileField("instagramUrl", event.target.value)} placeholder="@votrecompte" /></label>
               <label>Site web<input value={profile.websiteUrl} onChange={(event) => updateProfileField("websiteUrl", event.target.value)} /></label>
@@ -741,7 +741,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
                 <h3>Aucune prestation publique pour le moment</h3>
                 <p>Créez votre catalogue pour commencer à présenter votre savoir-faire sur la page publique.</p>
                 <button className={styles.primaryButton} type="button" onClick={addServiceDraft}>
-                  Ajouter ma premiere prestation
+                  Ajouter ma première prestation
                 </button>
               </div>
             ) : (
@@ -757,10 +757,10 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
                           <div className={styles.serviceCardTitleRow}>
                             <h3>{service.name || "Nouvelle prestation"}</h3>
                             <span className={isVisible ? styles.statusBadgeVisible : styles.statusBadgeHidden}>
-                              {isVisible ? "Visible" : "Masquee"}
+                              {isVisible ? "Visible" : "Masquée"}
                             </span>
                           </div>
-                          <span className={styles.serviceCategoryLine}>{service.category || "Categorie a renseigner"}</span>
+                          <span className={styles.serviceCategoryLine}>{service.category || "Catégorie à renseigner"}</span>
                         </div>
                       </div>
 
@@ -780,11 +780,11 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
                             </div>
                             <div className={styles.serviceReadBlock}>
                               <span className={styles.serviceReadLabel}>Description</span>
-                              <p>{service.description || "Ajoutez une courte description pour rassurer et donner envie de reserver."}</p>
+                              <p>{service.description || "Ajoutez une courte description pour rassurer et donner envie de réserver."}</p>
                             </div>
                             <div className={styles.serviceReadMeta}>
                               <div>
-                                <span className={styles.serviceReadLabel}>Duree</span>
+                                <span className={styles.serviceReadLabel}>Durée</span>
                                 <strong>{formatDuration(service.durationMin)}</strong>
                               </div>
                               <div>
@@ -814,7 +814,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
                               />
                             </label>
                             <label>
-                              Categorie
+                              Catégorie
                               <input
                                 value={service.category}
                                 onChange={(event) => updateService(index, { category: event.target.value })}
@@ -855,7 +855,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
                               )}
                             </div>
                             <label>
-                              Duree en minutes
+                              Durée en minutes
                               <input
                                 type="number"
                                 min="15"
@@ -889,11 +889,11 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
                                   <span className={styles.serviceToggleThumb}></span>
                                 </span>
                                 <span className={styles.serviceToggleText}>
-                                  <strong>{service.isPublic ? "Visible" : "Masquee"}</strong>
+                                  <strong>{service.isPublic ? "Visible" : "Masquée"}</strong>
                                   <small>
                                     {service.isPublic
-                                      ? "Cette prestation apparaitra sur votre page publique."
-                                      : "Cette prestation reste masquee tant que vous ne l'activez pas."}
+                                      ? "Cette prestation apparaîtra sur votre page publique."
+                                      : "Cette prestation reste masquée tant que vous ne l'activez pas."}
                                   </small>
                                 </span>
                               </label>
@@ -924,9 +924,9 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
           <article className={styles.card}>
             <div className={styles.cardHeader}>
               <div>
-                <span className={styles.kicker}>Horaires & Reservations</span>
-                <h2>Disponibilites publiques</h2>
-                <p className={styles.sectionDescription}>Ces regles determinent les creneaux proposes sur votre page publique.</p>
+                <span className={styles.kicker}>Horaires & Réservations</span>
+                <h2>Disponibilités publiques</h2>
+                <p className={styles.sectionDescription}>Ces règles déterminent les créneaux proposés sur votre page publique.</p>
               </div>
               <button className={styles.primaryButton} type="button" onClick={saveReservationSettings} disabled={isPending}>
                 {isPending ? "Enregistrement..." : "Enregistrer"}
@@ -997,11 +997,11 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
 
               <section className={styles.reservationPanel}>
                 <div className={styles.panelHeader}>
-                  <h3>Regles de reservation</h3>
+                  <h3>Règles de réservation</h3>
                 </div>
                 <div className={styles.settingsGrid}>
                   <label>
-                    Delai minimum avant reservation
+                    Délai minimum avant réservation
                     <select
                       value={bookingSettings.minBookingNoticeMin}
                       onChange={(event) => updateBookingField("minBookingNoticeMin", Number(event.target.value))}
@@ -1015,7 +1015,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
                     </select>
                   </label>
                   <label>
-                    Intervalle des creneaux
+                    Intervalle des créneaux
                     <select
                       value={bookingSettings.slotIntervalMin}
                       onChange={(event) => updateBookingField("slotIntervalMin", Number(event.target.value))}
@@ -1040,7 +1040,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
                     </select>
                   </label>
                   <label>
-                    Expiration paiement en attente
+                    Expiration du paiement en attente
                     <select
                       value={bookingSettings.pendingBookingTtlMin}
                       onChange={(event) => updateBookingField("pendingBookingTtlMin", Number(event.target.value))}
@@ -1066,7 +1066,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
                     </span>
                     <span className={styles.serviceToggleText}>
                       <strong>Activer les arrhes</strong>
-                      <small>Affiche et calcule un montant d&apos;arrhes sur la reservation publique.</small>
+                      <small>Affiche et calcule un montant d&apos;arrhes sur la réservation publique.</small>
                     </span>
                   </label>
 
@@ -1077,7 +1077,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
                       disabled={!bookingSettings.depositsEnabled}
                       onChange={(event) => updateBookingField("depositsRequired", event.target.checked)}
                     />
-                    Arrhes obligatoires pour reserver
+                    Arrhes obligatoires pour réserver
                   </label>
 
                   <div className={styles.settingsGrid}>
@@ -1116,7 +1116,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
 
             <section className={styles.reservationPanel}>
               <div className={styles.panelHeader}>
-                <h3>Indisponibilites exceptionnelles</h3>
+                <h3>Indisponibilités exceptionnelles</h3>
                 {exceptionDraft.id && (
                   <button className={styles.secondaryButton} type="button" onClick={() => setExceptionDraft(createEmptyExceptionDraft())}>
                     Nouveau blocage
@@ -1141,11 +1141,11 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
                   <input
                     value={exceptionDraft.title}
                     onChange={(event) => setExceptionDraft((current) => ({ ...current, title: event.target.value }))}
-                    placeholder="Conges, formation..."
+                    placeholder="Congés, formation..."
                   />
                 </label>
                 <label>
-                  Debut
+                  Début
                   <input
                     type="datetime-local"
                     value={toDatetimeLocal(exceptionDraft.startAt)}
@@ -1166,7 +1166,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
                     checked={exceptionDraft.allDay}
                     onChange={(event) => toggleExceptionAllDay(event.target.checked)}
                   />
-                  Journee complete
+                  Journée complète
                 </label>
                 <label className={styles.full}>
                   Notes
@@ -1184,7 +1184,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
 
               <div className={styles.exceptionList}>
                 {availabilityExceptions.length === 0 && (
-                  <p className={styles.emptyText}>Aucune indisponibilite exceptionnelle.</p>
+                  <p className={styles.emptyText}>Aucune indisponibilité exceptionnelle.</p>
                 )}
                 {availabilityExceptions.map((item) => (
                   <div className={styles.exceptionItem} key={item.id}>
@@ -1216,12 +1216,12 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
             <input ref={galleryInputRef} className={styles.hiddenInput} type="file" accept="image/*" multiple onChange={(event) => handleGalleryUpload(event.target.files)} />
             {uploadingField === "gallery" && <p className={styles.helperText}>Upload des images en cours...</p>}
             <div className={styles.galleryGrid}>
-              {gallery.length === 0 && <p className={styles.emptyText}>Importez des photos pour presenter votre travail.</p>}
+              {gallery.length === 0 && <p className={styles.emptyText}>Importez des photos pour présenter votre travail.</p>}
               {gallery.map((image) => (
                 <div className={styles.galleryItem} key={image.id}>
                   {/* eslint-disable-next-line @next/next/no-img-element -- Gallery URLs are uploaded by the user. */}
                   <img src={image.imageUrl} alt={image.alt || ""} />
-                  <div><span>{image.alt || "Image galerie"}</span><button type="button" onClick={() => removeImage(image.id)} disabled={isPending}>Supprimer</button></div>
+                  <div><span>{image.alt || "Image de galerie"}</span><button type="button" onClick={() => removeImage(image.id)} disabled={isPending}>Supprimer</button></div>
                 </div>
               ))}
             </div>
@@ -1276,13 +1276,13 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
               <div>
                 <span>{profile.city || "Votre ville"}</span>
                 <h2>{profile.businessName || "Votre salon"}</h2>
-                <p>{profile.description || "Votre description apparaitra ici."}</p>
+                <p>{profile.description || "Votre description apparaîtra ici."}</p>
               </div>
             </div>
             <div className={styles.previewStats}>
               <span>{visibleServices.length} prestations</span>
-              <span>{averageRating ? `${averageRating.toFixed(1)}/5` : "Avis a ajouter"}</span>
-              <span>{profile.isPublished ? "Publiee" : "Non publiee"}</span>
+              <span>{averageRating ? `${averageRating.toFixed(1)}/5` : "Avis à ajouter"}</span>
+              <span>{profile.isPublished ? "Publiée" : "Non publiée"}</span>
             </div>
             <div className={styles.previewServices}>
               {visibleServices.slice(0, 3).map((service) => (

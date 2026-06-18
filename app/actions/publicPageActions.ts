@@ -308,7 +308,7 @@ async function ensurePublicProfile(tenantId: string) {
       isPublished: false,
       businessName,
       ownerName: owner?.fullName || null,
-      description: "Un espace beaute pense pour des prestations soignees et un suivi client professionnel.",
+      description: "Un espace beauté pensé pour des prestations soignées et un suivi client professionnel.",
       address: tenant.BillingProfile?.addressLine1 || null,
       city: tenant.BillingProfile?.city || null,
       phone: owner?.phone || null,
@@ -816,7 +816,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
   const message = safeString(input.message, 1000);
 
   if (!firstName || !phone) {
-    return { success: false as const, error: "Le prenom et le telephone sont obligatoires." };
+    return { success: false as const, error: "Le prénom et le téléphone sont obligatoires." };
   }
 
   const scheduledAt = new Date(`${safeString(input.date, 10)}T${safeString(input.time, 5)}:00`);
@@ -830,7 +830,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
   });
 
   if (!profile || !profile.isPublished || !getSubscriptionAccessFromTenant(profile.Tenant).canUseBooking) {
-    return { success: false as const, error: "Cette page de reservation n'est pas disponible." };
+    return { success: false as const, error: "Cette page de réservation n'est pas disponible." };
   }
 
   const serviceIds = normalizeAppointmentServiceIds({
@@ -950,7 +950,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
           paidAmount: 0,
           remainingAmount: priceCents,
           expiresAt,
-          notes: message ? `Reservation en ligne - ${message}` : "Reservation en ligne",
+          notes: message ? `Réservation en ligne - ${message}` : "Réservation en ligne",
           updatedAt: new Date(),
         },
       });
@@ -965,7 +965,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
           appointmentId: appointment.id,
           type: "OTHER",
           title: "Nouveau rendez-vous via la page publique",
-          body: `${clientFullName} a reserve ${serviceLabel} le ${dateLabel} a ${timeLabel}.`,
+          body: `${clientFullName} a réservé ${serviceLabel} le ${dateLabel} à ${timeLabel}.`,
         },
       });
 
@@ -1000,13 +1000,13 @@ export async function createPublicBooking(input: PublicBookingInput) {
           updatedAt: new Date(),
         },
       });
-      return { success: false as const, error: "Le paiement en ligne n'est pas encore configure pour cette page." };
+      return { success: false as const, error: "Le paiement en ligne n'est pas encore configuré pour cette page." };
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || "";
     const origin = appUrl.startsWith("http") ? appUrl : appUrl ? `https://${appUrl}` : "";
     if (!origin) {
-      return { success: false as const, error: "Configuration de paiement incomplete." };
+      return { success: false as const, error: "Configuration de paiement incomplète." };
     }
 
     const applicationFeeAmount = getApplicationFeeAmount(reservation.depositAmount);
@@ -1022,7 +1022,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
             unit_amount: reservation.depositAmount,
             product_data: {
               name: `Arrhes - ${serviceLabel}`,
-              description: `${clientFullName} - ${dateLabel} a ${timeLabel}`,
+              description: `${clientFullName} - ${dateLabel} à ${timeLabel}`,
             },
           },
         },
@@ -1074,7 +1074,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
   };
   } catch (error) {
     console.error("Error creating public booking:", error);
-    const message = error instanceof Error && error.message ? error.message : "Ce cr?neau vient d'?tre r?serv?. Choisissez un autre horaire.";
+    const message = error instanceof Error && error.message ? error.message : "Ce créneau vient d'être réservé. Choisissez un autre horaire.";
     return { success: false as const, error: message };
   }
 }
