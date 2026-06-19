@@ -493,7 +493,17 @@ const getInitialSessionTab = (category?: string): SessionTab => {
   const value = (category || "").toLowerCase();
   if (value.includes("brow")) return "Browlift";
   if (value.includes("rehaussement") || value.includes("lash lift")) return "Rehaussement de cils";
-  if (value.includes("ongle") || value.includes("nail") || value.includes("gel") || value.includes("semi")) return "Ongles";
+  if (
+    value.includes("ongle") ||
+    value.includes("nail") ||
+    value.includes("gel") ||
+    value.includes("semi") ||
+    value.includes("chablon") ||
+    value.includes("capsule") ||
+    value.includes("americaine") ||
+    value.includes("américaine") ||
+    value.includes("acrylique")
+  ) return "Ongles";
   return "Cils";
 };
 
@@ -509,7 +519,12 @@ const getSessionTabFromServiceName = (serviceName: string): SessionTab | null =>
     value.includes("gainage") ||
     value.includes("vernis") ||
     value.includes("semi") ||
-    value.includes("gel")
+    value.includes("gel") ||
+    value.includes("chablon") ||
+    value.includes("capsule") ||
+    value.includes("americaine") ||
+    value.includes("américaine") ||
+    value.includes("acrylique")
   ) {
     return "Ongles";
   }
@@ -2560,9 +2575,14 @@ export default function SessionModal({
                   <label className={styles.paramLabel}>Préstation :</label>
                   <select className={styles.selectInput} value={prestationOngles} onChange={e => setPrestationOngles(e.target.value)}>
                     <option value=""></option>
+                    <option value="Semi">Semi-permanent</option>
+                    <option value="Chablon">Chablon</option>
+                    <option value="Gel capsules">Gel capsules</option>
+                    <option value="Gel X">Gel X</option>
+                    <option value="Pose américaine">Pose américaine</option>
+                    <option value="Acrylique">Acrylique</option>
                     <option value="Gel">Pose Gel</option>
                     <option value="Acrygel">Acrygel</option>
-                    <option value="Semi">Semi-permanent</option>
                   </select>
                 </div>
 

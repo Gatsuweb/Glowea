@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { createHash } from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
+import { sendPushToTenant } from "@/lib/push";
 import { syncAppointmentPaymentFromCheckoutSession } from "@/lib/stripeAppointmentSync";
 import {
   syncTenantFromCheckoutSession,
@@ -14,6 +16,77 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+type AppointmentPaymentPushType = "deposit" | "full" | "remaining";
+
+function getAppointmentPaymentNotification(paymentType: AppointmentPaymentPushType, appointmentId: string) {
+  if (paymentType === "deposit") {
+    return {
+      title: "Arrhes encaissées",
+      body: "Un paiement d'arrhes vient d'être reçu.",
+      tag: `payment-deposit-${appointmentId}`,
+    };
+  }
+
+  if (paymentType === "full") {
+    return {
+      title: "Paiement reçu",
+      body: "Un paiement complet vient d'être reçu.",
+      tag: `payment-full-${appointmentId}`,
+    };
+  }
+
+  return {
+    title: "Paiement reçu",
+    body: "Un paiement restant vient d'être reçu.",
+    tag: `payment-remaining-${appointmentId}`,
+  };
+}
+
+function getPaymentNotificationId(sessionId: string, paymentType: string) {
+  const hash = createHash("sha256").update(`${sessionId}:${paymentType}`).digest("hex").slice(0, 16);
+  return `not_pay_${hash}`;
+}
+
+async function sendAppointmentPaymentPushOnce(params: {
+  tenantId: string;
+  appointmentId: string;
+  paymentType: AppointmentPaymentPushType;
+  checkoutSessionId: string;
+}) {
+  const notification = getAppointmentPaymentNotification(params.paymentType, params.appointmentId);
+  const notificationId = getPaymentNotificationId(params.checkoutSessionId, params.paymentType);
+
+  const created = await prisma.notification.createMany({
+    data: [{
+      id: notificationId,
+      tenantId: params.tenantId,
+      appointmentId: params.appointmentId,
+      type: "OTHER",
+      title: notification.title,
+      body: notification.body,
+    }],
+    skipDuplicates: true,
+  });
+
+  if (created.count === 0) {
+    console.log("[push] payment notification already sent", {
+      appointmentId: params.appointmentId,
+      paymentType: params.paymentType,
+      tenantId: params.tenantId,
+    });
+    return;
+  }
+
+  await sendPushToTenant(params.tenantId, {
+    ...notification,
+    url: "/dashboard/agenda",
+    data: {
+      appointmentId: params.appointmentId,
+      paymentType: params.paymentType,
+    },
+  });
+}
 
 async function findTenantId(params: {
   tenantId?: string | null;
@@ -85,6 +158,7 @@ export async function POST(req: NextRequest) {
     const rawBody = await req.text();
     event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
     console.log("[stripe:webhook] event", event.type);
+    console.log("[stripe webhook] event", event.type);
   } catch (error) {
     console.error("Stripe webhook signature error:", error);
     return NextResponse.json({ error: "Invalid webhook signature" }, { status: 400 });
@@ -100,9 +174,35 @@ export async function POST(req: NextRequest) {
         console.log("Payment intent:", session.payment_intent);
 
         if (session.metadata?.appointmentId) {
+          const paymentType = session.metadata.paymentType || null;
+          const appointmentId = session.metadata.appointmentId || null;
+
+          if (paymentType === "deposit") {
+            console.log("Push deposit payment start");
+            console.log("[stripe webhook] deposit payment push start");
+          }
+          console.log("paymentType", paymentType);
+          console.log("appointmentId", appointmentId);
+
           const paymentSyncResult = await syncAppointmentPaymentFromCheckoutSession(session);
           if (!paymentSyncResult.success && paymentSyncResult.reason !== "zero_amount") {
             throw new Error(paymentSyncResult.reason + ("error" in paymentSyncResult && paymentSyncResult.error ? `: ${paymentSyncResult.error}` : ""));
+          }
+
+          if (paymentSyncResult.success) {
+            console.log("tenantId", paymentSyncResult.tenantId);
+            console.log("[push] payment sync skipped", paymentSyncResult.skipped);
+
+            try {
+              await sendAppointmentPaymentPushOnce({
+                tenantId: paymentSyncResult.tenantId,
+                appointmentId: paymentSyncResult.appointmentId,
+                paymentType: paymentSyncResult.paymentType,
+                checkoutSessionId: session.id,
+              });
+            } catch (pushError) {
+              console.error("[push] stripe payment notification failed:", pushError);
+            }
           }
           break;
         }

@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 
+import { sendAppointmentPaymentPushOnce } from "./appointmentPaymentPush";
 import prisma from "./prisma";
 import { recordAppointmentPayment } from "./appointmentPayments";
 import { stripe } from "./stripe";
@@ -88,9 +89,21 @@ export async function syncAppointmentPaymentFromCheckoutSession(session: Stripe.
     },
   });
 
+  try {
+    await sendAppointmentPaymentPushOnce({
+      tenantId,
+      appointmentId,
+      paymentType,
+      checkoutSessionId: session.id,
+    });
+  } catch (pushError) {
+    console.error("[push] appointment payment sync notification failed:", pushError);
+  }
+
   return {
     success: true as const,
     appointmentId,
+    tenantId,
     paymentType,
     amountCents,
     skipped: Boolean("skipped" in paymentResult && paymentResult.skipped),

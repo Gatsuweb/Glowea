@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
 import prisma from "../../../lib/prisma";
+import { syncAppointmentPaymentFromCheckoutSessionId } from "../../../lib/stripeAppointmentSync";
 import { getSubscriptionAccessFromTenant } from "../../../lib/subscription";
 import PublicBookingModal from "./PublicBookingModal";
 import PublicGallery from "./PublicGallery";
@@ -71,8 +72,15 @@ function getServiceCardImage(service: PublicService) {
   return "/card-1.png";
 }
 
-export default async function PublicProPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function PublicProPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ booking?: string; appointmentId?: string; session_id?: string }>;
+}) {
   const { slug } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : {};
   const profile = await prisma.publicProfile.findUnique({
     where: { slug },
     include: {
@@ -102,6 +110,17 @@ export default async function PublicProPage({ params }: { params: Promise<{ slug
     !getSubscriptionAccessFromTenant(profile.Tenant).canUsePublicPage
   ) {
     notFound();
+  }
+
+  if (resolvedSearchParams.booking === "success" && resolvedSearchParams.session_id) {
+    try {
+      await syncAppointmentPaymentFromCheckoutSessionId(
+        resolvedSearchParams.session_id,
+        resolvedSearchParams.appointmentId || null
+      );
+    } catch (error) {
+      console.error("[stripe:public-booking] checkout sync failed", error);
+    }
   }
 
   const services: PublicService[] = profile.Tenant.Service.map((service) => ({

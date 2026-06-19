@@ -726,6 +726,23 @@ model NotificationPreference {
   User                       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model PushSubscription {
+  id        String   @id
+  tenantId  String
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  Tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([userId])
+}
+
 model Product {
   id                  String                @id
   tenantId            String
@@ -1055,6 +1072,7 @@ model Tenant {
   Notification           Notification[]
   Product                Product[]
   ProductCategory        ProductCategory[]
+  PushSubscription       PushSubscription[]
   RecurringExpense       RecurringExpense[]
   Review                 Review[]
   Service                Service[]
@@ -1090,6 +1108,7 @@ model User {
   ClientNote               ClientNote[]
   Notification             Notification[]
   NotificationPreference   NotificationPreference?
+  PushSubscription         PushSubscription[]
   StockMovement            StockMovement[]
   Tenant                   Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   UserSettings             UserSettings?

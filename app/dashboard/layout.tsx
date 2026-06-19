@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Navbar from "../components/Navbar";
 import GlobalHeader from "../components/GlobalHeader";
 import QuickAgendaDrawer from "../components/QuickAgendaDrawer";
+import PushNotificationManager from "../components/PushNotificationManager";
 import { getAgendaPanelData } from "../../lib/agendaPanelData";
 import { getTenantId } from "../../lib/tenant";
 import styles from "./layout.module.css";
@@ -31,6 +32,7 @@ export default async function DashboardLayout({
       <Navbar />
       <GlobalHeader />
       <QuickAgendaDrawer agendaData={quickAgendaData} />
+      <PushNotificationManager />
       <div className={styles.layoutWrapper}>
         <div className={styles.mainContent}>
           {children}

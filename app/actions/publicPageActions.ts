@@ -9,6 +9,7 @@ import {
   replaceAppointmentServices,
 } from "../../lib/appointmentServices";
 import prisma from "../../lib/prisma";
+import { sendPushToTenant } from "../../lib/push";
 import { stripe } from "../../lib/stripe";
 import { getStoragePathFromPublicUrl, getSupabaseAdminClient, publicStorageBucket } from "../../lib/supabaseAdmin";
 import { getSubscriptionAccessFromTenant, getTenantSubscriptionAccess } from "../../lib/subscription";
@@ -1063,6 +1064,18 @@ export async function createPublicBooking(input: PublicBookingInput) {
   revalidatePath("/dashboard/agenda");
   revalidatePath("/dashboard");
   revalidatePath(`/pro/${profile.slug}`);
+
+  try {
+    await sendPushToTenant(profile.tenantId, {
+      title: "Nouvelle réservation",
+      body: "Une cliente vient de réserver un rendez-vous.",
+      url: "/dashboard/agenda",
+      tag: `booking-${reservation.appointment.id}`,
+      data: { appointmentId: reservation.appointment.id },
+    });
+  } catch (pushError) {
+    console.error("[push] public booking notification failed:", pushError);
+  }
 
   return {
     success: true as const,
