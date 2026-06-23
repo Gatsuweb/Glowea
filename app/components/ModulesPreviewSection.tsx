@@ -108,7 +108,6 @@ export default function ModulesPreviewSection() {
           </div>
 
           <div className={styles.moduleSmsBubble}>
-            <span>Glowea ✨</span>
             <p>Bonjour Emma,</p>
             <p>Petit rappel pour votre rendez-vous demain à 14h.</p>
             <p>À bientôt.</p>
@@ -119,7 +118,6 @@ export default function ModulesPreviewSection() {
           <div className={styles.moduleCardHeader}>
             <div>
               <span className={styles.moduleEyebrow}>Stock produits</span>
-              <strong>Cabine sous contrôle</strong>
             </div>
           </div>
 

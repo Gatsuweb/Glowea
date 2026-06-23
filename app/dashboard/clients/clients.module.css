@@ -566,6 +566,14 @@
   font-weight: 700;
 }
 
+.galleryHeaderActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .projectGalleryList {
   display: grid;
   gap: 20px;
@@ -788,6 +796,56 @@
   justify-content: center;
   padding: 18px;
   text-align: center;
+}
+
+.projectUploadSlot {
+  background: #fbf6f4;
+  border: 1px solid #eedfda;
+  border-radius: 20px;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.projectUploadLabel {
+  align-items: center;
+  aspect-ratio: 4 / 3;
+  color: #9b8d89;
+  cursor: pointer;
+  display: flex;
+  font-size: 0.9rem;
+  font-weight: 800;
+  justify-content: center;
+  padding: 18px;
+  text-align: center;
+}
+
+.projectUploadLabelWithPreview {
+  padding: 0;
+}
+
+.projectUploadInput {
+  display: none;
+}
+
+.projectRemovePhotoButton {
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #ead8cf;
+  border-radius: 999px;
+  bottom: 12px;
+  color: #6f6667;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 7px 12px;
+  position: absolute;
+  right: 12px;
+}
+
+.projectRemovePhotoButton:hover {
+  background: #fff2f4;
+  border-color: #f0b8c0;
+  color: #8b1e2d;
 }
 
 .galerieEmpty {

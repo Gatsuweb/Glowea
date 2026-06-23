@@ -1016,8 +1016,7 @@
 }
 
 /* .problemSection, */
-.featuresSection,
-.pricingSection {
+.featuresSection {
   border-radius: 20px 20px 0 0;
   background:
     linear-gradient(180deg, rgba(255, 250, 247, 0.96), rgba(252, 235, 232, 0.9)),
@@ -2452,10 +2451,7 @@
   grid-template-columns: minmax(0, 0.82fr) minmax(24rem, 1.18fr);
   gap: clamp(2rem, 6vw, 5rem);
   align-items: center;
-  background:
-    radial-gradient(circle at 78% 18%, rgba(252, 215, 209, 0.46), transparent 28rem),
-    linear-gradient(180deg, rgba(255, 250, 247, 0.98), rgba(246, 238, 232, 0.96)),
-    url("/paper-texture.png");
+
 }
 
 .sessionContent {
@@ -3066,9 +3062,7 @@
   place-items: center;
   min-height: 34rem;
   text-align: center;
-  background:
-    radial-gradient(circle at 50% 5%, rgba(252, 215, 209, 0.45), transparent 24rem),
-    linear-gradient(180deg, #fff8f4, #f0dfd8);
+
 }
 
 .finalCta > div {

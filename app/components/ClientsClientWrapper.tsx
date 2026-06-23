@@ -2,14 +2,14 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any, react/no-unescaped-entities, react-hooks/exhaustive-deps */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "../dashboard/clients/clients.module.css";
 import SessionModal from "./SessionModal";
 import NewAppointmentModal from "./NewAppointmentModal";
 import SendClientTemplateModal from "./SendClientTemplateModal";
 import { getConsent, saveConsent, type ConsentSnapshot } from "../actions/consentActions";
-import { deleteClientGalleryProject, updateClientGalleryProject, updateClientProfile } from "../actions/clientActions";
+import { createClientGalleryProject, deleteClientGalleryProject, updateClientGalleryProject, updateClientProfile } from "../actions/clientActions";
 import {
   getAppointmentFinancialSummary,
 } from "../../lib/appointmentFinance";
@@ -53,6 +53,40 @@ const emptyConsentData: ConsentState = {
   signedBy: "",
   dateSigned: "",
 };
+
+const DIRECT_GALLERY_PROJECT_LABEL_PREFIX = "GLOWEA_GALLERY_PROJECT";
+
+type NewGalleryProjectPhotoRole = "before" | "after";
+
+type NewGalleryProjectPhoto = {
+  file: File;
+  previewUrl: string;
+  mimeType: string;
+  sizeBytes: number;
+};
+
+function safeDecodeGalleryValue(value: string | undefined) {
+  if (!value) return "";
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return "";
+  }
+}
+
+function parseDirectGalleryProjectLabel(label: string | null | undefined) {
+  if (!label?.startsWith(`${DIRECT_GALLERY_PROJECT_LABEL_PREFIX}|`)) return null;
+
+  const [, projectId, role, encodedTitle, encodedDescription] = label.split("|");
+  if (!projectId || !["before", "after", "other"].includes(role)) return null;
+
+  return {
+    projectId,
+    role,
+    title: safeDecodeGalleryValue(encodedTitle),
+    description: safeDecodeGalleryValue(encodedDescription),
+  };
+}
 
 function normalizeGalleryLabel(value: string) {
   return value
@@ -144,22 +178,28 @@ function buildClientGalleryProjects(clientMedia: any[]) {
     const sessionLink = item?.Media?.SessionMedia?.[0];
     const session = sessionLink?.Session;
     const label = item?.label || sessionLink?.label || "Photo";
-    const normalizedLabel = normalizeGalleryLabel(label);
-    const role = normalizedLabel.includes("avant")
+    const directProject = parseDirectGalleryProjectLabel(label);
+    const normalizedLabel = normalizeGalleryLabel(directProject?.role || label);
+    const role = directProject?.role === "before"
       ? "before"
-      : normalizedLabel.includes("apres") || normalizedLabel.includes("après")
+      : directProject?.role === "after"
         ? "after"
-        : "other";
-    const projectId = session?.id || `media-${item.id || index}`;
+        : normalizedLabel.includes("avant")
+          ? "before"
+          : normalizedLabel.includes("apres") || normalizedLabel.includes("après")
+            ? "after"
+            : "other";
+    const projectId = directProject?.projectId || session?.id || `media-${item.id || index}`;
 
     if (!projects.has(projectId)) {
-      const title = session?.title || session?.Service?.name || getSessionCategoryLabel(session?.category);
-      const description = session?.generalNotes || "";
+      const title = directProject?.title || session?.title || session?.Service?.name || getSessionCategoryLabel(session?.category);
+      const description = directProject?.description ?? session?.generalNotes ?? "";
       const dateValue = session?.Appointment?.scheduledAt || item?.createdAt || item?.Media?.SessionMedia?.[0]?.createdAt || null;
 
       projects.set(projectId, {
         id: projectId,
         sessionId: session?.id || null,
+        isDirectGalleryProject: Boolean(directProject),
         title,
         description,
         createdAt: dateValue,
@@ -177,8 +217,8 @@ function buildClientGalleryProjects(clientMedia: any[]) {
     }
     const image = {
       url: item?.Media?.url,
-      alt: label || "Photo cliente",
-      label,
+      alt: directProject ? (role === "before" ? "Photo avant" : role === "after" ? "Photo apres" : "Photo cliente") : label || "Photo cliente",
+      label: directProject ? (role === "before" ? "Avant" : role === "after" ? "Apres" : "Photo") : label,
     };
 
     if (role === "before" && !project.before) {
@@ -260,6 +300,11 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   const [projectSaveError, setProjectSaveError] = useState<string | null>(null);
   const [savingProjectId, setSavingProjectId] = useState<string | null>(null);
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
+  const [isAddingProject, setIsAddingProject] = useState(false);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [newProjectForm, setNewProjectForm] = useState({ title: "", description: "" });
+  const [newProjectPhotos, setNewProjectPhotos] = useState<Partial<Record<NewGalleryProjectPhotoRole, NewGalleryProjectPhoto>>>({});
+  const newProjectPhotosRef = useRef(newProjectPhotos);
   const [clientForm, setClientForm] = useState({
     firstName: "",
     lastName: "",
@@ -271,6 +316,18 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
     note: "",
     allergiesText: "",
   });
+
+  useEffect(() => {
+    newProjectPhotosRef.current = newProjectPhotos;
+  }, [newProjectPhotos]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(newProjectPhotosRef.current).forEach((photo) => {
+        if (photo?.previewUrl) URL.revokeObjectURL(photo.previewUrl);
+      });
+    };
+  }, []);
 
   useEffect(() => {
     if (activeTab === "consentement" && selectedClientId) {
@@ -382,6 +439,13 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
     setEditingProjectId(null);
     setProjectSaveError(null);
     setDeletingProjectId(null);
+    Object.values(newProjectPhotosRef.current).forEach((photo) => {
+      if (photo?.previewUrl) URL.revokeObjectURL(photo.previewUrl);
+    });
+    setIsAddingProject(false);
+    setIsCreatingProject(false);
+    setNewProjectForm({ title: "", description: "" });
+    setNewProjectPhotos({});
   }, [selectedClientId, selectedClient, selectedClientNote]);
 
   useEffect(() => {
@@ -389,6 +453,158 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
       setCurrentProjectIndex(Math.max(galleryProjects.length - 1, 0));
     }
   }, [currentProjectIndex, galleryProjects.length]);
+
+  const resetNewProjectForm = () => {
+    Object.values(newProjectPhotosRef.current).forEach((photo) => {
+      if (photo?.previewUrl) URL.revokeObjectURL(photo.previewUrl);
+    });
+    setNewProjectForm({ title: "", description: "" });
+    setNewProjectPhotos({});
+    setIsAddingProject(false);
+    setProjectSaveError(null);
+  };
+
+  const handleNewProjectPhotoChange = (role: NewGalleryProjectPhotoRole, file: File | null) => {
+    if (!file) return;
+
+    const previewUrl = URL.createObjectURL(file);
+    setNewProjectPhotos((current) => {
+      const existing = current[role];
+      if (existing?.previewUrl) URL.revokeObjectURL(existing.previewUrl);
+
+      return {
+        ...current,
+        [role]: {
+          file,
+          previewUrl,
+          mimeType: file.type,
+          sizeBytes: file.size,
+        },
+      };
+    });
+    setProjectSaveError(null);
+  };
+
+  const removeNewProjectPhoto = (role: NewGalleryProjectPhotoRole) => {
+    setNewProjectPhotos((current) => {
+      const existing = current[role];
+      if (existing?.previewUrl) URL.revokeObjectURL(existing.previewUrl);
+
+      const next = { ...current };
+      delete next[role];
+      return next;
+    });
+  };
+
+  const uploadNewProjectPhoto = async (role: NewGalleryProjectPhotoRole, photo: NewGalleryProjectPhoto) => {
+    if (!selectedClient) {
+      throw new Error("Cliente manquante.");
+    }
+
+    const formData = new FormData();
+    formData.append("file", photo.file);
+    formData.append("clientId", selectedClient.id);
+    formData.append("scope", "client-gallery");
+
+    const response = await fetch("/api/sessions/photos/upload", {
+      method: "POST",
+      body: formData,
+    });
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || "Upload photo impossible.");
+    }
+
+    return {
+      role,
+      url: result.photo.url,
+      mimeType: result.photo.mimeType,
+      storageKey: result.photo.storageKey,
+      sizeBytes: result.photo.sizeBytes,
+    };
+  };
+
+  const createGalleryProject = async () => {
+    if (!selectedClient) return;
+
+    const photosToUpload = Object.entries(newProjectPhotos) as Array<[NewGalleryProjectPhotoRole, NewGalleryProjectPhoto]>;
+    if (photosToUpload.length === 0) {
+      setProjectSaveError("Ajoutez au moins une photo avant de creer le projet");
+      return;
+    }
+
+    setIsCreatingProject(true);
+    setProjectSaveError(null);
+    try {
+      const uploadedPhotos = [];
+      for (const [role, photo] of photosToUpload) {
+        uploadedPhotos.push(await uploadNewProjectPhoto(role, photo));
+      }
+
+      const res = await createClientGalleryProject({
+        clientId: selectedClient.id,
+        title: newProjectForm.title,
+        description: newProjectForm.description,
+        photos: uploadedPhotos,
+      });
+
+      if (!res.success) {
+        setProjectSaveError(res.error || "Impossible de creer ce projet");
+        return;
+      }
+
+      resetNewProjectForm();
+      setCurrentProjectIndex(0);
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setProjectSaveError(error instanceof Error ? error.message : "Une erreur inattendue est survenue");
+    } finally {
+      setIsCreatingProject(false);
+    }
+  };
+
+  const renderNewProjectPhotoSlot = (role: NewGalleryProjectPhotoRole, label: string) => {
+    const photo = newProjectPhotos[role];
+    const inputId = `client-gallery-${role}`;
+
+    return (
+      <div className={styles.projectUploadSlot}>
+        <span className={styles.projectImageBadge}>{label}</span>
+        <label
+          htmlFor={inputId}
+          className={`${styles.projectUploadLabel} ${photo ? styles.projectUploadLabelWithPreview : ""}`}
+        >
+          {photo ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={photo.previewUrl} alt={`Photo ${label.toLowerCase()}`} className={styles.projectImage} />
+            </>
+          ) : (
+            <span>Ajouter une photo {label.toLowerCase()}</span>
+          )}
+        </label>
+        <input
+          id={inputId}
+          type="file"
+          accept="image/*"
+          className={styles.projectUploadInput}
+          onChange={(event) => handleNewProjectPhotoChange(role, event.target.files?.[0] || null)}
+        />
+        {photo && (
+          <button
+            type="button"
+            className={styles.projectRemovePhotoButton}
+            onClick={() => removeNewProjectPhoto(role)}
+            disabled={isCreatingProject}
+          >
+            Retirer
+          </button>
+        )}
+      </div>
+    );
+  };
 
   const startEditingProject = (project: any) => {
     setEditingProjectId(project.id);
@@ -405,7 +621,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   };
 
   const saveGalleryProject = async (project: any) => {
-    if (!selectedClient || !project.sessionId) return;
+    if (!selectedClient) return;
 
     setSavingProjectId(project.id);
     setProjectSaveError(null);
@@ -413,6 +629,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
       const res = await updateClientGalleryProject({
         clientId: selectedClient.id,
         sessionId: project.sessionId,
+        mediaIds: project.mediaIds || [],
         title: projectForm.title,
         description: projectForm.description,
       });
@@ -1029,19 +1246,79 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
             {/* Galerie des projets */}
             <div className={styles.galerieHeader}>
               <h3 className={styles.galerieTitle}>Galerie des projets</h3>
-              {galleryProjects.length > 0 && (
-                <span className={styles.galleryCount}>
-                  Projet {currentProjectIndex + 1} / {galleryProjects.length}
-                </span>
-              )}
+              <div className={styles.galleryHeaderActions}>
+                <button
+                  type="button"
+                  className={styles.projectEditButton}
+                  onClick={() => {
+                    if (isAddingProject) {
+                      resetNewProjectForm();
+                    } else {
+                      setIsAddingProject(true);
+                      setProjectSaveError(null);
+                    }
+                  }}
+                  disabled={isCreatingProject}
+                >
+                  {isAddingProject ? "Fermer" : "Ajouter un projet"}
+                </button>
+              </div>
             </div>
             
             <div className={styles.projectGalleryList}>
+              {projectSaveError && (
+                <div className={styles.formError}>{projectSaveError}</div>
+              )}
+
+              {isAddingProject && (
+                <div className={styles.projectEditForm}>
+                  <label>
+                    Titre
+                    <input
+                      type="text"
+                      value={newProjectForm.title}
+                      onChange={(event) => setNewProjectForm((current) => ({ ...current, title: event.target.value }))}
+                      placeholder="Nom du projet"
+                      disabled={isCreatingProject}
+                    />
+                  </label>
+                  <label>
+                    Description
+                    <textarea
+                      value={newProjectForm.description}
+                      onChange={(event) => setNewProjectForm((current) => ({ ...current, description: event.target.value }))}
+                      placeholder="Note visible dans la galerie"
+                      rows={3}
+                      disabled={isCreatingProject}
+                    />
+                  </label>
+                  <div className={styles.projectImages}>
+                    {renderNewProjectPhotoSlot("before", "Avant")}
+                    {renderNewProjectPhotoSlot("after", "Apres")}
+                  </div>
+                  <div className={styles.projectEditActions}>
+                    <button
+                      type="button"
+                      className={styles.btnNewRdv}
+                      onClick={createGalleryProject}
+                      disabled={isCreatingProject}
+                    >
+                      {isCreatingProject ? "Creation..." : "Creer le projet"}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.projectGhostButton}
+                      onClick={resetNewProjectForm}
+                      disabled={isCreatingProject}
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {galleryProjects.length > 0 ? (
                 <>
-                {projectSaveError && (
-                  <div className={styles.formError}>{projectSaveError}</div>
-                )}
                 {visibleGalleryProjects.map((project: any) => (
                   <article className={styles.projectCard} key={project.id}>
                     <div className={styles.projectCardHeader}>
@@ -1058,7 +1335,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                       )}
                     </div>
 
-                    {project.sessionId && editingProjectId !== project.id && (
+                    {(project.sessionId || project.isDirectGalleryProject) && editingProjectId !== project.id && (
                       <div className={styles.projectCardActions}>
                         <button
                           type="button"
@@ -1177,11 +1454,11 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                   </div>
                 )}
                 </>
-              ) : (
+              ) : !isAddingProject ? (
                 <div className={styles.galerieEmpty}>
                   Les photos prises pendant les séances apparaîtront ici sur la fiche cliente.
                 </div>
-              )}
+              ) : null}
             </div>
           </>
         )}

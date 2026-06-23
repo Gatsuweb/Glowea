@@ -21,6 +21,8 @@ export async function POST(request: Request) {
     const fileEntry = formData.get("file");
     const clientId = typeof formData.get("clientId") === "string" ? String(formData.get("clientId")) : "";
     const appointmentId = typeof formData.get("appointmentId") === "string" ? String(formData.get("appointmentId")) : "";
+    const scope = typeof formData.get("scope") === "string" ? String(formData.get("scope")) : "";
+    const isClientGalleryUpload = scope === "client-gallery";
 
     if (!(fileEntry instanceof File)) {
       return NextResponse.json(
@@ -29,7 +31,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!clientId || !appointmentId) {
+    if (!clientId || (!appointmentId && !isClientGalleryUpload)) {
       return NextResponse.json(
         { success: false, error: "Client ou rendez-vous manquant." },
         { status: 400 }
@@ -50,25 +52,45 @@ export async function POST(request: Request) {
       );
     }
 
-    const appointment = await prisma.appointment.findFirst({
-      where: {
-        id: appointmentId,
-        tenantId,
-        clientId,
-      },
-      select: { id: true },
-    });
+    if (isClientGalleryUpload) {
+      const client = await prisma.client.findFirst({
+        where: {
+          id: clientId,
+          tenantId,
+          archivedAt: null,
+        },
+        select: { id: true },
+      });
 
-    if (!appointment) {
-      return NextResponse.json(
-        { success: false, error: "Rendez-vous introuvable." },
-        { status: 404 }
-      );
+      if (!client) {
+        return NextResponse.json(
+          { success: false, error: "Cliente introuvable." },
+          { status: 404 }
+        );
+      }
+    } else {
+      const appointment = await prisma.appointment.findFirst({
+        where: {
+          id: appointmentId,
+          tenantId,
+          clientId,
+        },
+        select: { id: true },
+      });
+
+      if (!appointment) {
+        return NextResponse.json(
+          { success: false, error: "Rendez-vous introuvable." },
+          { status: 404 }
+        );
+      }
     }
 
     const extension = getFileExtension(fileEntry);
     const safeName = `${crypto.randomUUID()}.${extension}`;
-    const storagePath = `${tenantId}/clients/${clientId}/sessions/${appointmentId}/${safeName}`;
+    const storagePath = isClientGalleryUpload
+      ? `${tenantId}/clients/${clientId}/gallery/${safeName}`
+      : `${tenantId}/clients/${clientId}/sessions/${appointmentId}/${safeName}`;
     const supabase = getSupabaseAdminClient();
     const fileBuffer = Buffer.from(await fileEntry.arrayBuffer());
     const { error: uploadError } = await supabase.storage

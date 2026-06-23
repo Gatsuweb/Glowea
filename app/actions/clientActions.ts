@@ -5,6 +5,53 @@ import { revalidatePath } from "next/cache";
 import { getTenantId } from "../../lib/tenant";
 import { requireTenantMutationAccess } from "../../lib/subscription";
 
+const DIRECT_GALLERY_PROJECT_LABEL_PREFIX = "GLOWEA_GALLERY_PROJECT";
+const DIRECT_GALLERY_ROLES = new Set(["before", "after", "other"]);
+
+type DirectGalleryRole = "before" | "after" | "other";
+
+function encodeDirectGalleryProjectLabel(data: {
+  projectId: string;
+  role: DirectGalleryRole;
+  title: string;
+  description: string;
+}) {
+  return [
+    DIRECT_GALLERY_PROJECT_LABEL_PREFIX,
+    data.projectId,
+    data.role,
+    encodeURIComponent(data.title),
+    encodeURIComponent(data.description),
+  ].join("|");
+}
+
+function parseDirectGalleryProjectLabel(label: string | null | undefined) {
+  if (!label?.startsWith(`${DIRECT_GALLERY_PROJECT_LABEL_PREFIX}|`)) return null;
+
+  const [, projectId, role] = label.split("|");
+  if (!projectId || !DIRECT_GALLERY_ROLES.has(role)) return null;
+
+  return {
+    projectId,
+    role: role as DirectGalleryRole,
+  };
+}
+
+function getDirectGalleryRoleFromLabel(label: string | null | undefined): DirectGalleryRole {
+  const directProject = parseDirectGalleryProjectLabel(label);
+  if (directProject) return directProject.role;
+
+  const normalizedLabel = (label || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+  if (normalizedLabel.includes("avant")) return "before";
+  if (normalizedLabel.includes("apres")) return "after";
+  return "other";
+}
+
 export async function createClient(data: {
   firstName: string;
   lastName?: string;
@@ -205,9 +252,99 @@ export async function updateClientProfile(data: {
   }
 }
 
+export async function createClientGalleryProject(data: {
+  clientId: string;
+  title?: string;
+  description?: string;
+  photos: Array<{
+    role: DirectGalleryRole;
+    url: string;
+    storageKey?: string | null;
+    mimeType?: string | null;
+    sizeBytes?: number | null;
+  }>;
+}) {
+  const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
+  try {
+    const existingClient = await prisma.client.findFirst({
+      where: {
+        id: data.clientId,
+        tenantId: TENANT_ID,
+        archivedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!existingClient) {
+      return { success: false, error: "Cliente introuvable pour ce compte" };
+    }
+
+    const title = (data.title || "").trim().slice(0, 140);
+    const description = (data.description || "").trim().slice(0, 1000);
+    const photos = (data.photos || [])
+      .filter((photo) => photo.url && DIRECT_GALLERY_ROLES.has(photo.role))
+      .slice(0, 3);
+
+    if (photos.length === 0) {
+      return { success: false, error: "Ajoutez au moins une photo au projet" };
+    }
+
+    const projectId = `gproj_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+
+    await prisma.$transaction(async (tx) => {
+      for (const photo of photos) {
+        const mediaId = `med_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+
+        await tx.media.create({
+          data: {
+            id: mediaId,
+            tenantId: TENANT_ID,
+            url: photo.url,
+            storageKey: photo.storageKey || null,
+            mimeType: photo.mimeType || null,
+            sizeBytes: Number.isFinite(Number(photo.sizeBytes)) ? Number(photo.sizeBytes) : null,
+          },
+        });
+
+        await tx.clientMedia.create({
+          data: {
+            id: `cmed_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+            clientId: data.clientId,
+            mediaId,
+            label: encodeDirectGalleryProjectLabel({
+              projectId,
+              role: photo.role,
+              title,
+              description,
+            }),
+          },
+        });
+      }
+
+      await tx.client.update({
+        where: { id: data.clientId },
+        data: { updatedAt: new Date() },
+      });
+    });
+
+    revalidatePath("/dashboard/clients");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error creating client gallery project:", error);
+    return { success: false, error: "Erreur lors de la creation du projet" };
+  }
+}
+
 export async function updateClientGalleryProject(data: {
   clientId: string;
-  sessionId: string;
+  sessionId?: string | null;
+  mediaIds?: string[];
   title: string;
   description: string;
 }) {
@@ -218,30 +355,96 @@ export async function updateClientGalleryProject(data: {
   }
 
   try {
-    const existingSession = await prisma.session.findFirst({
+    const title = data.title.trim();
+    const description = data.description.trim();
+
+    if (data.sessionId) {
+      const existingSession = await prisma.session.findFirst({
+        where: {
+          id: data.sessionId,
+          clientId: data.clientId,
+          tenantId: TENANT_ID,
+        },
+        select: { id: true },
+      });
+
+      if (!existingSession) {
+        return { success: false, error: "Projet introuvable pour cette cliente" };
+      }
+
+      await prisma.session.update({
+        where: { id: data.sessionId },
+        data: {
+          title: title || null,
+          generalNotes: description || null,
+          updatedAt: new Date(),
+        },
+      });
+
+      revalidatePath("/dashboard/clients");
+
+      return { success: true };
+    }
+
+    const mediaIds = Array.from(new Set(data.mediaIds || []));
+    if (mediaIds.length === 0) {
+      return { success: false, error: "Projet introuvable pour cette cliente" };
+    }
+
+    const existingClient = await prisma.client.findFirst({
       where: {
-        id: data.sessionId,
-        clientId: data.clientId,
+        id: data.clientId,
         tenantId: TENANT_ID,
+        archivedAt: null,
       },
       select: { id: true },
     });
 
-    if (!existingSession) {
+    if (!existingClient) {
+      return { success: false, error: "Cliente introuvable pour ce compte" };
+    }
+
+    const allowedMedia = await prisma.media.findMany({
+      where: {
+        tenantId: TENANT_ID,
+        id: { in: mediaIds },
+      },
+      select: { id: true },
+    });
+
+    const clientMedia = await prisma.clientMedia.findMany({
+      where: {
+        clientId: data.clientId,
+        mediaId: { in: allowedMedia.map((item) => item.id) },
+      },
+      select: { id: true, label: true },
+    });
+
+    if (clientMedia.length === 0) {
       return { success: false, error: "Projet introuvable pour cette cliente" };
     }
 
-    const title = data.title.trim();
-    const description = data.description.trim();
+    const projectId =
+      clientMedia
+        .map((item) => parseDirectGalleryProjectLabel(item.label)?.projectId)
+        .find((id): id is string => Boolean(id)) ||
+      `gproj_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
 
-    await prisma.session.update({
-      where: { id: data.sessionId },
-      data: {
-        title: title || null,
-        generalNotes: description || null,
-        updatedAt: new Date(),
-      },
-    });
+    await prisma.$transaction(
+      clientMedia.map((item) =>
+        prisma.clientMedia.update({
+          where: { id: item.id },
+          data: {
+            label: encodeDirectGalleryProjectLabel({
+              projectId,
+              role: getDirectGalleryRoleFromLabel(item.label),
+              title,
+              description,
+            }),
+          },
+        })
+      )
+    );
 
     revalidatePath("/dashboard/clients");
 

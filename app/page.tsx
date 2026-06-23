@@ -230,7 +230,7 @@ const plans = [
     ],
     ctaLabel: "Développer mon activité",
     featured: true,
-    badgeText: "✨ Le meilleur choix pour développer votre activité",
+    badgeText: "Le meilleur choix pour développer votre activité",
   },
 ];
 
@@ -264,8 +264,7 @@ export default function Home() {
           <h1>Gérez vos rendez-vous et vos clientes plus simplement.</h1>
           <p>
             Glowea centralise vos rendez-vous, clientes, rappels, paiements,
-            stock et sessions techniques dans une interface premium, simple et
-            mobile.
+            stock et sessions techniques dans une interface pensée par vous et pour vous.
           </p>
           <div className={styles.heroActions}>
             <Link href="/sign-up" className={styles.primaryButton}>
@@ -329,7 +328,7 @@ export default function Home() {
             {metric.type === "message" ? (
               <div className={styles.metricsSmsBubble} aria-hidden="true">
                 <p>Bonjour Emma,</p>
-                <p>Petit rappel pour votre rendez-vous demain à 14h. ✨</p>
+                <p>Petit rappel pour votre rendez-vous demain à 14h.</p>
                 <small>10:30</small>
               </div>
             ) : null}
@@ -536,7 +535,7 @@ export default function Home() {
       <footer className={styles.footer}>
         <div>
           <strong>Glowea</strong>
-          <p>Le logiciel premium pour les professionnelles de la beauté.</p>
+          <p>Le logiciel pour les professionnelles de la beauté.</p>
           <span>© 2026 Glowea. Tous droits réservés.</span>
         </div>
         <nav aria-label="Liens footer">
