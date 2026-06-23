@@ -3,6 +3,11 @@ import { auth } from "@clerk/nextjs/server";
 import { stripe } from "@/lib/stripe";
 import { getTenantId } from "@/lib/tenant";
 import prisma from "@/lib/prisma";
+import {
+  createCustomerPortalSession,
+  findCurrentCustomerSubscriptions,
+  getAppUrl,
+} from "@/lib/stripeCustomerPortal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,7 +42,7 @@ export async function POST(req: Request) {
   }
 
   const tenantId = await getTenantId();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
+  const appUrl = getAppUrl(req.url);
 
   const { plan, billing } = await req.json();
 
@@ -79,6 +84,19 @@ export async function POST(req: Request) {
     await prisma.tenant.update({
       where: { id: tenantId },
       data: { stripeCustomerId: customerId, updatedAt: new Date() },
+    });
+  }
+
+  const currentSubscriptions = await findCurrentCustomerSubscriptions(customerId);
+  if (currentSubscriptions.length > 0) {
+    const portalSession = await createCustomerPortalSession({
+      customerId,
+      returnUrl: `${appUrl}/dashboard/profil?tab=abonnements&stripe_portal=return`,
+    });
+
+    return NextResponse.json({
+      url: portalSession.url,
+      existingSubscription: true,
     });
   }
 

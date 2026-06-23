@@ -235,24 +235,7 @@ export async function POST(req: NextRequest) {
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
-        const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
-        const tenantId = await findTenantId({
-          tenantId: subscription.metadata?.tenantId,
-          subscriptionId: subscription.id,
-          customerId,
-        });
-
-        if (tenantId) {
-          await prisma.tenant.update({
-            where: { id: tenantId },
-            data: {
-              subscriptionStatus: "CANCELED",
-              subscriptionPlan: "FREE",
-              stripeSubscriptionId: subscription.id,
-              updatedAt: new Date(),
-            },
-          });
-        }
+        await logAndSyncTenantSubscription(subscription);
         break;
       }
 

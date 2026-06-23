@@ -53,6 +53,9 @@ const statusLabels: Record<ProfileData["subscription"]["status"], { label: strin
   PAUSED: { label: "Suspendu", tone: "warning" },
 };
 
+// Gardee pour une V2: la section existe encore dans le code mais n'est pas affichee.
+const showLegalDocumentsSection = false;
+
 function formatDate(value: string | null) {
   if (!value) return "Non renseignée";
   return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(value));
@@ -60,6 +63,28 @@ function formatDate(value: string | null) {
 
 type NotificationSettingKey = keyof ProfileNotificationPreferences;
 type PushStatus = "checking" | "unsupported" | "permission-denied" | "inactive" | "active";
+type BillingPaymentMethod = {
+  type: string;
+  brand: string;
+  last4: string | null;
+  expMonth: number | null;
+  expYear: number | null;
+};
+type BillingInvoice = {
+  id: string;
+  created: string;
+  amountPaid: number;
+  amountDue: number;
+  total: number;
+  currency: string;
+  status: string | null;
+  hostedInvoiceUrl: string | null;
+};
+type BillingSummary = {
+  hasStripeCustomer: boolean;
+  paymentMethod: BillingPaymentMethod | null;
+  invoices: BillingInvoice[];
+};
 
 const defaultNotificationPreferences: ProfileNotificationPreferences = {
   pushEnabled: true,
@@ -126,6 +151,8 @@ const notificationSettingGroups: Array<{
   },
 ];
 
+const navItemIds = new Set(["compte", "prestations", "page-publique", "abonnements", "paiements", "notifications", "templates"]);
+
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -148,6 +175,40 @@ function canUsePushNotifications() {
     window.isSecureContext &&
     Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY)
   );
+}
+
+function formatCurrencyFromCents(amount: number, currency: string) {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+  }).format(amount / 100);
+}
+
+function formatCardBrand(brand: string) {
+  const labels: Record<string, string> = {
+    amex: "American Express",
+    mastercard: "Mastercard",
+    visa: "Visa",
+  };
+
+  return labels[brand] || brand;
+}
+
+function getInvoiceStatus(status: string | null) {
+  switch (status) {
+    case "paid":
+      return { label: "Payee", className: styles.badgeGreen };
+    case "open":
+      return { label: "A regler", className: styles.badgeAmber };
+    case "draft":
+      return { label: "Brouillon", className: styles.badgeAmber };
+    case "void":
+      return { label: "Annulee", className: styles.badgeRed };
+    case "uncollectible":
+      return { label: "Impayee", className: styles.badgeRed };
+    default:
+      return { label: "En cours", className: styles.badgeAmber };
+  }
 }
 
 async function getCurrentPushSubscription() {
@@ -214,6 +275,13 @@ export default function ProfilPage() {
   const [isSavingSmsReminders, setIsSavingSmsReminders] = useState(false);
   const [savingNotificationKey, setSavingNotificationKey] = useState<NotificationSettingKey | null>(null);
   const [isSavingPush, setIsSavingPush] = useState(false);
+  const [isOpeningCustomerPortal, setIsOpeningCustomerPortal] = useState(false);
+  const [isOpeningBillingPortal, setIsOpeningBillingPortal] = useState(false);
+  const [isOpeningPaymentMethodPortal, setIsOpeningPaymentMethodPortal] = useState(false);
+  const [isReactivatingSubscription, setIsReactivatingSubscription] = useState(false);
+  const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
+  const [isLoadingBilling, setIsLoadingBilling] = useState(false);
+  const [billingError, setBillingError] = useState<string | null>(null);
   const [pushStatus, setPushStatus] = useState<PushStatus>("checking");
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -247,6 +315,13 @@ export default function ProfilPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab && navItemIds.has(tab)) {
+      setActiveTab(tab);
+    }
+  }, []);
+
   const loadTemplates = async () => {
     setIsLoadingTemplates(true);
     setTemplatesError(null);
@@ -270,6 +345,37 @@ export default function ProfilPage() {
   useEffect(() => {
     if (activeTab === "templates") {
       void loadTemplates();
+    }
+  }, [activeTab]);
+
+  const loadBillingSummary = async () => {
+    setIsLoadingBilling(true);
+    setBillingError(null);
+
+    try {
+      const response = await fetch("/api/stripe/billing-summary");
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || !data?.success) {
+        setBillingError(data?.error || "Impossible de charger les informations de paiement.");
+        return;
+      }
+
+      setBillingSummary({
+        hasStripeCustomer: Boolean(data.hasStripeCustomer),
+        paymentMethod: data.paymentMethod || null,
+        invoices: Array.isArray(data.invoices) ? data.invoices : [],
+      });
+    } catch {
+      setBillingError("Impossible de charger les informations de paiement.");
+    } finally {
+      setIsLoadingBilling(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "paiements") {
+      void loadBillingSummary();
     }
   }, [activeTab]);
 
@@ -328,6 +434,17 @@ export default function ProfilPage() {
   const canEdit = !isLoadingProfile && !isSaving;
   const canToggleSmsReminders = (profileData.canUseAutomaticSmsReminders || profileData.smsRemindersEnabled) && !isLoadingProfile && !isSavingSmsReminders;
   const openPricing = () => router.push("/pricing");
+
+  const refreshProfileData = async () => {
+    const res = await getProfileData();
+    if (res.success) {
+      setProfileData(res.data);
+      return true;
+    }
+
+    setError(res.error || "Erreur lors de la récupération du profil");
+    return false;
+  };
 
   const handleSave = async () => {
     if (!canEdit) return;
@@ -540,12 +657,128 @@ export default function ProfilPage() {
   const currentPlan = planDetails[profileData.subscription.plan] || planDetails.FREE;
   const currentStatus = statusLabels[profileData.subscription.status] || statusLabels.CANCELED;
   const showTrialInfo = profileData.subscription.status === "TRIALING";
+  const canManageSubscription =
+    profileData.subscription.provider === "STRIPE" &&
+    Boolean(profileData.subscription.stripeCustomerId);
+  const canManageBilling = Boolean(profileData.subscription.stripeCustomerId);
+  const canReactivateSubscription = canManageSubscription && profileData.subscription.cancelAtPeriodEnd;
   const badgeClassName =
     currentStatus.tone === "success"
       ? styles.badgeGreen
       : currentStatus.tone === "danger"
         ? styles.badgeRed
         : styles.badgeAmber;
+  const billingPaymentMethod = billingSummary?.paymentMethod || null;
+  const billingInvoices = billingSummary?.invoices || [];
+  const hasStripeBilling = Boolean(billingSummary?.hasStripeCustomer || canManageBilling);
+  const paymentMethodTitle = billingPaymentMethod
+    ? billingPaymentMethod.last4
+      ? `${formatCardBrand(billingPaymentMethod.brand)} se terminant par ${billingPaymentMethod.last4}`
+      : `Moyen de paiement ${formatCardBrand(billingPaymentMethod.brand)}`
+    : hasStripeBilling
+      ? "Aucun moyen de paiement enregistre"
+      : "Aucun moyen de paiement Stripe";
+  const paymentMethodSubtitle = billingPaymentMethod?.expMonth && billingPaymentMethod.expYear
+    ? `Date d'expiration : ${String(billingPaymentMethod.expMonth).padStart(2, "0")}/${billingPaymentMethod.expYear}`
+    : hasStripeBilling
+      ? "La mise a jour se fait dans Stripe."
+      : "Choisissez une formule pour ajouter un moyen de paiement.";
+
+  const handleOpenCustomerPortal = async () => {
+    if (!canManageSubscription || isOpeningCustomerPortal) return;
+
+    setIsOpeningCustomerPortal(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch("/api/stripe/customer-portal", {
+        method: "POST",
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || !data?.success || !data.url) {
+        setError(data?.error || "Impossible d'ouvrir le portail Stripe.");
+        return;
+      }
+
+      window.location.href = data.url;
+    } catch {
+      setError("Une erreur inattendue est survenue");
+    } finally {
+      setIsOpeningCustomerPortal(false);
+    }
+  };
+
+  const handleOpenBillingPortal = async (flow?: "payment_method_update") => {
+    if (!canManageBilling || isOpeningBillingPortal || isOpeningPaymentMethodPortal) return;
+
+    const isPaymentMethodFlow = flow === "payment_method_update";
+    if (isPaymentMethodFlow) {
+      setIsOpeningPaymentMethodPortal(true);
+    } else {
+      setIsOpeningBillingPortal(true);
+    }
+    setBillingError(null);
+
+    try {
+      const response = await fetch("/api/stripe/customer-portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          returnTab: "paiements",
+          flow,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || !data?.success || !data.url) {
+        setBillingError(data?.error || "Impossible d'ouvrir le portail Stripe.");
+        return;
+      }
+
+      window.location.href = data.url;
+    } catch {
+      setBillingError("Une erreur inattendue est survenue");
+    } finally {
+      if (isPaymentMethodFlow) {
+        setIsOpeningPaymentMethodPortal(false);
+      } else {
+        setIsOpeningBillingPortal(false);
+      }
+    }
+  };
+
+  const handleReactivateSubscription = async () => {
+    if (!canReactivateSubscription || isReactivatingSubscription) return;
+
+    setIsReactivatingSubscription(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch("/api/stripe/customer-portal/reactivate", {
+        method: "POST",
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || !data?.success) {
+        setError(data?.error || "Impossible de reactiver l'abonnement.");
+        return;
+      }
+
+      await refreshProfileData();
+      setSuccessMessage(
+        data.alreadyActive
+          ? "Votre abonnement est deja actif."
+          : "Votre abonnement a ete reactive."
+      );
+    } catch {
+      setError("Une erreur inattendue est survenue");
+    } finally {
+      setIsReactivatingSubscription(false);
+    }
+  };
 
   const navItems = [
     { id: "compte", label: "Compte", icon: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" },
@@ -742,60 +975,61 @@ export default function ProfilPage() {
                 </div>
               </section>
 
-              {/* Documents Légaux & Conformité */}
-              <section className={`${styles.card} ${styles.legalCard}`}>
-                <div className={`${styles.cardHeader} ${styles.legalCardHeader}`}>
-                  <h2 className={styles.cardTitle}>Documents & Conformité Légale</h2>
-                </div>
-                
-                <p className={styles.legalText}>
-                  Gérez ici les documents légaux nécessaires à votre activité de technicienne (cils/ongles). Ces informations sont obligatoires pour générer des factures conformes à la législation française et européenne (RGPD).
-                </p>
-
-                <div className={styles.legalList}>
-                  <div className={styles.docRow}>
-                    <div className={styles.docInfo}>
-                      <span className={styles.docName}>Conditions Générales de Vente (CGV)</span>
-                      <span className={styles.docStatus}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                        Validées et à jour
-                      </span>
-                    </div>
-                    <button className={styles.btnDownload}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                      Télécharger
-                    </button>
+              {showLegalDocumentsSection && (
+                <section className={`${styles.card} ${styles.legalCard}`}>
+                  <div className={`${styles.cardHeader} ${styles.legalCardHeader}`}>
+                    <h2 className={styles.cardTitle}>Documents & Conformité Légale</h2>
                   </div>
                   
-                  <div className={styles.docRow}>
-                    <div className={styles.docInfo}>
-                      <span className={styles.docName}>Politique de Confidentialité (RGPD)</span>
-                      <span className={styles.docStatus}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                        Validée
-                      </span>
-                    </div>
-                    <button className={styles.btnDownload}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                      Télécharger
-                    </button>
-                  </div>
+                  <p className={styles.legalText}>
+                    Gérez ici les documents légaux nécessaires à votre activité de technicienne (cils/ongles). Ces informations sont obligatoires pour générer des factures conformes à la législation française et européenne (RGPD).
+                  </p>
 
-                  <div className={styles.docRow}>
-                    <div className={styles.docInfo}>
-                      <span className={styles.docName}>Attestation d&apos;Assurance Responsabilité Civile Pro (RC Pro)</span>
-                      <span className={`${styles.docStatus} ${styles.docStatusRed}`}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                        Manquante - Veuillez l&apos;importer
-                      </span>
+                  <div className={styles.legalList}>
+                    <div className={styles.docRow}>
+                      <div className={styles.docInfo}>
+                        <span className={styles.docName}>Conditions Générales de Vente (CGV)</span>
+                        <span className={styles.docStatus}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                          Validées et à jour
+                        </span>
+                      </div>
+                      <button className={styles.btnDownload}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Télécharger
+                      </button>
                     </div>
-                    <button className={styles.btnDownload}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                      Importer PDF
-                    </button>
+                    
+                    <div className={styles.docRow}>
+                      <div className={styles.docInfo}>
+                        <span className={styles.docName}>Politique de Confidentialité (RGPD)</span>
+                        <span className={styles.docStatus}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                          Validée
+                        </span>
+                      </div>
+                      <button className={styles.btnDownload}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Télécharger
+                      </button>
+                    </div>
+
+                    <div className={styles.docRow}>
+                      <div className={styles.docInfo}>
+                        <span className={styles.docName}>Attestation d&apos;Assurance Responsabilité Civile Pro (RC Pro)</span>
+                        <span className={`${styles.docStatus} ${styles.docStatusRed}`}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                          Manquante - Veuillez l&apos;importer
+                        </span>
+                      </div>
+                      <button className={styles.btnDownload}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        Importer PDF
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </section>
+                </section>
+              )}
             </>
           )}
 
@@ -824,6 +1058,13 @@ export default function ProfilPage() {
                 <div className={styles.cardHeader}>
                   <h2 className={styles.cardTitle}>Mon abonnement</h2>
                 </div>
+
+                {(error || successMessage) && (
+                  <div className={styles.statusRow}>
+                    {error && <div className={`${styles.statusMessage} ${styles.statusError}`}>{error}</div>}
+                    {successMessage && <div className={`${styles.statusMessage} ${styles.statusSuccess}`}>{successMessage}</div>}
+                  </div>
+                )}
                 
                 <div className={styles.planBox}>
                   <div className={styles.planHeader}>
@@ -885,12 +1126,33 @@ export default function ProfilPage() {
 
                   {profileData.subscription.cancelAtPeriodEnd && (
                     <div className={styles.subscriptionNotice}>
-                      Votre abonnement est programme pour s&apos;arreter a la fin de la periode en cours.
+                      Votre abonnement prendra fin
+                      {profileData.subscription.currentPeriodEnd
+                        ? ` le ${formatDate(profileData.subscription.currentPeriodEnd)}`
+                        : " a la fin de la periode en cours"}.
                     </div>
                   )}
 
                   <div className={styles.planActions}>
                     <a className={styles.btnEdit} href="/pricing">Changer de forfait</a>
+                    <button
+                      type="button"
+                      className={styles.btnSave}
+                      onClick={handleOpenCustomerPortal}
+                      disabled={!canManageSubscription || isOpeningCustomerPortal}
+                    >
+                      {isOpeningCustomerPortal ? "Ouverture..." : "Gerer mon abonnement"}
+                    </button>
+                    {profileData.subscription.cancelAtPeriodEnd && (
+                      <button
+                        type="button"
+                        className={styles.btnSecondary}
+                        onClick={handleReactivateSubscription}
+                        disabled={!canReactivateSubscription || isReactivatingSubscription}
+                      >
+                        {isReactivatingSubscription ? "Reactivation..." : "Reactiver mon abonnement"}
+                      </button>
+                    )}
                     <a className={styles.btnSecondary} href="mailto:support@glowea.fr">Contacter le support</a>
                   </div>
                 </div>
@@ -904,27 +1166,54 @@ export default function ProfilPage() {
                 <div className={styles.cardHeader}>
                   <h2 className={styles.cardTitle}>Moyen de Paiement</h2>
                 </div>
+
+                {billingError && (
+                  <div className={styles.statusRow}>
+                    <div className={`${styles.statusMessage} ${styles.statusError}`}>{billingError}</div>
+                  </div>
+                )}
                 
                 <div className={styles.paymentMethodRow}>
                   <div className={styles.paymentLeft}>
                     <div className={styles.paymentIcon}>
                       <svg width="32" height="20" viewBox="0 0 32 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <rect width="32" height="20" rx="4" fill="#1434CB"/>
-                        <path d="M12.5 13.5L14.5 6.5H16.5L14.5 13.5H12.5ZM21.5 6.5L20.1 11.2L19.5 6.5H17.5L18.8 13.5H20.8L22.5 6.5H21.5ZM10.5 6.5C9.5 6.5 8.8 7.1 8.8 7.8C8.8 8.9 10.4 9.1 10.4 9.8C10.4 10.1 10.1 10.4 9.6 10.4C9 10.4 8.5 10.1 8.2 9.8L7.8 11.5C8.3 11.8 9.1 12 9.8 12C11 12 11.8 11.4 11.8 10.6C11.8 9.4 10.2 9.2 10.2 8.6C10.2 8.3 10.5 8 11 8C11.4 8 11.9 8.2 12.2 8.4L12.5 6.8C12 6.6 11.3 6.5 10.5 6.5ZM26.8 6.5H25.2C24.8 6.5 24.5 6.7 24.3 7.1L21.5 13.5H23.5L23.9 12.4H26.3L26.5 13.5H28.5L26.8 6.5ZM24.5 10.8L25.3 8.3L25.8 10.8H24.5Z" fill="white"/>
+                        <path d="M5 7h22M8 13h8" stroke="white" strokeWidth="2" strokeLinecap="round"/>
                       </svg>
                     </div>
                     <div className={styles.paymentDetails}>
-                      <h4>Visa se terminant par 4242</h4>
-                      <p>Date d&apos;expiration : 12/2026</p>
+                      <h4>{isLoadingBilling ? "Chargement..." : paymentMethodTitle}</h4>
+                      <p>{isLoadingBilling ? "Lecture depuis Stripe." : paymentMethodSubtitle}</p>
                     </div>
                   </div>
-                  <button className={styles.btnEdit}>Mettre à jour</button>
+                  {canManageBilling ? (
+                    <button
+                      className={styles.btnEdit}
+                      type="button"
+                      onClick={() => handleOpenBillingPortal("payment_method_update")}
+                      disabled={isLoadingBilling || isOpeningPaymentMethodPortal}
+                    >
+                      {isOpeningPaymentMethodPortal ? "Ouverture..." : "Mettre a jour dans Stripe"}
+                    </button>
+                  ) : (
+                    <a className={styles.btnEdit} href="/pricing">Choisir une formule</a>
+                  )}
                 </div>
               </section>
 
               <section className={styles.card}>
                 <div className={styles.cardHeader}>
                   <h2 className={styles.cardTitle}>Historique de facturation</h2>
+                  {canManageBilling && (
+                    <button
+                      className={styles.btnEdit}
+                      type="button"
+                      onClick={() => handleOpenBillingPortal()}
+                      disabled={isLoadingBilling || isOpeningBillingPortal}
+                    >
+                      {isOpeningBillingPortal ? "Ouverture..." : "Voir dans Stripe"}
+                    </button>
+                  )}
                 </div>
                 
                 <div className={styles.tableContainer}>
@@ -934,32 +1223,48 @@ export default function ProfilPage() {
                         <th>Date</th>
                         <th>Montant</th>
                         <th>Statut</th>
-                        <th>Facture</th>
+                        <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr>
-                        <td>14 Mars 2026</td>
-                        <td>29,00 €</td>
-                        <td><span className={styles.badgeGreen}>Payé</span></td>
-                        <td>
-                          <button className={styles.btnDownload}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                            PDF
-                          </button>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>14 Février 2026</td>
-                        <td>29,00 €</td>
-                        <td><span className={styles.badgeGreen}>Payé</span></td>
-                        <td>
-                          <button className={styles.btnDownload}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                            PDF
-                          </button>
-                        </td>
-                      </tr>
+                      {isLoadingBilling && (
+                        <tr>
+                          <td colSpan={4} className={styles.emptyStateText}>Chargement des factures Stripe...</td>
+                        </tr>
+                      )}
+                      {!isLoadingBilling && billingInvoices.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className={styles.emptyStateText}>
+                            {hasStripeBilling ? "Aucune facture Stripe pour le moment." : "Aucun historique de facturation Stripe."}
+                          </td>
+                        </tr>
+                      )}
+                      {!isLoadingBilling && billingInvoices.map((invoice) => {
+                        const status = getInvoiceStatus(invoice.status);
+                        const amount = invoice.amountPaid > 0 ? invoice.amountPaid : invoice.total || invoice.amountDue;
+
+                        return (
+                          <tr key={invoice.id}>
+                            <td>{formatDate(invoice.created)}</td>
+                            <td>{formatCurrencyFromCents(amount, invoice.currency)}</td>
+                            <td><span className={status.className}>{status.label}</span></td>
+                            <td>
+                              {invoice.hostedInvoiceUrl ? (
+                                <a
+                                  className={styles.btnDownload}
+                                  href={invoice.hostedInvoiceUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Voir dans Stripe
+                                </a>
+                              ) : (
+                                <span className={styles.emptyStateText}>Geree par Stripe</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

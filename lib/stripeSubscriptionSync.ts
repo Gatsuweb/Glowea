@@ -37,6 +37,45 @@ function mapStripeStatus(status?: Stripe.Subscription.Status): SubscriptionStatu
   }
 }
 
+async function upsertSubscriptionRecord(params: {
+  tenantId: string;
+  customerId: string | null;
+  subscriptionId: string | null;
+  status: SubscriptionStatus;
+  plan: SubscriptionPlan;
+  currentPeriodStart: Date | null;
+  currentPeriodEnd: Date | null;
+  cancelAtPeriodEnd: boolean;
+}) {
+  await prisma.subscription.upsert({
+    where: { tenantId: params.tenantId },
+    create: {
+      id: `sub_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+      tenantId: params.tenantId,
+      provider: "STRIPE",
+      providerCustomerId: params.customerId,
+      providerSubscriptionId: params.subscriptionId,
+      status: params.status,
+      planName: params.plan,
+      currentPeriodStart: params.currentPeriodStart,
+      currentPeriodEnd: params.currentPeriodEnd,
+      cancelAtPeriodEnd: params.cancelAtPeriodEnd,
+      updatedAt: new Date(),
+    },
+    update: {
+      provider: "STRIPE",
+      providerCustomerId: params.customerId,
+      providerSubscriptionId: params.subscriptionId,
+      status: params.status,
+      planName: params.plan,
+      currentPeriodStart: params.currentPeriodStart,
+      currentPeriodEnd: params.currentPeriodEnd,
+      cancelAtPeriodEnd: params.cancelAtPeriodEnd,
+      updatedAt: new Date(),
+    },
+  });
+}
+
 async function findTenantId(params: {
   tenantId?: string | null;
   subscriptionId?: string | null;
@@ -72,8 +111,8 @@ export async function syncTenantSubscription(
   const subscriptionId = subscription.id;
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
   const priceId = subscription.items.data[0]?.price.id || null;
-  const plan = getPlanFromPriceId(priceId, subscription.metadata?.plan);
   const status = mapStripeStatus(subscription.status);
+  const plan = status === "CANCELED" ? "FREE" : getPlanFromPriceId(priceId, subscription.metadata?.plan);
   const tenantId = await findTenantId({
     tenantId: metadataTenantId || subscription.metadata?.tenantId,
     subscriptionId,
@@ -81,6 +120,13 @@ export async function syncTenantSubscription(
   });
 
   if (!tenantId) return { synced: false as const, status, plan };
+
+  const currentPeriodStart = subscription.items.data[0]?.current_period_start
+    ? new Date(subscription.items.data[0].current_period_start * 1000)
+    : null;
+  const currentPeriodEnd = subscription.items.data[0]?.current_period_end
+    ? new Date(subscription.items.data[0].current_period_end * 1000)
+    : null;
 
   await prisma.tenant.update({
     where: { id: tenantId },
@@ -93,6 +139,17 @@ export async function syncTenantSubscription(
       trialEndsAt: subscription.trial_end ? new Date(subscription.trial_end * 1000) : null,
       updatedAt: new Date(),
     },
+  });
+
+  await upsertSubscriptionRecord({
+    tenantId,
+    customerId,
+    subscriptionId,
+    status,
+    plan,
+    currentPeriodStart,
+    currentPeriodEnd,
+    cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
   });
 
   return { synced: true as const, tenantId, status, plan };
@@ -118,6 +175,17 @@ export async function syncTenantFromCheckoutSession(session: Stripe.Checkout.Ses
       stripeSubscriptionId: subscriptionId,
       updatedAt: new Date(),
     },
+  });
+
+  await upsertSubscriptionRecord({
+    tenantId,
+    customerId,
+    subscriptionId,
+    status,
+    plan,
+    currentPeriodStart: null,
+    currentPeriodEnd: null,
+    cancelAtPeriodEnd: false,
   });
 
   return { synced: true as const, tenantId, status, plan };
