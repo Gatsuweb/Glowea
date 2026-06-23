@@ -714,16 +714,23 @@ model Notification {
 }
 
 model NotificationPreference {
-  id                         String   @id
-  userId                     String   @unique
-  appointmentReminderEnabled Boolean  @default(true)
-  stockAlertEnabled          Boolean  @default(true)
-  marketingInsightEnabled    Boolean  @default(true)
-  emailEnabled               Boolean  @default(true)
-  pushEnabled                Boolean  @default(true)
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime
-  User                       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                            String   @id
+  userId                        String   @unique
+  appointmentReminderEnabled    Boolean  @default(true)
+  stockAlertEnabled             Boolean  @default(true)
+  marketingInsightEnabled       Boolean  @default(true)
+  emailEnabled                  Boolean  @default(true)
+  pushEnabled                   Boolean  @default(true)
+  stockLowEnabled               Boolean  @default(true)
+  manualAppointmentAddedEnabled Boolean  @default(true)
+  loyalClientThanksEnabled      Boolean  @default(true)
+  onlineBookingEnabled          Boolean  @default(true)
+  paymentReceivedEnabled        Boolean  @default(true)
+  publicBookingChangeEnabled    Boolean  @default(true)
+  automaticFollowUpEnabled      Boolean  @default(true)
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime
+  User                          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PushSubscription {

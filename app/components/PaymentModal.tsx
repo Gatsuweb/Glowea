@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -57,6 +57,22 @@ function formatMoney(cents: number) {
   }).format(cents / 100);
 }
 
+function formatEuroInputValue(cents: number) {
+  if (!Number.isFinite(cents) || cents <= 0) return "";
+  const euros = cents / 100;
+  return Number.isInteger(euros) ? String(euros) : euros.toFixed(2);
+}
+
+function parseEuroInputToCents(value: string) {
+  const normalized = value.replace(",", ".").trim();
+  if (!normalized) return null;
+
+  const amount = Number(normalized);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  return Math.round(amount * 100);
+}
+
 export default function PaymentModal({
   isOpen,
   onClose,
@@ -80,8 +96,9 @@ export default function PaymentModal({
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [isQrExpanded, setIsQrExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [customPriceInput, setCustomPriceInput] = useState("");
 
-  const financialSummary = useMemo(
+  const baseFinancialSummary = useMemo(
     () =>
       getAppointmentFinancialSummary({
         price: typeof price === "number" ? price : null,
@@ -96,6 +113,27 @@ export default function PaymentModal({
     [price, depositAmount, depositPaidAmount, paidAmount, remainingAmount, paymentStatus, paymentMethod, defaultAmount]
   );
 
+  const customPriceCents = useMemo(() => parseEuroInputToCents(customPriceInput), [customPriceInput]);
+  const effectivePriceCents =
+    customPriceCents === null
+      ? baseFinancialSummary.priceCents
+      : Math.max(customPriceCents, baseFinancialSummary.paidAmountCents);
+
+  const financialSummary = useMemo(
+    () =>
+      getAppointmentFinancialSummary({
+        price: effectivePriceCents,
+        depositAmount: typeof depositAmount === "number" ? depositAmount : null,
+        depositPaidAmount: typeof depositPaidAmount === "number" ? depositPaidAmount : null,
+        paidAmount: typeof paidAmount === "number" ? paidAmount : null,
+        remainingAmount: typeof remainingAmount === "number" ? remainingAmount : null,
+        paymentStatus,
+        paymentMethod,
+        Service: { price: defaultAmount },
+      }),
+    [effectivePriceCents, depositAmount, depositPaidAmount, paidAmount, remainingAmount, paymentStatus, paymentMethod, defaultAmount]
+  );
+
   const priceCents = financialSummary.priceCents;
   const paidCents = financialSummary.paidAmountCents;
   const depositPaidCents = financialSummary.depositPaidAmountCents;
@@ -104,14 +142,50 @@ export default function PaymentModal({
   const paymentMethodLabel = formatAppointmentPaymentMethod(offlinePaymentMethod);
   const isPaid = financialSummary.paymentStatus === "paid" || financialSummary.paymentStatus === "paid_offline";
   const canUseStripe = Boolean(paymentsEnabled);
+  const inlinePriceError =
+    customPriceCents !== null && customPriceCents < baseFinancialSummary.paidAmountCents
+      ? `Le prix doit être au moins égal au montant déjà encaissé (${formatMoney(baseFinancialSummary.paidAmountCents)}).`
+      : null;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setCustomPriceInput(formatEuroInputValue(baseFinancialSummary.priceCents));
+    setPaymentUrl(null);
+    setIsQrExpanded(false);
+    setError(null);
+  }, [isOpen, appointmentId, baseFinancialSummary.priceCents]);
+
+  useEffect(() => {
+    setPaymentUrl(null);
+    setIsQrExpanded(false);
+  }, [customPriceInput]);
 
   if (!isOpen) return null;
+
+  function resolveCustomPriceCents() {
+    const resolvedPriceCents = parseEuroInputToCents(customPriceInput);
+
+    if (resolvedPriceCents === null) {
+      setError("Saisissez un prix valide.");
+      return null;
+    }
+
+    if (resolvedPriceCents < baseFinancialSummary.paidAmountCents) {
+      setError(`Le prix ne peut pas être inférieur au montant déjà encaissé (${formatMoney(baseFinancialSummary.paidAmountCents)}).`);
+      return null;
+    }
+
+    return resolvedPriceCents;
+  }
 
   async function createPaymentLink(paymentType: "deposit" | "full" | "remaining") {
     if (!canUseStripe) {
       router.push("/settings/payments");
       return;
     }
+
+    const resolvedPriceCents = resolveCustomPriceCents();
+    if (resolvedPriceCents === null) return;
 
     setIsSubmitting(true);
     setError(null);
@@ -122,7 +196,7 @@ export default function PaymentModal({
       const response = await fetch(`/api/appointments/${appointmentId}/create-payment-link`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentType }),
+        body: JSON.stringify({ paymentType, customPriceCents: resolvedPriceCents }),
       });
       const data = await response.json();
 
@@ -139,6 +213,9 @@ export default function PaymentModal({
   }
 
   async function markPaidOffline() {
+    const resolvedPriceCents = resolveCustomPriceCents();
+    if (resolvedPriceCents === null) return;
+
     setIsSubmitting(true);
     setError(null);
     setPaymentUrl(null);
@@ -148,7 +225,10 @@ export default function PaymentModal({
       const response = await fetch(`/api/appointments/${appointmentId}/mark-paid-offline`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentMethod: offlinePaymentMethod }),
+        body: JSON.stringify({
+          paymentMethod: offlinePaymentMethod,
+          customPriceCents: resolvedPriceCents,
+        }),
       });
       const data = await response.json();
 
@@ -214,6 +294,25 @@ export default function PaymentModal({
           <div className={styles.statusRow}>
             <span>Statut</span>
             <strong>{statusLabel}</strong>
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="payment-total-price">Prix total ajustable</label>
+            <input
+              id="payment-total-price"
+              className={styles.inputAmount}
+              type="number"
+              inputMode="decimal"
+              min={(baseFinancialSummary.paidAmountCents / 100).toFixed(2)}
+              step="0.01"
+              value={customPriceInput}
+              onChange={(event) => setCustomPriceInput(event.target.value)}
+              placeholder="0.00"
+            />
+            <p className={styles.inputHint}>
+              Modifiez ce montant pour ajouter un tip ou ajuster le prix au dernier moment.
+            </p>
+            {inlinePriceError && <p className={styles.inputHint}>{inlinePriceError}</p>}
           </div>
 
           <div className={styles.amountGrid}>

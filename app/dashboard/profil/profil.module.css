@@ -790,6 +790,26 @@
   gap: 18px;
 }
 
+.settingsGroup {
+  border-top: 1px solid #F0F0F0;
+  padding-top: 24px;
+}
+
+.settingsGroup + .settingsGroup {
+  margin-top: 8px;
+}
+
+.settingsSectionTitle {
+  color: #333;
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+}
+
+.settingsRowLocked {
+  opacity: 0.72;
+}
+
 .settingsRow:last-child {
   border-bottom: none;
 }
@@ -841,6 +861,36 @@
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
+}
+
+.pushSection {
+  align-items: center;
+  background: #FAF4F4;
+  border: 1px solid #EAD2D2;
+  border-radius: 16px;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding: 22px;
+}
+
+.pushActions {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.pushEnabledPill {
+  background: #E8F3EB;
+  border: 1px solid #BDE2C7;
+  border-radius: 999px;
+  color: #2F6B40;
+  font-size: 0.86rem;
+  font-weight: 700;
+  padding: 9px 14px;
+  white-space: nowrap;
 }
 
 .toggleButton {
@@ -1249,6 +1299,7 @@
   .docRow,
   .paymentMethodRow,
   .settingsRow,
+  .pushSection,
   .templateItem,
   .planHeader {
     flex-direction: column;
@@ -1304,6 +1355,17 @@
     width: 100%;
     align-items: stretch;
     flex-direction: column-reverse;
+  }
+
+  .pushActions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pushActions .btnEdit,
+  .pushActions .btnSave {
+    width: 100%;
   }
 
   .toggleButton,

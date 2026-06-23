@@ -55,19 +55,46 @@ export default function PushNotificationManager() {
   useEffect(() => {
     if (!canUsePush() || !process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) return;
 
-    if (Notification.permission === "granted") {
-      registerSubscription().catch((error) => {
-        if (process.env.NODE_ENV !== "production") {
-          console.warn("[push] subscription registration failed", error);
-        }
-      });
-      return;
+    let isMounted = true;
+
+    async function loadPreferenceAndRegister() {
+      const response = await fetch("/api/settings/notifications");
+      const data = await response.json().catch(() => null);
+      const pushEnabled = data?.notificationPreferences?.pushEnabled !== false;
+
+      if (Notification.permission === "default") {
+        if (isMounted) setState("ready");
+        return;
+      }
+
+      if (Notification.permission === "denied") {
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.getRegistration();
+      const existingSubscription = registration ? await registration.pushManager.getSubscription() : null;
+
+      if (!pushEnabled || !existingSubscription) {
+        if (isMounted) setState("ready");
+        return;
+      }
+
+      const saved = await registerSubscription();
+      if (!saved && isMounted) setState("ready");
     }
 
-    if (Notification.permission === "default") {
-      const timeoutId = window.setTimeout(() => setState("ready"), 0);
-      return () => window.clearTimeout(timeoutId);
-    }
+    loadPreferenceAndRegister().catch((error) => {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[push] preference load failed", error);
+      }
+      if (Notification.permission === "default" && isMounted) {
+        setState("ready");
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const enablePush = async () => {

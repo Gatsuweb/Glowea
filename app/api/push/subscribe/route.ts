@@ -74,6 +74,20 @@ export async function POST(req: Request) {
     },
   });
 
+  await prisma.notificationPreference.upsert({
+    where: { userId },
+    update: {
+      pushEnabled: true,
+      updatedAt: now,
+    },
+    create: {
+      id: `npr_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+      userId,
+      pushEnabled: true,
+      updatedAt: now,
+    },
+  });
+
   if (process.env.NODE_ENV !== "production") {
     console.log("[push] subscription saved", { tenantId, userId });
   }

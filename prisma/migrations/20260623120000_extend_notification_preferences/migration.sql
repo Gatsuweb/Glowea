@@ -1,0 +1,8 @@
+ALTER TABLE "NotificationPreference"
+  ADD COLUMN IF NOT EXISTS "stockLowEnabled" BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "manualAppointmentAddedEnabled" BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "loyalClientThanksEnabled" BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "onlineBookingEnabled" BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "paymentReceivedEnabled" BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "publicBookingChangeEnabled" BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "automaticFollowUpEnabled" BOOLEAN NOT NULL DEFAULT true;

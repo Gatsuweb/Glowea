@@ -5,7 +5,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import styles from "./profil.module.css";
 import PromoModal, { type EditableMessageTemplate } from "../../components/PromoModal";
 import PrestationsTab from "./PrestationsTab";
-import { getProfileData, updateProfileData, type ProfileData } from "../../actions/profileActions";
+import {
+  getProfileData,
+  updateProfileData,
+  type ProfileData,
+  type ProfileNotificationPreferences,
+} from "../../actions/profileActions";
 
 const planDetails: Record<ProfileData["subscriptionPlan"], {
   name: string;
@@ -29,12 +34,12 @@ const planDetails: Record<ProfileData["subscriptionPlan"], {
     name: "Pro",
     price: "59,90 EUR",
     description: "La formule complete pour automatiser vos rappels, reduire les absences et developper votre image pro.",
-    features: ["Tout Essentiel", "Rappels SMS automatiques", "Emails automatiques", "Acomptes et anti no-show", "Mini-site professionnel", "Reservation en ligne"],
+    features: ["Tout Essentiel", "Rappels SMS automatiques", "Emails automatiques", "Acomptes et anti no-show", "Mini-site professionnel", "Réservation en ligne"],
   },
   PREMIUM: {
     name: "Premium",
     price: "Sur mesure",
-    description: "Une formule avancee pour les besoins au-dela de l'offre Pro.",
+    description: "Une formule avancée pour les besoins au-dela de l'offre Pro.",
     features: ["Tout Pro", "Accompagnement avance", "Fonctionnalites premium"],
   },
 };
@@ -49,8 +54,119 @@ const statusLabels: Record<ProfileData["subscription"]["status"], { label: strin
 };
 
 function formatDate(value: string | null) {
-  if (!value) return "Non renseignee";
+  if (!value) return "Non renseignée";
   return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(value));
+}
+
+type NotificationSettingKey = keyof ProfileNotificationPreferences;
+type PushStatus = "checking" | "unsupported" | "permission-denied" | "inactive" | "active";
+
+const defaultNotificationPreferences: ProfileNotificationPreferences = {
+  pushEnabled: true,
+  stockLowEnabled: true,
+  loyalClientThanksEnabled: true,
+  onlineBookingEnabled: true,
+  paymentReceivedEnabled: true,
+  publicBookingChangeEnabled: true,
+  automaticFollowUpEnabled: true,
+};
+
+const notificationSettingGroups: Array<{
+  title: string;
+  items: Array<{
+    key: Exclude<NotificationSettingKey, "pushEnabled">;
+    title: string;
+    description: string;
+    pro?: boolean;
+  }>;
+}> = [
+  {
+    title: "Essentiel",
+    items: [
+      {
+        key: "stockLowEnabled",
+        title: "Stock faible",
+        description: "Soyez notifiée quand un produit passe sous son seuil critique.",
+      },
+      {
+        key: "loyalClientThanksEnabled",
+        title: "Cliente fidèle a remercier",
+        description: "Recevez une suggestion lorsqu'une cliente est venue plusieurs fois, pour penser a la remercier.",
+      },
+    ],
+  },
+  {
+    title: "Pro uniquement",
+    items: [
+      {
+        key: "onlineBookingEnabled",
+        title: "Nouvelle réservation en ligne",
+        description: "Soyez alertée lorsqu'une cliente réserve depuis votre page publique.",
+        pro: true,
+      },
+      {
+        key: "paymentReceivedEnabled",
+        title: "Paiement reçu",
+        description: "Recevez une notification lorsqu'un paiement en ligne est confirme.",
+        pro: true,
+      },
+      {
+        key: "publicBookingChangeEnabled",
+        title: "Annulation / modification via page publique",
+        description: "Soyez informée lorsqu'une cliente modifie ou annule sa reservation en ligne.",
+        pro: true,
+      },
+      {
+        key: "automaticFollowUpEnabled",
+        title: "Relances automatiques",
+        description: "Activez les notifications liées aux relances automatiques.",
+        pro: true,
+      },
+    ],
+  },
+];
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let index = 0; index < rawData.length; index += 1) {
+    outputArray[index] = rawData.charCodeAt(index);
+  }
+
+  return outputArray;
+}
+
+function canUsePushNotifications() {
+  return (
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    "Notification" in window &&
+    window.isSecureContext &&
+    Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY)
+  );
+}
+
+async function getCurrentPushSubscription() {
+  const registration = await navigator.serviceWorker.getRegistration();
+  return registration ? registration.pushManager.getSubscription() : null;
+}
+
+async function createPushSubscription() {
+  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  if (!vapidPublicKey) {
+    throw new Error("Cle publique VAPID manquante");
+  }
+
+  const registration = await navigator.serviceWorker.register("/sw.js");
+  const existingSubscription = await registration.pushManager.getSubscription();
+  return existingSubscription || registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+  });
 }
 
 export default function ProfilPage() {
@@ -75,6 +191,7 @@ export default function ProfilPage() {
     canUseAutomaticSmsReminders: false,
     smsRemindersEnabled: false,
     smsReminderDelayHours: 24,
+    notificationPreferences: defaultNotificationPreferences,
     subscription: {
       plan: "FREE",
       status: "CANCELED",
@@ -95,6 +212,9 @@ export default function ProfilPage() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingSmsReminders, setIsSavingSmsReminders] = useState(false);
+  const [savingNotificationKey, setSavingNotificationKey] = useState<NotificationSettingKey | null>(null);
+  const [isSavingPush, setIsSavingPush] = useState(false);
+  const [pushStatus, setPushStatus] = useState<PushStatus>("checking");
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -152,6 +272,43 @@ export default function ProfilPage() {
       void loadTemplates();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function checkPushStatus() {
+      if (isLoadingProfile) return;
+
+      if (!canUsePushNotifications()) {
+        if (isMounted) setPushStatus("unsupported");
+        return;
+      }
+
+      if (Notification.permission === "denied") {
+        if (isMounted) setPushStatus("permission-denied");
+        return;
+      }
+
+      if (Notification.permission !== "granted") {
+        if (isMounted) setPushStatus("inactive");
+        return;
+      }
+
+      try {
+        const subscription = await getCurrentPushSubscription();
+        const isActive = Boolean(subscription && profileData.notificationPreferences.pushEnabled);
+        if (isMounted) setPushStatus(isActive ? "active" : "inactive");
+      } catch {
+        if (isMounted) setPushStatus("inactive");
+      }
+    }
+
+    void checkPushStatus();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isLoadingProfile, profileData.notificationPreferences.pushEnabled]);
 
   const openCreateTemplateModal = () => {
     setEditingTemplate(null);
@@ -226,6 +383,151 @@ export default function ProfilPage() {
       setError("Une erreur inattendue est survenue");
     } finally {
       setIsSavingSmsReminders(false);
+    }
+  };
+
+  const applyNotificationPreferences = (preferences: ProfileNotificationPreferences) => {
+    setProfileData((prev) => ({
+      ...prev,
+      notificationPreferences: {
+        ...prev.notificationPreferences,
+        ...preferences,
+      },
+    }));
+  };
+
+  const handleNotificationToggle = async (key: Exclude<NotificationSettingKey, "pushEnabled">, isProFeature: boolean) => {
+    if (savingNotificationKey) return;
+
+    if (isProFeature && !profileData.subscription.canUseProFeatures) {
+      openPricing();
+      return;
+    }
+
+    const nextEnabled = !profileData.notificationPreferences[key];
+    setSavingNotificationKey(key);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const res = await fetch("/api/settings/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, enabled: nextEnabled }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        if (data.code === "PLAN_REQUIRED") {
+          openPricing();
+          return;
+        }
+        setError(data.error || "Impossible de mettre a jour la preference");
+        return;
+      }
+
+      applyNotificationPreferences(data.notificationPreferences);
+      setSuccessMessage("Preference de notification mise a jour");
+    } catch {
+      setError("Une erreur inattendue est survenue");
+    } finally {
+      setSavingNotificationKey(null);
+    }
+  };
+
+  const handleEnablePush = async () => {
+    if (isSavingPush) return;
+
+    if (!canUsePushNotifications()) {
+      setPushStatus("unsupported");
+      setError("Les notifications push ne sont pas disponibles sur ce navigateur.");
+      return;
+    }
+
+    setIsSavingPush(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const permission = Notification.permission === "granted"
+        ? "granted"
+        : await Notification.requestPermission();
+
+      if (permission !== "granted") {
+        setPushStatus(permission === "denied" ? "permission-denied" : "inactive");
+        setError("Permission de notifications refusee.");
+        return;
+      }
+
+      const subscription = await createPushSubscription();
+      const response = await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscription: subscription.toJSON() }),
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setError(data?.error || "Impossible d'activer les notifications push");
+        return;
+      }
+
+      applyNotificationPreferences({ ...profileData.notificationPreferences, pushEnabled: true });
+      setPushStatus("active");
+      setSuccessMessage("Notifications push activees");
+    } catch {
+      setError("Impossible d'activer les notifications push");
+      setPushStatus("inactive");
+    } finally {
+      setIsSavingPush(false);
+    }
+  };
+
+  const handleDisablePush = async () => {
+    if (isSavingPush) return;
+
+    setIsSavingPush(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const subscription = canUsePushNotifications() ? await getCurrentPushSubscription() : null;
+
+      if (subscription) {
+        const response = await fetch("/api/push/unsubscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
+        });
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          setError(data?.error || "Impossible de desactiver les notifications push");
+          return;
+        }
+
+        await subscription.unsubscribe();
+      } else {
+        const response = await fetch("/api/settings/notifications", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: "pushEnabled", enabled: false }),
+        });
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok || !data?.success) {
+          setError(data?.error || "Impossible de desactiver les notifications push");
+          return;
+        }
+      }
+
+      applyNotificationPreferences({ ...profileData.notificationPreferences, pushEnabled: false });
+      setPushStatus("inactive");
+      setSuccessMessage("Notifications push desactivees");
+    } catch {
+      setError("Impossible de desactiver les notifications push");
+    } finally {
+      setIsSavingPush(false);
     }
   };
 
@@ -678,6 +980,43 @@ export default function ProfilPage() {
                 </div>
               )}
 
+              <div className={styles.pushSection}>
+                <div className={styles.settingsInfo}>
+                  <h3 className={styles.settingsSectionTitle}>Notifications push</h3>
+                  <p>Recevez des notifications instantanées sur votre appareil, même lorsque Glowea est fermé.</p>
+                  {pushStatus === "unsupported" && (
+                    <p className={styles.featureLockedText}>Votre navigateur ou cette connexion ne permet pas les notifications push.</p>
+                  )}
+                  {pushStatus === "permission-denied" && (
+                    <p className={styles.featureLockedText}>La permission du navigateur est bloquée. Vous pouvez la modifier dans les réglages du navigateur.</p>
+                  )}
+                </div>
+                <div className={styles.pushActions}>
+                  {pushStatus === "active" ? (
+                    <>
+                      <span className={styles.pushEnabledPill}>Notifications activées</span>
+                      <button
+                        className={styles.btnEdit}
+                        type="button"
+                        onClick={handleDisablePush}
+                        disabled={isSavingPush}
+                      >
+                        {isSavingPush ? "Désactivation..." : "Désactiver"}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className={styles.btnSave}
+                      type="button"
+                      onClick={handleEnablePush}
+                      disabled={isSavingPush || pushStatus === "unsupported" || pushStatus === "permission-denied"}
+                    >
+                      {isSavingPush ? "Activation..." : "Activer les notifications"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div className={styles.settingsRow}>
                 <div className={styles.settingsInfo}>
                   <div className={styles.settingsTitleRow}>
@@ -686,7 +1025,7 @@ export default function ProfilPage() {
                       <span className={styles.badgePro}>Pro</span>
                     )}
                   </div>
-                  <p>Envoyez automatiquement un SMS a vos clientes {profileData.smsReminderDelayHours}h avant leur rendez-vous.</p>
+                  <p>Envoyez automatiquement un SMS à vos clientes {profileData.smsReminderDelayHours}h avant leur rendez-vous.</p>
                   {!profileData.canUseAutomaticSmsReminders && (
                     <p className={styles.featureLockedText}>Disponible avec l&apos;abonnement Pro.</p>
                   )}
@@ -703,7 +1042,7 @@ export default function ProfilPage() {
                     onClick={handleSmsReminderToggle}
                     disabled={!canToggleSmsReminders}
                     aria-pressed={profileData.smsRemindersEnabled}
-                    aria-label="Activer ou desactiver les rappels SMS automatiques"
+                    aria-label="Activer ou désactiver les rappels SMS automatiques"
                   >
                     <span className={profileData.smsRemindersEnabled ? styles.toggleActive : styles.toggleInactive}>
                       <span className={styles.toggleThumb}></span>
@@ -713,53 +1052,54 @@ export default function ProfilPage() {
                 </div>
               </div>
 
-              <div className={styles.settingsRow}>
-                <div className={styles.settingsInfo}>
-                  <h4>Nouveau rendez-vous</h4>
-                  <p>Soyez alertée par e-mail lorsqu&apos;une cliente réserve une prestation en ligne.</p>
-                </div>
-                <div className={styles.toggleWrapper}>
-                  <div className={styles.toggleActive}>
-                    <div className={styles.toggleThumb}></div>
-                  </div>
-                </div>
-              </div>
+              {notificationSettingGroups.map((group) => (
+                <div className={styles.settingsGroup} key={group.title}>
+                  <h3 className={styles.settingsSectionTitle}>{group.title}</h3>
+                  {group.items.map((item) => {
+                    const isLocked = Boolean(item.pro && !profileData.subscription.canUseProFeatures);
+                    const isEnabled = isLocked ? false : profileData.notificationPreferences[item.key];
+                    const isSavingSetting = savingNotificationKey === item.key;
 
-              <div className={styles.settingsRow}>
-                <div className={styles.settingsInfo}>
-                  <h4>Annulation / Modification</h4>
-                  <p>Recevez un e-mail immédiat si une cliente annule ou déplace son créneau.</p>
+                    return (
+                      <div
+                        className={`${styles.settingsRow} ${isLocked ? styles.settingsRowLocked : ""}`}
+                        key={item.key}
+                      >
+                        <div className={styles.settingsInfo}>
+                          <div className={styles.settingsTitleRow}>
+                            <h4>{item.title}</h4>
+                            {item.pro && <span className={styles.badgePro}>Pro</span>}
+                          </div>
+                          <p>{item.description}</p>
+                          {isLocked && (
+                            <p className={styles.featureLockedText}>Disponible avec l&apos;abonnement Pro.</p>
+                          )}
+                        </div>
+                        <div className={styles.settingActions}>
+                          {isLocked && (
+                            <button className={styles.btnEdit} type="button" onClick={openPricing}>
+                              Passer au Pro
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className={styles.toggleButton}
+                            onClick={() => handleNotificationToggle(item.key, Boolean(item.pro))}
+                            disabled={isLoadingProfile || Boolean(savingNotificationKey && !isSavingSetting)}
+                            aria-pressed={isEnabled}
+                            aria-label={`Activer ou désactiver ${item.title}`}
+                          >
+                            <span className={isEnabled ? styles.toggleActive : styles.toggleInactive}>
+                              <span className={styles.toggleThumb}></span>
+                            </span>
+                            {isSavingSetting && <span className={styles.savingText}>Sauvegarde...</span>}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className={styles.toggleWrapper}>
-                  <div className={styles.toggleActive}>
-                    <div className={styles.toggleThumb}></div>
-                  </div>
-                </div>
-              </div>
-
-              <div className={styles.settingsRow}>
-                <div className={styles.settingsInfo}>
-                  <h4>Alerte de Stock</h4>
-                  <p>Soyez notifiée quand un produit (colle, cils...) passe en seuil critique.</p>
-                </div>
-                <div className={styles.toggleWrapper}>
-                  <div className={styles.toggleActive}>
-                    <div className={styles.toggleThumb}></div>
-                  </div>
-                </div>
-              </div>
-
-              <div className={styles.settingsRow}>
-                <div className={styles.settingsInfo}>
-                  <h4>Rapport Quotidien</h4>
-                  <p>Recevez chaque soir le récapitulatif de votre chiffre d&apos;affaires et de vos rendez-vous du lendemain.</p>
-                </div>
-                <div className={styles.toggleWrapper}>
-                  <div className={styles.toggleInactive}>
-                    <div className={styles.toggleThumb}></div>
-                  </div>
-                </div>
-              </div>
+              ))}
             </section>
           )}
 
@@ -778,7 +1118,7 @@ export default function ProfilPage() {
                   <div className={styles.newTemplateIcon}>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                   </div>
-                  <h4 className={styles.newTemplateText}>Creer un nouveau template</h4>
+                  <h4 className={styles.newTemplateText}>Créer un nouveau template</h4>
                 </div>
 
                 {isLoadingTemplates && (

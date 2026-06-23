@@ -261,6 +261,13 @@
   color: #555;
 }
 
+.inputHint {
+  margin: 8px 0 0;
+  color: #766c6e;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
 .inputAmount {
   width: 100%;
   padding: 12px 16px;

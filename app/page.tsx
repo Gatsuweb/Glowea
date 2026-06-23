@@ -357,7 +357,7 @@ export default function Home() {
       <section className={styles.sessionSection}>
         <div className={styles.sessionContent}>
           <span className={styles.eyebrow}>Sessions techniques</span>
-          <h2>Gardez le d?tail de chaque prestation.</h2>
+          <h2>Gardez le détail de chaque prestation.</h2>
           <p>
             Pendant un rendez-vous, Glowea vous aide ? noter la technique, les
             produits utilisés, les paramètres importants, les remarques et les

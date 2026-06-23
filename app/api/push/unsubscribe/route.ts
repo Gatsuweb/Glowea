@@ -21,11 +21,26 @@ export async function POST(req: Request) {
   }
 
   const tenantId = await getTenantId();
+  const now = new Date();
   const deleted = await prisma.pushSubscription.deleteMany({
     where: {
       endpoint,
       tenantId,
       userId,
+    },
+  });
+
+  await prisma.notificationPreference.upsert({
+    where: { userId },
+    update: {
+      pushEnabled: false,
+      updatedAt: now,
+    },
+    create: {
+      id: `npr_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+      userId,
+      pushEnabled: false,
+      updatedAt: now,
     },
   });
 

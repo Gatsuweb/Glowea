@@ -23,6 +23,16 @@ export type ProfileSubscriptionData = {
   canUseProFeatures: boolean;
 };
 
+export type ProfileNotificationPreferences = {
+  pushEnabled: boolean;
+  stockLowEnabled: boolean;
+  loyalClientThanksEnabled: boolean;
+  onlineBookingEnabled: boolean;
+  paymentReceivedEnabled: boolean;
+  publicBookingChangeEnabled: boolean;
+  automaticFollowUpEnabled: boolean;
+};
+
 export type ProfileData = {
   firstName: string;
   lastName: string;
@@ -35,6 +45,7 @@ export type ProfileData = {
   canUseAutomaticSmsReminders: boolean;
   smsRemindersEnabled: boolean;
   smsReminderDelayHours: number;
+  notificationPreferences: ProfileNotificationPreferences;
   subscription: ProfileSubscriptionData;
 };
 
@@ -43,12 +54,36 @@ function safeString(value: unknown) {
   return value.trim();
 }
 
+function getDefaultNotificationPreferences(): ProfileNotificationPreferences {
+  return {
+    pushEnabled: true,
+    stockLowEnabled: true,
+    loyalClientThanksEnabled: true,
+    onlineBookingEnabled: true,
+    paymentReceivedEnabled: true,
+    publicBookingChangeEnabled: true,
+    automaticFollowUpEnabled: true,
+  };
+}
+
+function mapNotificationPreferences(
+  preferences: Partial<ProfileNotificationPreferences> | null | undefined
+): ProfileNotificationPreferences {
+  return {
+    ...getDefaultNotificationPreferences(),
+    ...preferences,
+  };
+}
+
 export async function getProfileData() {
   const tenantId = await getTenantId();
 
   try {
     const [user, tenant] = await Promise.all([
-      prisma.user.findUnique({ where: { id: tenantId } }),
+      prisma.user.findUnique({
+        where: { id: tenantId },
+        include: { NotificationPreference: true },
+      }),
       prisma.tenant.findUnique({
         where: { id: tenantId },
         include: { BillingProfile: true, BusinessSettings: true, Subscription: true },
@@ -81,6 +116,7 @@ export async function getProfileData() {
       canUseAutomaticSmsReminders: canUseSmsReminders,
       smsRemindersEnabled: canUseSmsReminders && Boolean(tenant?.BusinessSettings?.smsRemindersEnabled),
       smsReminderDelayHours: tenant?.BusinessSettings?.smsReminderDelayHours || 24,
+      notificationPreferences: mapNotificationPreferences(user?.NotificationPreference),
       subscription: {
         plan: subscriptionPlan,
         status: subscriptionAccess.status,

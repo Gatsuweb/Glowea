@@ -914,35 +914,29 @@ export default function AgendaClientWrapper({
     window.setTimeout(() => setToastMessage(null), 2500);
   };
 
-  const handleCreatePaymentLink = async (appointmentId: string, paymentType: "deposit" | "full") => {
-    if (!canUseStripePayments) {
-      router.push("/settings/payments");
+  const handleContactClient = (appointment: AgendaAppointment) => {
+    setActionError(null);
+    const clientName = appointment.client.name || "votre cliente";
+    const appointmentTime = new Date(appointment.scheduledAt).toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const subject = encodeURIComponent(`Rendez-vous Glowea - ${appointmentTime}`);
+    const body = encodeURIComponent(
+      `Bonjour ${clientName},\n\nJe vous contacte au sujet de votre rendez-vous ${appointment.service.name} prévu à ${appointmentTime}.\n\nÀ bientôt.`
+    );
+
+    if (appointment.client.email) {
+      window.open(`mailto:${appointment.client.email}?subject=${subject}&body=${body}`, "_self");
       return;
     }
 
-    setActionAppointmentId(appointmentId);
-    setActionError(null);
-
-    try {
-      const response = await fetch(`/api/appointments/${appointmentId}/create-payment-link`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentType }),
-      });
-      const data = await response.json();
-
-      if (!response.ok || !data.url) {
-        setActionError(data.error || "Impossible de cr?er le lien de paiement.");
-        return;
-      }
-
-      window.location.href = data.url;
-    } catch (error) {
-      console.error(error);
-      setActionError("Une erreur inattendue est survenue.");
-    } finally {
-      setActionAppointmentId(null);
+    if (appointment.client.phone) {
+      window.open(`sms:${appointment.client.phone}?body=${body}`, "_self");
+      return;
     }
+
+    setActionError(`Aucun email ni téléphone renseigné pour ${clientName}.`);
   };
 
   const handleSelectionCreateAppointment = () => {
@@ -1484,46 +1478,67 @@ export default function AgendaClientWrapper({
                   <div className={styles.paymentActions}>
                     <button
                       className={styles.paymentButton}
-                      onClick={() => handleCreatePaymentLink(app.id, "deposit")}
-                      disabled={actionAppointmentId === app.id || paymentStatus === "paid" || paymentStatus === "paid_offline" || paymentStatus === "deposit_paid"}
+                      type="button"
+                      onClick={() => {
+                        setActionError(null);
+                        setPaymentAppointmentData(app);
+                        setPaymentModalOpen(true);
+                      }}
                     >
-                      Demander les arrhes
-                    </button>
-                    <button
-                      className={styles.paymentButtonSecondary}
-                      onClick={() => handleCreatePaymentLink(app.id, "full")}
-                      disabled={actionAppointmentId === app.id || paymentStatus === "paid" || paymentStatus === "paid_offline"}
-                    >
-                      Paiement complet
+                      Paiement
                     </button>
                   </div>
                   <div className={styles.bottomIcons}>
-                    <button className={styles.iconBtn}>
-                      <Image src="/icones/mail.svg" alt="Email" width={16} height={16} />
+                    <button
+                      className={styles.iconBtn}
+                      type="button"
+                      onClick={() => handleContactClient(app)}
+                      title="Contacter la cliente"
+                      aria-label={`Contacter ${app.client.name}`}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                        <polyline points="22,6 12,13 2,6"></polyline>
+                      </svg>
                     </button>
                     <button 
                       className={styles.iconBtn}
+                      type="button"
                       onClick={() => router.push(`/dashboard/clients?clientId=${app.clientId}&tab=consentement`)}
                       title="Gérer les consentements"
+                      aria-label={`Gérer les consentements de ${app.client.name}`}
                     >
-                      <Image src="/icones/doc.svg" alt="Doc" width={16} height={16} />
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                      </svg>
                     </button>
                     <button 
                       className={styles.iconBtn} 
+                      type="button"
                       onClick={() => openEditAppointment(app)}
                       title="Modifier"
+                      aria-label={`Modifier le rendez-vous de ${app.client.name}`}
                     >
-                      <Image src="/icones/edit.svg" alt="Edit" width={16} height={16} />
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                      </svg>
                     </button>
                     <button 
-                      className={styles.iconBtn} 
+                      className={`${styles.iconBtn} ${styles.iconBtnDanger}`} 
+                      type="button"
                       onClick={async () => {
                         await handleDeleteAppointment(app.id);
                       }}
                       disabled={actionAppointmentId === app.id}
                       title="Supprimer"
+                      aria-label={`Supprimer le rendez-vous de ${app.client.name}`}
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d32f2f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d="M3 6h18"></path>
                         <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
                         <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>

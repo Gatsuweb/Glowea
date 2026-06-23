@@ -20,6 +20,13 @@ type WebPushError = Error & {
   statusCode?: number;
 };
 
+type StoredPushSubscription = {
+  id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+};
+
 let vapidConfigured = false;
 
 function isDevelopment() {
@@ -61,15 +68,7 @@ function isInvalidSubscriptionError(error: WebPushError) {
   return error.statusCode === 404 || error.statusCode === 410;
 }
 
-async function sendToSubscriptions(
-  subscriptions: Array<{
-    id: string;
-    endpoint: string;
-    p256dh: string;
-    auth: string;
-  }>,
-  payload: PushPayload
-): Promise<PushSendResult> {
+async function sendToSubscriptions(subscriptions: StoredPushSubscription[], payload: PushPayload): Promise<PushSendResult> {
   const result: PushSendResult = { sent: 0, failed: 0, removed: 0 };
   if (subscriptions.length === 0 || !configureVapid()) return result;
 
@@ -124,12 +123,28 @@ export async function sendPushToTenant(tenantId: string, payload: PushPayload) {
       endpoint: true,
       p256dh: true,
       auth: true,
+      User: {
+        select: {
+          NotificationPreference: {
+            select: { pushEnabled: true },
+          },
+        },
+      },
     },
   });
 
-  console.log("Push subscriptions found", subscriptions.length);
+  const enabledSubscriptions = subscriptions
+    .filter((subscription) => subscription.User.NotificationPreference?.pushEnabled !== false)
+    .map((subscription) => ({
+      id: subscription.id,
+      endpoint: subscription.endpoint,
+      p256dh: subscription.p256dh,
+      auth: subscription.auth,
+    }));
 
-  return sendToSubscriptions(subscriptions, payload);
+  console.log("Push subscriptions found", enabledSubscriptions.length);
+
+  return sendToSubscriptions(enabledSubscriptions, payload);
 }
 
 export async function sendPushToUser(userId: string, payload: PushPayload) {
@@ -140,8 +155,24 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
       endpoint: true,
       p256dh: true,
       auth: true,
+      User: {
+        select: {
+          NotificationPreference: {
+            select: { pushEnabled: true },
+          },
+        },
+      },
     },
   });
 
-  return sendToSubscriptions(subscriptions, payload);
+  const enabledSubscriptions = subscriptions
+    .filter((subscription) => subscription.User.NotificationPreference?.pushEnabled !== false)
+    .map((subscription) => ({
+      id: subscription.id,
+      endpoint: subscription.endpoint,
+      p256dh: subscription.p256dh,
+      auth: subscription.auth,
+    }));
+
+  return sendToSubscriptions(enabledSubscriptions, payload);
 }

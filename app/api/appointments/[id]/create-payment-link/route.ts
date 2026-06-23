@@ -16,6 +16,13 @@ function isPaymentType(value: unknown): value is PaymentType {
   return value === "deposit" || value === "full" || value === "remaining";
 }
 
+function parseCustomPriceCents(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return Math.round(amount);
+}
+
 function getApplicationFeeAmount(amount: number) {
   const fixedFee = Number(process.env.STRIPE_APPLICATION_FEE_AMOUNT || 0);
   if (Number.isFinite(fixedFee) && fixedFee > 0) {
@@ -55,6 +62,7 @@ export async function POST(
   const appointmentId = params.id;
   const body = await req.json();
   const paymentType = body.paymentType;
+  const customPriceCents = parseCustomPriceCents(body.customPriceCents);
 
   if (!isPaymentType(paymentType)) {
     return NextResponse.json({ error: "Invalid payment type" }, { status: 400 });
@@ -91,8 +99,21 @@ export async function POST(
     return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
   }
 
-  const current = getAppointmentFinancialSummary(appointment);
-  const price = current.priceCents;
+  const currentSummary = getAppointmentFinancialSummary(appointment);
+  const price = customPriceCents ?? currentSummary.priceCents;
+
+  if (price < currentSummary.paidAmountCents) {
+    return NextResponse.json(
+      { error: "Le prix ne peut pas être inférieur au montant déjà encaissé." },
+      { status: 400 }
+    );
+  }
+
+  const current = getAppointmentFinancialSummary({
+    ...appointment,
+    price,
+  });
+
   if (price <= 0) {
     return NextResponse.json({ error: "Appointment price must be greater than zero" }, { status: 400 });
   }

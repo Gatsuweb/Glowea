@@ -13,6 +13,13 @@ import { getTenantId } from "@/lib/tenant";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function parseCustomPriceCents(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return Math.round(amount);
+}
+
 export async function POST(
   req: Request,
   context: { params: Promise<{ id: string }> | { id: string } }
@@ -28,6 +35,7 @@ export async function POST(
   const appointmentId = params.id;
   const body = await req.json().catch(() => ({}));
   const normalizedMethod = normalizeAppointmentPaymentMethod(body.paymentMethod) || "other";
+  const customPriceCents = parseCustomPriceCents(body.customPriceCents);
 
   const appointment = await prisma.appointment.findFirst({
     where: { id: appointmentId, tenantId },
@@ -45,7 +53,38 @@ export async function POST(
     return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
   }
 
-  const finance = getAppointmentFinancialSummary(appointment);
+  const initialFinance = getAppointmentFinancialSummary(appointment);
+
+  if (customPriceCents !== null) {
+    if (customPriceCents < initialFinance.paidAmountCents) {
+      return NextResponse.json(
+        { error: "Le prix ne peut pas être inférieur au montant déjà encaissé." },
+        { status: 400 }
+      );
+    }
+
+    const adjustedFinance = getAppointmentFinancialSummary({
+      ...appointment,
+      price: customPriceCents,
+    });
+
+    await prisma.appointment.update({
+      where: { id: appointment.id },
+      data: {
+        price: adjustedFinance.priceCents,
+        depositAmount: adjustedFinance.depositAmountCents,
+        depositPaidAmount: adjustedFinance.depositPaidAmountCents,
+        paidAmount: adjustedFinance.paidAmountCents,
+        remainingAmount: adjustedFinance.remainingAmountCents,
+        updatedAt: new Date(),
+      },
+    });
+  }
+
+  const finance = getAppointmentFinancialSummary({
+    ...appointment,
+    price: customPriceCents ?? initialFinance.priceCents,
+  });
   const remainingAmount = finance.remainingAmountCents;
 
   if (remainingAmount <= 0) {
