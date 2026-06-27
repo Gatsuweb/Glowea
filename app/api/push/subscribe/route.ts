@@ -3,38 +3,10 @@ import { NextResponse } from "next/server";
 
 import prisma from "@/lib/prisma";
 import { getTenantId } from "@/lib/tenant";
+import { getPushPreferenceUpdate, isValidPushSubscription } from "@/lib/pushSubscriptions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-type PushSubscriptionInput = {
-  endpoint?: unknown;
-  keys?: {
-    p256dh?: unknown;
-    auth?: unknown;
-  };
-};
-
-type ValidPushSubscriptionInput = {
-  endpoint: string;
-  keys: {
-    p256dh: string;
-    auth: string;
-  };
-};
-
-function isValidSubscription(input: unknown): input is ValidPushSubscriptionInput {
-  if (!input || typeof input !== "object") return false;
-  const subscription = input as PushSubscriptionInput;
-  return (
-    typeof subscription.endpoint === "string" &&
-    subscription.endpoint.length > 0 &&
-    typeof subscription.keys?.p256dh === "string" &&
-    subscription.keys.p256dh.length > 0 &&
-    typeof subscription.keys?.auth === "string" &&
-    subscription.keys.auth.length > 0
-  );
-}
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -45,7 +17,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const subscription = body?.subscription ?? body;
 
-  if (!isValidSubscription(subscription)) {
+  if (!isValidPushSubscription(subscription)) {
     return NextResponse.json({ error: "Subscription push invalide." }, { status: 400 });
   }
 
@@ -77,13 +49,13 @@ export async function POST(req: Request) {
   await prisma.notificationPreference.upsert({
     where: { userId },
     update: {
-      pushEnabled: true,
+      ...getPushPreferenceUpdate(true),
       updatedAt: now,
     },
     create: {
       id: `npr_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
       userId,
-      pushEnabled: true,
+      ...getPushPreferenceUpdate(true),
       updatedAt: now,
     },
   });

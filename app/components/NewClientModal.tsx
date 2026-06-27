@@ -63,7 +63,7 @@ export default function NewClientModal({ isOpen, onClose, onSave }: NewClientMod
         referredBy: recommendedBy.trim() || undefined,
       });
 
-      if (response.success) {
+      if (response.success && response.client) {
         if (onSave) {
           onSave(response.client);
         }

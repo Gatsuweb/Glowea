@@ -7,9 +7,19 @@ import { useRouter, useSearchParams } from "next/navigation";
 import styles from "../dashboard/clients/clients.module.css";
 import SessionModal from "./SessionModal";
 import NewAppointmentModal from "./NewAppointmentModal";
+import NewClientModal from "./NewClientModal";
 import SendClientTemplateModal from "./SendClientTemplateModal";
 import { getConsent, saveConsent, type ConsentSnapshot } from "../actions/consentActions";
-import { createClientGalleryProject, deleteClientGalleryProject, updateClientGalleryProject, updateClientProfile } from "../actions/clientActions";
+import {
+  addClientFlag,
+  archiveClient,
+  clearClientVigilance,
+  createClientGalleryProject,
+  deleteClientGalleryProject,
+  updateClientGalleryProject,
+  updateClientProfile,
+  updateClientRiskLevel,
+} from "../actions/clientActions";
 import {
   getAppointmentFinancialSummary,
 } from "../../lib/appointmentFinance";
@@ -63,6 +73,23 @@ type NewGalleryProjectPhoto = {
   previewUrl: string;
   mimeType: string;
   sizeBytes: number;
+};
+
+type ClientRiskLevel = "LOW" | "MEDIUM" | "HIGH";
+type ClientFlagType = "NO_SHOW" | "LATE_CANCEL" | "UNPAID" | "BEHAVIOR" | "OTHER";
+
+const CLIENT_FLAG_TYPE_LABELS: Record<ClientFlagType, string> = {
+  NO_SHOW: "No-show",
+  LATE_CANCEL: "Annulation tardive",
+  UNPAID: "Paiement non regle",
+  BEHAVIOR: "Comportement problematique",
+  OTHER: "Autre",
+};
+
+const CLIENT_RISK_LEVEL_LABELS: Record<ClientRiskLevel, string> = {
+  LOW: "Faible",
+  MEDIUM: "Moyen",
+  HIGH: "Eleve",
 };
 
 function safeDecodeGalleryValue(value: string | undefined) {
@@ -249,6 +276,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "infos");
   const [isSessionModalOpen, setSessionModalOpen] = useState(false);
   const [isAppointmentModalOpen, setAppointmentModalOpen] = useState(false);
+  const [isNewClientModalOpen, setNewClientModalOpen] = useState(false);
   const [selectedRdv, setSelectedRdv] = useState<any>(null);
   const [appointmentToEdit, setAppointmentToEdit] = useState<any>(null);
   
@@ -292,8 +320,19 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   const [isEditingContact, setIsEditingContact] = useState(false);
   const [isEditingHealth, setIsEditingHealth] = useState(false);
   const [isSavingClient, setIsSavingClient] = useState(false);
+  const [isDeletingClient, setIsDeletingClient] = useState(false);
+  const [isSavingVigilance, setIsSavingVigilance] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
   const [clientSuccess, setClientSuccess] = useState<string | null>(null);
+  const [flagForm, setFlagForm] = useState<{
+    type: ClientFlagType;
+    severity: ClientRiskLevel;
+    note: string;
+  }>({
+    type: "NO_SHOW",
+    severity: "LOW",
+    note: "",
+  });
   const [currentProjectIndex, setCurrentProjectIndex] = useState(0);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [projectForm, setProjectForm] = useState({ title: "", description: "" });
@@ -405,6 +444,13 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   const selectedClient = clientList.find(c => c.id === selectedClientId) || null;
   const selectedClientNote = selectedClient?.ClientNote?.[0]?.content || "";
   const selectedClientMedia = selectedClient?.ClientMedia || [];
+  const selectedClientFlags = selectedClient?.ClientFlag || [];
+  const selectedClientRiskLevel = (selectedClient?.riskLevel || "LOW") as ClientRiskLevel;
+  const selectedClientNoShowCount = Number(selectedClient?.noShowCount || 0);
+  const isSelectedClientUnderVigilance = selectedClientRiskLevel !== "LOW" || selectedClientNoShowCount > 0;
+  const selectedClientMainRiskReason = selectedClientNoShowCount > 0
+    ? `${selectedClientNoShowCount} no-show${selectedClientNoShowCount > 1 ? "s" : ""}`
+    : selectedClientFlags[0]?.note || (selectedClientFlags[0]?.type ? CLIENT_FLAG_TYPE_LABELS[selectedClientFlags[0].type as ClientFlagType] : "");
   const galleryProjects = buildClientGalleryProjects(selectedClientMedia);
   const currentGalleryProject = galleryProjects[currentProjectIndex] || null;
   const visibleGalleryProjects = currentGalleryProject ? [currentGalleryProject] : [];
@@ -744,6 +790,146 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
     }
   };
 
+  const handleArchiveClient = async () => {
+    if (!selectedClient || isDeletingClient) {
+      return;
+    }
+
+    const clientName = `${selectedClient.firstName} ${selectedClient.lastName || ""}`.trim() || "cette cliente";
+    const confirmed = window.confirm(
+      `Supprimer ${clientName} du repertoire ? Son historique de rendez-vous et ses documents seront conserves.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeletingClient(true);
+    setClientError(null);
+    setClientSuccess(null);
+
+    try {
+      const response = await archiveClient(selectedClient.id);
+
+      if (!response.success) {
+        setClientError(response.error || "Impossible de supprimer la cliente");
+        return;
+      }
+
+      const nextClientList = clientList.filter((client) => client.id !== selectedClient.id);
+      setClientList(nextClientList);
+      setSelectedClientId(nextClientList[0]?.id || null);
+      setSelectedClientIds((current) => current.filter((clientId) => clientId !== selectedClient.id));
+      setClientSuccess("Cliente supprimee du repertoire");
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setClientError("Une erreur inattendue est survenue");
+    } finally {
+      setIsDeletingClient(false);
+    }
+  };
+
+  const updateSelectedClientVigilance = (data: Partial<any>) => {
+    if (!selectedClient) return;
+    setClientList((current) =>
+      current.map((client) =>
+        client.id === selectedClient.id
+          ? {
+              ...client,
+              ...data,
+            }
+          : client
+      )
+    );
+  };
+
+  const handleAddClientFlag = async () => {
+    if (!selectedClient || isSavingVigilance) return;
+
+    setIsSavingVigilance(true);
+    setClientError(null);
+    setClientSuccess(null);
+
+    try {
+      const response = await addClientFlag({
+        clientId: selectedClient.id,
+        type: flagForm.type,
+        severity: flagForm.severity,
+        note: flagForm.note,
+      });
+
+      if (!response.success || !response.flag) {
+        setClientError(response.error || "Impossible d'ajouter le signalement");
+        return;
+      }
+
+      updateSelectedClientVigilance({
+        riskLevel: response.riskLevel,
+        noShowCount: response.noShowCount,
+        ClientFlag: [response.flag, ...(selectedClient.ClientFlag || [])],
+      });
+      setFlagForm({ type: "NO_SHOW", severity: "LOW", note: "" });
+      setClientSuccess("Signalement ajoute");
+    } catch (error) {
+      console.error(error);
+      setClientError("Une erreur inattendue est survenue");
+    } finally {
+      setIsSavingVigilance(false);
+    }
+  };
+
+  const handleRiskLevelChange = async (riskLevel: ClientRiskLevel) => {
+    if (!selectedClient || isSavingVigilance) return;
+
+    setIsSavingVigilance(true);
+    setClientError(null);
+    setClientSuccess(null);
+
+    try {
+      const response = await updateClientRiskLevel(selectedClient.id, riskLevel);
+
+      if (!response.success) {
+        setClientError(response.error || "Impossible de modifier la vigilance");
+        return;
+      }
+
+      updateSelectedClientVigilance({ riskLevel });
+      setClientSuccess("Niveau de vigilance mis a jour");
+    } catch (error) {
+      console.error(error);
+      setClientError("Une erreur inattendue est survenue");
+    } finally {
+      setIsSavingVigilance(false);
+    }
+  };
+
+  const handleClearVigilance = async () => {
+    if (!selectedClient || isSavingVigilance) return;
+    if (!window.confirm("Retirer cette cliente de la vigilance ? L'historique des signalements sera conserve.")) return;
+
+    setIsSavingVigilance(true);
+    setClientError(null);
+    setClientSuccess(null);
+
+    try {
+      const response = await clearClientVigilance(selectedClient.id);
+
+      if (!response.success) {
+        setClientError(response.error || "Impossible de retirer la vigilance");
+        return;
+      }
+
+      updateSelectedClientVigilance({ riskLevel: "LOW", noShowCount: 0 });
+      setClientSuccess("Cliente retiree de la vigilance");
+    } catch (error) {
+      console.error(error);
+      setClientError("Une erreur inattendue est survenue");
+    } finally {
+      setIsSavingVigilance(false);
+    }
+  };
+
   const resetClientForm = () => {
     if (!selectedClient) {
       return;
@@ -791,11 +977,37 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
     setSelectedClientIds([]);
   };
 
+  const handleClientCreated = (client: any) => {
+    const normalizedClient = {
+      ...client,
+      riskLevel: client.riskLevel || "LOW",
+      noShowCount: client.noShowCount || 0,
+      Appointment: [],
+      ClientAllergy: [],
+      ClientFlag: [],
+      ClientNote: [],
+      ClientMedia: [],
+      ConsentDocument: [],
+    };
+
+    setClientList((current) => [normalizedClient, ...current]);
+    setSelectedClientId(client.id);
+    setSearchQuery("");
+    setIsMobileDirectoryOpen(false);
+    setClientError(null);
+    setClientSuccess("Cliente ajoutee au repertoire");
+  };
+
   // Calculs pour le client sélectionné
   const clientAppointments = selectedClient?.Appointment || [];
   const appointmentClientOptions = clientList.map((client) => ({
     id: client.id,
     name: `${client.firstName} ${client.lastName || ""}`.trim(),
+    riskLevel: client.riskLevel || "LOW",
+    noShowCount: client.noShowCount || 0,
+    riskReason: Number(client.noShowCount || 0) > 0
+      ? `${client.noShowCount} no-show${Number(client.noShowCount || 0) > 1 ? "s" : ""}`
+      : client.ClientFlag?.[0]?.note || (client.ClientFlag?.[0]?.type ? CLIENT_FLAG_TYPE_LABELS[client.ClientFlag[0].type as ClientFlagType] : ""),
   }));
   const appointmentServiceOptions = services.map((service) => ({
     id: service.id,
@@ -907,6 +1119,13 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
         <div className={styles.sidebarHeader}>
           <h1 className={styles.sidebarTitle}>Répertoire</h1>
           <span className={styles.clientCount}>{clientList.length} clients</span>
+          <button
+            type="button"
+            className={styles.addClientButton}
+            onClick={() => setNewClientModalOpen(true)}
+          >
+            + Ajouter un client
+          </button>
         </div>
 
         <div className={styles.searchWrapper}>
@@ -1016,6 +1235,15 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                 </svg>
+              </button>
+              <button
+                className={styles.deleteClientBtn}
+                onClick={handleArchiveClient}
+                disabled={!selectedClient || isDeletingClient}
+                title="Supprimer la cliente"
+                type="button"
+              >
+                {isDeletingClient ? "Suppression..." : "Supprimer"}
               </button>
             </div>
           </div>
@@ -1241,6 +1469,110 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                 )}
               </div>
               )}
+            </div>
+
+            {/* Vigilance cliente */}
+            <div className={styles.infoCard}>
+              <div className={styles.cardHeader}>
+                <div>
+                  <h3 className={styles.cardTitle}>Vigilance cliente</h3>
+                  {isSelectedClientUnderVigilance ? (
+                    <span className={styles.vigilanceBadge}>
+                      Cliente a surveiller - Risque {CLIENT_RISK_LEVEL_LABELS[selectedClientRiskLevel].toLowerCase()}
+                    </span>
+                  ) : (
+                    <span className={styles.vigilanceMuted}>Aucune vigilance active</span>
+                  )}
+                </div>
+                <div className={styles.vigilanceActions}>
+                  <select
+                    className={styles.vigilanceSelect}
+                    value={selectedClientRiskLevel}
+                    onChange={(event) => handleRiskLevelChange(event.target.value as ClientRiskLevel)}
+                    disabled={!selectedClient || isSavingVigilance}
+                    aria-label="Modifier le niveau de vigilance"
+                  >
+                    <option value="LOW">Risque faible</option>
+                    <option value="MEDIUM">Risque moyen</option>
+                    <option value="HIGH">Risque eleve</option>
+                  </select>
+                  <button
+                    type="button"
+                    className={styles.btnOutline}
+                    onClick={handleClearVigilance}
+                    disabled={!selectedClient || isSavingVigilance || !isSelectedClientUnderVigilance}
+                  >
+                    Retirer
+                  </button>
+                </div>
+              </div>
+
+              {isSelectedClientUnderVigilance && selectedClientMainRiskReason && (
+                <div className={styles.vigilanceNotice}>
+                  Motif principal : {selectedClientMainRiskReason}
+                </div>
+              )}
+
+              <div className={styles.vigilanceForm}>
+                <select
+                  className={styles.formInput}
+                  value={flagForm.type}
+                  onChange={(event) => setFlagForm((current) => ({ ...current, type: event.target.value as ClientFlagType }))}
+                  disabled={!selectedClient || isSavingVigilance}
+                  aria-label="Type de signalement"
+                >
+                  <option value="NO_SHOW">No-show</option>
+                  <option value="LATE_CANCEL">Annulation tardive</option>
+                  <option value="UNPAID">Paiement non regle</option>
+                  <option value="BEHAVIOR">Comportement problematique</option>
+                  <option value="OTHER">Autre</option>
+                </select>
+                <select
+                  className={styles.formInput}
+                  value={flagForm.severity}
+                  onChange={(event) => setFlagForm((current) => ({ ...current, severity: event.target.value as ClientRiskLevel }))}
+                  disabled={!selectedClient || isSavingVigilance}
+                  aria-label="Gravite du signalement"
+                >
+                  <option value="LOW">Faible</option>
+                  <option value="MEDIUM">Moyen</option>
+                  <option value="HIGH">Eleve</option>
+                </select>
+                <input
+                  className={styles.formInput}
+                  value={flagForm.note}
+                  onChange={(event) => setFlagForm((current) => ({ ...current, note: event.target.value }))}
+                  placeholder="Note interne optionnelle"
+                  disabled={!selectedClient || isSavingVigilance}
+                />
+                <button
+                  type="button"
+                  className={styles.btnNewRdv}
+                  onClick={handleAddClientFlag}
+                  disabled={!selectedClient || isSavingVigilance}
+                >
+                  {isSavingVigilance ? "Enregistrement..." : "Ajouter un signalement"}
+                </button>
+              </div>
+
+              <div className={styles.vigilanceHistory}>
+                <h4>Historique des signalements</h4>
+                {selectedClientFlags.length > 0 ? (
+                  selectedClientFlags.map((flag: any) => (
+                    <div className={styles.vigilanceHistoryItem} key={flag.id}>
+                      <div>
+                        <strong>{CLIENT_FLAG_TYPE_LABELS[flag.type as ClientFlagType] || "Signalement"}</strong>
+                        <span>{flag.note || "Aucune note"}</span>
+                      </div>
+                      <small>
+                        {CLIENT_RISK_LEVEL_LABELS[(flag.severity || "LOW") as ClientRiskLevel]} - {flag.createdAt ? new Date(flag.createdAt).toLocaleDateString("fr-FR") : ""}
+                      </small>
+                    </div>
+                  ))
+                ) : (
+                  <span className={styles.vigilanceMuted}>Aucun signalement enregistre.</span>
+                )}
+              </div>
             </div>
 
             {/* Galerie des projets */}
@@ -2029,6 +2361,12 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
         isOpen={isSendTemplateModalOpen}
         onClose={() => setSendTemplateModalOpen(false)}
         selectedClients={selectedClientsForAction}
+      />
+
+      <NewClientModal
+        isOpen={isNewClientModalOpen}
+        onClose={() => setNewClientModalOpen(false)}
+        onSave={handleClientCreated}
       />
 
       <SessionModal 

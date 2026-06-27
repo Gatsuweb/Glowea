@@ -136,12 +136,6 @@ const notificationSettingGroups: Array<{
         pro: true,
       },
       {
-        key: "publicBookingChangeEnabled",
-        title: "Annulation / modification via page publique",
-        description: "Soyez informée lorsqu'une cliente modifie ou annule sa reservation en ligne.",
-        pro: true,
-      },
-      {
         key: "automaticFollowUpEnabled",
         title: "Relances automatiques",
         description: "Activez les notifications liées aux relances automatiques.",
@@ -238,6 +232,7 @@ export default function ProfilPage() {
   const [editingTemplate, setEditingTemplate] = useState<EditableMessageTemplate | null>(null);
   const [templates, setTemplates] = useState<EditableMessageTemplate[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
   const [templatesError, setTemplatesError] = useState<string | null>(null);
 
   const [profileData, setProfileData] = useState<ProfileData>({
@@ -424,6 +419,34 @@ export default function ProfilPage() {
   const openEditTemplateModal = (template: EditableMessageTemplate) => {
     setEditingTemplate(template);
     setPromoModalOpen(true);
+  };
+
+  const handleDeleteTemplate = async (template: EditableMessageTemplate) => {
+    if (template.isSystem || deletingTemplateId) return;
+
+    const confirmed = window.confirm(`Supprimer le template "${template.name}" ?`);
+    if (!confirmed) return;
+
+    setDeletingTemplateId(template.id);
+    setTemplatesError(null);
+    try {
+      const response = await fetch("/api/campaigns/templates", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: template.id }),
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.error || "Impossible de supprimer le template");
+      }
+
+      setTemplates((current) => current.filter((item) => item.id !== template.id));
+    } catch (err) {
+      setTemplatesError(err instanceof Error ? err.message : "Impossible de supprimer le template");
+    } finally {
+      setDeletingTemplateId(null);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1460,7 +1483,19 @@ export default function ProfilPage() {
                         </p>
                       </div>
                     </div>
-                    <button className={styles.btnEdit} onClick={() => openEditTemplateModal(template)} type="button">Editer</button>
+                    <div className={styles.templateActions}>
+                      <button className={styles.btnEdit} onClick={() => openEditTemplateModal(template)} type="button">Editer</button>
+                      {!template.isSystem && (
+                        <button
+                          className={styles.btnDeleteTemplate}
+                          onClick={() => handleDeleteTemplate(template)}
+                          type="button"
+                          disabled={deletingTemplateId === template.id}
+                        >
+                          {deletingTemplateId === template.id ? "Suppression..." : "Supprimer"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
 
@@ -1488,3 +1523,4 @@ export default function ProfilPage() {
     </main>
   );
 }
+

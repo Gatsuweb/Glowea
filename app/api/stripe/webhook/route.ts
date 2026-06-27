@@ -85,7 +85,7 @@ async function sendAppointmentPaymentPushOnce(params: {
       appointmentId: params.appointmentId,
       paymentType: params.paymentType,
     },
-  });
+  }, { preferenceKey: "paymentReceivedEnabled" });
 }
 
 async function findTenantId(params: {

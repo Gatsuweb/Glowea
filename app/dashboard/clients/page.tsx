@@ -24,7 +24,7 @@ export default async function ClientsPage() {
 
   const [clientsData, servicesData] = await Promise.all([
     prisma.client.findMany({
-      where: { tenantId },
+      where: { tenantId, archivedAt: null },
       include: {
         Appointment: {
           include: {
@@ -43,6 +43,10 @@ export default async function ClientsPage() {
         },
         ClientAllergy: {
           where: { isActive: true }
+        },
+        ClientFlag: {
+          orderBy: { createdAt: "desc" },
+          take: 20,
         },
         ClientNote: {
           where: {

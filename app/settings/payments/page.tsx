@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import prisma from "@/lib/prisma";
-import { getTenantId } from "@/lib/tenant";
+import { getCurrentUserRecord } from "@/lib/tenant";
 
 import PaymentsSettingsClient from "./PaymentsSettingsClient";
 
@@ -16,9 +16,9 @@ export default async function PaymentsSettingsPage() {
     redirect("/sign-in");
   }
 
-  const tenantId = await getTenantId();
+  const currentUserRecord = await getCurrentUserRecord();
   const user = await prisma.user.findFirst({
-    where: { id: userId, clerkUserId: userId, tenantId },
+    where: { id: currentUserRecord.id, tenantId: currentUserRecord.tenantId },
     select: {
       stripeAccountId: true,
       stripeOnboardingComplete: true,

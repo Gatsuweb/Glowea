@@ -36,7 +36,8 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: stretch;
+  gap: 14px;
 }
 
 .sidebarTitle {
@@ -51,6 +52,26 @@
   font-size: 0.95rem;
   color: #666;
   font-weight: 600;
+}
+
+.addClientButton {
+  align-items: center;
+  background: var(--tertiary);
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.9rem;
+  font-weight: 700;
+  justify-content: center;
+  min-height: 42px;
+  padding: 10px 14px;
+  transition: opacity 0.2s;
+  width: 100%;
+}
+
+.addClientButton:hover {
+  opacity: 0.92;
 }
 
 .searchWrapper {
@@ -335,6 +356,28 @@
   border-color: var(--tertiary);
 }
 
+.deleteClientBtn {
+  background: #fff2f4;
+  border: 1px solid #f0b8c0;
+  color: #8b1e2d;
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 700;
+  min-height: 40px;
+  padding: 9px 14px;
+  transition: background 0.2s, border-color 0.2s, opacity 0.2s;
+}
+
+.deleteClientBtn:hover {
+  background: #ffe7eb;
+  border-color: #e79aaa;
+}
+
+.deleteClientBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .headerContact {
   display: flex;
   gap: 80px;
@@ -542,6 +585,94 @@
   color: #286B3B;
   background: #F1FBF4;
   border: 1px solid #BFE7C9;
+}
+
+.vigilanceBadge,
+.vigilanceMuted {
+  display: inline-flex;
+  font-size: 0.84rem;
+  font-weight: 700;
+  margin-top: 8px;
+}
+
+.vigilanceBadge {
+  background: #FFF2F4;
+  border: 1px solid #F0B8C0;
+  color: #8B1E2D;
+  padding: 7px 10px;
+}
+
+.vigilanceMuted {
+  color: #777;
+}
+
+.vigilanceActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.vigilanceSelect {
+  background: white;
+  border: 1px solid #ddd;
+  color: #333;
+  font: inherit;
+  min-height: 42px;
+  padding: 9px 12px;
+}
+
+.vigilanceNotice {
+  background: #FFF7E8;
+  border: 1px solid #E8C27A;
+  color: #7A4D00;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 12px 14px;
+}
+
+.vigilanceForm {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(110px, 0.7fr) minmax(180px, 1fr) auto;
+}
+
+.vigilanceHistory {
+  display: grid;
+  gap: 10px;
+}
+
+.vigilanceHistory h4 {
+  color: #333;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.vigilanceHistoryItem {
+  align-items: center;
+  background: #FFFDFD;
+  border: 1px solid #EEE;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+
+.vigilanceHistoryItem div {
+  display: grid;
+  gap: 4px;
+}
+
+.vigilanceHistoryItem strong {
+  color: #333;
+  font-size: 0.9rem;
+}
+
+.vigilanceHistoryItem span,
+.vigilanceHistoryItem small {
+  color: #666;
+  font-size: 0.82rem;
 }
 
 /* Galerie */

@@ -41,10 +41,11 @@ type RecipientError = {
 export async function POST(request: Request) {
   try {
     const tenantId = await getTenantId();
-    const body = await request.json();
+    const body = await request.json() as Record<string, unknown>;
     const targetSegment = body.targetSegment;
     const templateId = typeof body.templateId === "string" ? body.templateId : "";
-    const clientIds = Array.isArray(body.clientIds) ? body.clientIds.filter((value): value is string => typeof value === "string") : [];
+    const rawClientIds = Array.isArray(body.clientIds) ? body.clientIds : [];
+    const clientIds = rawClientIds.filter((value: unknown): value is string => typeof value === "string");
     const resolvedTargetSegment = isSegment(targetSegment) ? targetSegment : "ALL";
 
     if ((!isSegment(targetSegment) && clientIds.length === 0) || !templateId) {
@@ -83,6 +84,13 @@ export async function POST(request: Request) {
     if (!subscriptionAccess.canUseApp) {
       return NextResponse.json(
         { success: false, error: "Un abonnement actif est necessaire pour envoyer une campagne" },
+        { status: 403 }
+      );
+    }
+
+    if (channel === "SMS" && !subscriptionAccess.canUseSms) {
+      return NextResponse.json(
+        { success: false, error: "Les campagnes SMS sont disponibles avec l'abonnement Pro." },
         { status: 403 }
       );
     }

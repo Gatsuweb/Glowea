@@ -48,6 +48,7 @@ type SendCampaignResponse = {
 interface SendPromoModalProps {
   isOpen: boolean;
   onClose: () => void;
+  canUseSmsCampaigns: boolean;
 }
 
 const SEGMENTS: Array<{ value: TargetSegment; label: string; help: string }> = [
@@ -62,9 +63,9 @@ const CHANNELS: Array<{ value: CampaignChannel; label: string }> = [
   { value: "EMAIL", label: "Email" },
 ];
 
-export default function SendPromoModal({ isOpen, onClose }: SendPromoModalProps) {
+export default function SendPromoModal({ isOpen, onClose, canUseSmsCampaigns }: SendPromoModalProps) {
   const [targetSegment, setTargetSegment] = useState<TargetSegment>("ALL");
-  const [channel, setChannel] = useState<CampaignChannel>("MOCK");
+  const [channel, setChannel] = useState<CampaignChannel>(canUseSmsCampaigns ? "MOCK" : "EMAIL");
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -92,6 +93,10 @@ export default function SendPromoModal({ isOpen, onClose }: SendPromoModalProps)
   }, [channel, templates]);
 
   useEffect(() => {
+    if (!canUseSmsCampaigns && channel === "SMS") setChannel("EMAIL");
+  }, [canUseSmsCampaigns, channel]);
+
+  useEffect(() => {
     if (!isOpen) return;
 
     let ignore = false;
@@ -106,8 +111,10 @@ export default function SendPromoModal({ isOpen, onClose }: SendPromoModalProps)
         if (ignore) return;
         if (!data.success) throw new Error(data.error || "Templates indisponibles");
         setTemplates(data.templates || []);
-        const smsTemplate = data.templates?.find((template: Template) => template.channel === "SMS");
-        setSelectedTemplateId(smsTemplate?.id || data.templates?.[0]?.id || "");
+        const preferredTemplate = canUseSmsCampaigns
+          ? data.templates?.find((template: Template) => template.channel === "SMS")
+          : data.templates?.find((template: Template) => template.channel === "EMAIL");
+        setSelectedTemplateId(preferredTemplate?.id || data.templates?.[0]?.id || "");
       })
       .catch((err) => {
         if (!ignore) setError(err instanceof Error ? err.message : "Impossible de charger les templates");
@@ -119,7 +126,7 @@ export default function SendPromoModal({ isOpen, onClose }: SendPromoModalProps)
     return () => {
       ignore = true;
     };
-  }, [isOpen]);
+  }, [canUseSmsCampaigns, isOpen]);
 
   useEffect(() => {
     if (!isOpen || isLoadingTemplates) return;
@@ -258,17 +265,38 @@ export default function SendPromoModal({ isOpen, onClose }: SendPromoModalProps)
           <div className={styles.sectionTitle}>2. Canal</div>
           <div className={styles.categoryTabs}>
             {CHANNELS.map((item) => (
-              <button
-                key={item.value}
-                className={`${styles.categoryBtn} ${channel === item.value ? styles.active : ""}`}
-                onClick={() => setChannel(item.value)}
-                style={{ padding: "10px 12px", flex: 1 }}
-                type="button"
-              >
-                {item.label}
-              </button>
+              (() => {
+                const isSmsLocked = item.value === "SMS" && !canUseSmsCampaigns;
+
+                return (
+                  <button
+                    key={item.value}
+                    className={`${styles.categoryBtn} ${channel === item.value ? styles.active : ""}`}
+                    disabled={isSmsLocked}
+                    onClick={() => {
+                      if (isSmsLocked) return;
+                      setChannel(item.value);
+                    }}
+                    style={{
+                      padding: "10px 12px",
+                      flex: 1,
+                      opacity: isSmsLocked ? 0.45 : 1,
+                      cursor: isSmsLocked ? "not-allowed" : "pointer",
+                    }}
+                    title={isSmsLocked ? "Les campagnes SMS sont disponibles avec la formule Pro." : undefined}
+                    type="button"
+                  >
+                    {item.label}
+                  </button>
+                );
+              })()
             ))}
           </div>
+          {!canUseSmsCampaigns && (
+            <div style={{ ...mutedStyle, marginTop: "10px" }}>
+              Les campagnes SMS sont reservees a la formule Pro. Les templates email restent disponibles.
+            </div>
+          )}
         </div>
 
         <div className={styles.sectionPink} style={{ padding: "20px" }}>

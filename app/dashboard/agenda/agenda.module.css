@@ -289,6 +289,31 @@
   background: #FAFAFA;
 }
 
+.vigilanceTag {
+  background: #FFF7E8;
+  border: 1px solid #E8C27A;
+  border-radius: 20px;
+  color: #7A4D00;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 4px 12px;
+}
+
+.eventVigilanceDot {
+  align-items: center;
+  background: #FFF7E8;
+  border: 1px solid #E8C27A;
+  border-radius: 50%;
+  color: #7A4D00;
+  display: inline-flex;
+  font-size: 0.65rem;
+  font-weight: 900;
+  height: 16px;
+  justify-content: center;
+  margin-left: 5px;
+  width: 16px;
+}
+
 .paymentBadge {
   border: 1px solid #e7dde0;
   border-radius: 20px;

@@ -42,7 +42,7 @@ export type AgendaPanelData = {
       position: number;
     }>;
   }>;
-  clients: Array<{ id: string; name: string }>;
+  clients: Array<{ id: string; name: string; riskLevel?: string; noShowCount?: number; riskReason?: string }>;
   services: Array<{ id: string; name: string; price: string; durationMin: number }>;
   bookingSettings: {
     days: Array<{ isOpen: boolean; start: string; end: string; breaks: Array<{ start: string; end: string }> }>;
@@ -150,7 +150,13 @@ export async function getAgendaPanelData(tenantId: string, userId?: string | nul
       orderBy: { scheduledAt: "asc" },
     }),
     prisma.client.findMany({
-      where: { tenantId },
+      where: { tenantId, archivedAt: null },
+      include: {
+        ClientFlag: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+      },
       orderBy: { firstName: "asc" },
     }),
     prisma.service.findMany({
@@ -167,7 +173,7 @@ export async function getAgendaPanelData(tenantId: string, userId?: string | nul
     }),
     userId
       ? prisma.user.findFirst({
-          where: { id: userId, tenantId },
+          where: { clerkUserId: userId, tenantId },
           select: {
             stripeAccountId: true,
             stripeOnboardingComplete: true,
@@ -219,6 +225,11 @@ export async function getAgendaPanelData(tenantId: string, userId?: string | nul
         name: `${app.Client?.firstName || ""} ${app.Client?.lastName || ""}`.trim(),
         email: app.Client?.email || "",
         phone: app.Client?.phone || "",
+        riskLevel: app.Client?.riskLevel || "LOW",
+        noShowCount: app.Client?.noShowCount || 0,
+        riskReason: app.Client?.noShowCount
+          ? `${app.Client.noShowCount} no-show${app.Client.noShowCount > 1 ? "s" : ""}`
+          : "",
       },
       service: {
         id: serviceSummary.primaryServiceId || app.Service?.id || "",
@@ -242,6 +253,11 @@ export async function getAgendaPanelData(tenantId: string, userId?: string | nul
     clients: clientsData.map((client) => ({
       id: client.id,
       name: `${client.firstName} ${client.lastName || ""}`.trim(),
+      riskLevel: client.riskLevel,
+      noShowCount: client.noShowCount,
+      riskReason: client.noShowCount > 0
+        ? `${client.noShowCount} no-show${client.noShowCount > 1 ? "s" : ""}`
+        : client.ClientFlag[0]?.note || "",
     })),
     services: servicesData.map((service) => ({
       id: service.id,

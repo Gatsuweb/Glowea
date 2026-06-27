@@ -2,10 +2,12 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Navbar from "../components/Navbar";
 import GlobalHeader from "../components/GlobalHeader";
+import OnboardingChecklist from "../components/OnboardingChecklist";
 import QuickAgendaDrawer from "../components/QuickAgendaDrawer";
 import PushNotificationManager from "../components/PushNotificationManager";
 import { getAgendaPanelData } from "../../lib/agendaPanelData";
 import { getTenantId } from "../../lib/tenant";
+import { getTenantOnboardingState } from "../actions/onboardingActions";
 import styles from "./layout.module.css";
 
 export default async function DashboardLayout({
@@ -25,7 +27,10 @@ export default async function DashboardLayout({
   }
 
   const tenantId = await getTenantId();
-  const quickAgendaData = await getAgendaPanelData(tenantId, userId);
+  const [quickAgendaData, onboarding] = await Promise.all([
+    getAgendaPanelData(tenantId, userId),
+    getTenantOnboardingState(tenantId),
+  ]);
 
   return (
     <>
@@ -33,6 +38,7 @@ export default async function DashboardLayout({
       <GlobalHeader />
       <QuickAgendaDrawer agendaData={quickAgendaData} />
       <PushNotificationManager />
+      <OnboardingChecklist onboarding={onboarding} />
       <div className={styles.layoutWrapper}>
         <div className={styles.mainContent}>
           {children}

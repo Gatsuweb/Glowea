@@ -28,6 +28,9 @@ type AgendaClient = {
   name: string;
   email?: string;
   phone?: string;
+  riskLevel?: string;
+  noShowCount?: number;
+  riskReason?: string;
 };
 
 type AgendaService = {
@@ -1405,6 +1408,10 @@ export default function AgendaClientWrapper({
           const depositPaidCents = finance.depositPaidAmountCents;
           const remainingCents = finance.remainingAmountCents;
           const allowedStatusTransitions = getAllowedStatusTransitions(app);
+          const clientHasVigilance = app.client.riskLevel === "MEDIUM" || app.client.riskLevel === "HIGH" || Number(app.client.noShowCount || 0) > 0;
+          const clientRiskReason = app.client.riskReason || (
+            app.client.noShowCount ? `${app.client.noShowCount} no-show${app.client.noShowCount > 1 ? "s" : ""}` : "Cliente a surveiller"
+          );
           
           return (
             <div key={app.id} className={styles.appointmentItem}>
@@ -1423,6 +1430,11 @@ export default function AgendaClientWrapper({
                   </div>
                   <div className={styles.tags}>
                     <span className={styles.tag}>{app.service.name}</span>
+                    {clientHasVigilance && (
+                      <span className={styles.vigilanceTag} title={clientRiskReason}>
+                        Vigilance
+                      </span>
+                    )}
                     {allowedStatusTransitions.length > 0 ? (
                       <select
                         className={styles.statusSelect}
@@ -1716,6 +1728,10 @@ export default function AgendaClientWrapper({
                             const topOffset = ((appDate.getMinutes() - slot.minute) / SLOT_MINUTES) * SLOT_HEIGHT;
                             const height = Math.max(28, (durationMinutes / SLOT_MINUTES) * SLOT_HEIGHT);
                             const serviceEventStyle = getServiceEventStyle(app.service.color);
+                            const eventHasVigilance = app.client.riskLevel === "MEDIUM" || app.client.riskLevel === "HIGH" || Number(app.client.noShowCount || 0) > 0;
+                            const eventRiskReason = app.client.riskReason || (
+                              app.client.noShowCount ? `${app.client.noShowCount} no-show${app.client.noShowCount > 1 ? "s" : ""}` : "Cliente a surveiller"
+                            );
 
                             return (
                               <div 
@@ -1732,9 +1748,12 @@ export default function AgendaClientWrapper({
                                   event.stopPropagation();
                                   openEditAppointment(app);
                                 }}
-                                title={`Modifier ${app.client.name}`}
+                                title={eventHasVigilance ? `Vigilance : ${eventRiskReason}` : `Modifier ${app.client.name}`}
                               >
-                                <div className={styles.eventTitle}>{app.client.name.toUpperCase()}</div>
+                                <div className={styles.eventTitle}>
+                                  {app.client.name.toUpperCase()}
+                                  {eventHasVigilance && <span className={styles.eventVigilanceDot}>!</span>}
+                                </div>
                                 <div className={styles.eventTime}>
                                   {appDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} - 
                                   {endAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}

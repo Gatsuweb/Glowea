@@ -219,7 +219,6 @@
   display: inline-flex;
   justify-content: center;
   padding: 8px 20px;
-  border-radius: 8px;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
@@ -1044,6 +1043,33 @@
   align-items: center;
 }
 
+.templateActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.btnDeleteTemplate {
+  background: #fff2f4;
+  border: 1px solid #f0b8c0;
+  color: #8b1e2d;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 10px 16px;
+  transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.btnDeleteTemplate:hover:not(:disabled) {
+  background: #ffe7eb;
+  border-color: #e79aaa;
+}
+
+.btnDeleteTemplate:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .emptyFeatureCard {
   text-align: center;
   padding: 80px 20px;
@@ -1389,8 +1415,15 @@
     width: 100%;
   }
 
-  .templateItem .btnEdit {
+  .templateActions,
+  .templateItem .btnEdit,
+  .templateItem .btnDeleteTemplate {
     width: 100%;
+  }
+
+  .templateActions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .emptyFeatureCard {

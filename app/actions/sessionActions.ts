@@ -7,6 +7,7 @@ import { getSupabaseAdminClient, publicStorageBucket } from "../../lib/supabaseA
 import { getTenantId } from "../../lib/tenant";
 import { getProductCategoryBySlug } from "../../src/constants/productCategories";
 import { getAppointmentServicesSummary } from "../../lib/appointmentServices";
+import { notifyStockLowIfNeeded } from "../../lib/notificationEvents";
 
 type SessionStatusInput = "DRAFT" | "COMPLETED" | "IN_PROGRESS";
 
@@ -190,7 +191,8 @@ async function syncSessionProductUsages(
     const delta = usage.quantityUsed - previousQuantity;
 
     if (shouldConsumeStock && shouldConsumeUsage && lot && delta > 0) {
-      const remaining = Math.max(Number(lot.quantityRemaining || 0) - delta, 0);
+      const currentQuantity = Number(lot.quantityRemaining || 0);
+      const remaining = Math.max(currentQuantity - delta, 0);
 
       await prisma.productLot.update({
         where: { id: lot.id },
@@ -212,6 +214,13 @@ async function syncSessionProductUsages(
           quantity: delta,
           reason: "SESSION_USAGE",
         },
+      });
+
+      await notifyStockLowIfNeeded({
+        tenantId,
+        productId: product.id,
+        previousQuantity: currentQuantity,
+        nextQuantity: remaining,
       });
     }
   }

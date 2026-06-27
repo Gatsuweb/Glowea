@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
 import { getTenantId } from "../../lib/tenant";
 import { requireTenantMutationAccess } from "../../lib/subscription";
+import { notifyStockLowIfNeeded } from "../../lib/notificationEvents";
 
 async function getTenantCategoryId(tenantId: string, categoryId?: string | null) {
   if (!categoryId) return null;
@@ -228,6 +229,13 @@ export async function adjustStock(productId: string, delta: number) {
         quantity: Math.abs(delta),
         reason: "MANUAL_ADJUSTMENT",
       },
+    });
+
+    await notifyStockLowIfNeeded({
+      tenantId: TENANT_ID,
+      productId: product.id,
+      previousQuantity: currentQty,
+      nextQuantity: newQty,
     });
 
     revalidatePath("/dashboard/stock");

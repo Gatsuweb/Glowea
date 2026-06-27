@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { stripe } from "@/lib/stripe";
-import { getTenantId } from "@/lib/tenant";
+import { getCurrentUserRecord } from "@/lib/tenant";
 import prisma from "@/lib/prisma";
 import {
   createCustomerPortalSession,
@@ -41,7 +41,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const tenantId = await getTenantId();
+  const currentUserRecord = await getCurrentUserRecord();
+  const tenantId = currentUserRecord.tenantId;
   const appUrl = getAppUrl(req.url);
 
   const { plan, billing } = await req.json();
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
 
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
-    include: { User: { where: { id: userId }, take: 1 } },
+    include: { User: { where: { id: currentUserRecord.id }, take: 1 } },
   });
 
   if (!tenant) {

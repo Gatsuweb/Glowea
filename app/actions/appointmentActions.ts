@@ -1,9 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { auth } from "@clerk/nextjs/server";
 import prisma from "../../lib/prisma";
-import { getTenantId } from "../../lib/tenant";
+import { getCurrentUserRecord, getTenantId } from "../../lib/tenant";
 import { requireTenantMutationAccess } from "../../lib/subscription";
 import {
   getAppointmentFinancialSummary,
@@ -23,6 +22,9 @@ import {
   getBlockingAppointmentWhere,
   isValidAppointmentStatus,
 } from "../../lib/appointmentStatus";
+import { notifyLoyalClientIfNeeded } from "../../lib/notificationEvents";
+import { sendPushToTenant } from "../../lib/push";
+import { addNoShowClientFlag } from "../../lib/clientVigilance";
 
 type AppointmentStatusInput = AppointmentStatusValue;
 
@@ -234,7 +236,7 @@ export async function processDueAppointmentReminders() {
     const dateStr = new Date(appointment.scheduledAt).toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" });
     const serviceName = appointment.Service?.name || "Prestation";
 
-    await prisma.$transaction(async (tx) => {
+    const shouldSendPush = await prisma.$transaction(async (tx) => {
       const claimed = await tx.appointmentReminder.updateMany({
         where: {
           id: reminder.id,
@@ -248,7 +250,7 @@ export async function processDueAppointmentReminders() {
         },
       });
 
-      if (claimed.count === 0) return;
+      if (claimed.count === 0) return false;
 
       await tx.notification.createMany({
         data: [{
@@ -262,7 +264,23 @@ export async function processDueAppointmentReminders() {
         }],
         skipDuplicates: true,
       });
+
+      return true;
     });
+
+    if (shouldSendPush) {
+      await sendPushToTenant(
+        tenantId,
+        {
+          title: "Rappel de rendez-vous (J-1)",
+          body: `${clientName} - ${dateStr} a ${timeStr} - ${serviceName}`,
+          url: "/dashboard/agenda",
+          tag: `appointment-reminder-${appointment.id}`,
+          data: { appointmentId: appointment.id, clientId: appointment.clientId },
+        },
+        { preferenceKey: "automaticFollowUpEnabled" }
+      );
+    }
   }
 
   return { success: true, processed: dueReminders.length };
@@ -302,8 +320,8 @@ export async function markOnlineBookingNotificationsRead() {
 }
 
 export async function createAppointment(data: AppointmentMutationInput) {
-  const tenantId = await getTenantId();
-  const { userId } = await auth();
+  const currentUserRecord = await getCurrentUserRecord();
+  const tenantId = currentUserRecord.tenantId;
   const access = await requireTenantMutationAccess(tenantId);
   if (!access.allowed) {
     return { success: false, error: access.error };
@@ -368,7 +386,7 @@ export async function createAppointment(data: AppointmentMutationInput) {
           tenantId,
           clientId: data.clientId,
           serviceId: serviceSelection.primaryServiceId,
-          createdByUserId: userId,
+          createdByUserId: currentUserRecord.id,
           scheduledAt: data.scheduledAt,
           endAt: finalEndAt,
           price: finalPriceCents,
@@ -571,6 +589,23 @@ export async function updateAppointment(
       });
     } else {
       await cancelPendingReminders(tenantId, appointment.id);
+    }
+
+    if (appointment.status === "COMPLETED") {
+      await notifyLoyalClientIfNeeded({
+        tenantId,
+        clientId: appointment.clientId,
+        appointmentWasAlreadyCompleted: existingAppointment.status === "COMPLETED",
+      });
+    }
+
+    if (appointment.status === "NO_SHOW" && existingAppointment.status !== "NO_SHOW") {
+      await prisma.$transaction((tx) =>
+        addNoShowClientFlag(tx, {
+          tenantId,
+          clientId: appointment.clientId,
+        })
+      );
     }
 
     revalidateAgendaViews();

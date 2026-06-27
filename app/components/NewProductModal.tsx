@@ -293,7 +293,7 @@ export default function NewProductModal({
             <div className={styles.productSectionHeader}>
               <div>
                 <div className={styles.sectionTitle}>TEMPLATES RAPIDES</div>
-                <p>D?marre avec une fiche d?j? structur?e pour les produits les plus courants.</p>
+                <p>Démarre avec une fiche déjà structurée pour les produits les plus courants.</p>
               </div>
             </div>
             <div className={styles.quickTemplateGrid}>

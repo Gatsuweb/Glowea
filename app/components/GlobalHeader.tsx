@@ -7,6 +7,7 @@ import NotificationBell from "./NotificationBell";
 import prisma from "../../lib/prisma";
 import { getTenantId } from "../../lib/tenant";
 import { REMINDER_ELIGIBLE_APPOINTMENT_STATUSES } from "../../lib/appointmentStatus";
+import { sendPushToTenant } from "../../lib/push";
 
 async function processHeaderReminders(tenantId: string) {
   const now = new Date();
@@ -40,7 +41,7 @@ async function processHeaderReminders(tenantId: string) {
     const serviceName = appointment.Service?.name || "Prestation";
 
     try {
-      await prisma.$transaction(async (tx) => {
+      const shouldSendPush = await prisma.$transaction(async (tx) => {
         const claimed = await tx.appointmentReminder.updateMany({
           where: {
             id: reminder.id,
@@ -54,7 +55,7 @@ async function processHeaderReminders(tenantId: string) {
           },
         });
 
-        if (claimed.count === 0) return;
+        if (claimed.count === 0) return false;
 
         await tx.notification.createMany({
           data: [{
@@ -68,7 +69,23 @@ async function processHeaderReminders(tenantId: string) {
           }],
           skipDuplicates: true,
         });
+
+        return true;
       });
+
+      if (shouldSendPush) {
+        await sendPushToTenant(
+          tenantId,
+          {
+            title: "Rappel de rendez-vous (J-1)",
+            body: `${clientName} - ${dateStr} a ${timeStr} - ${serviceName}`,
+            url: "/dashboard/agenda",
+            tag: `appointment-reminder-${appointment.id}`,
+            data: { appointmentId: appointment.id, clientId: appointment.clientId },
+          },
+          { preferenceKey: "automaticFollowUpEnabled" }
+        );
+      }
     } catch (error) {
       console.error("Error processing appointment reminder:", error);
     }

@@ -50,10 +50,6 @@ const clamp = (value: number, min: number, max: number) => {
   return Math.min(Math.max(value, min), max);
 };
 
-type DeviceOrientationWithPermission = typeof DeviceOrientationEvent & {
-  requestPermission?: () => Promise<"granted" | "denied">;
-};
-
 export default function HeroTabletShowcase() {
   const shouldReduceMotion = useReducedMotion();
   const [isCompactViewport, setIsCompactViewport] = useState(false);

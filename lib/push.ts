@@ -10,6 +10,18 @@ type PushPayload = {
   data?: Record<string, unknown>;
 };
 
+export type PushPreferenceKey =
+  | "stockLowEnabled"
+  | "loyalClientThanksEnabled"
+  | "onlineBookingEnabled"
+  | "paymentReceivedEnabled"
+  | "publicBookingChangeEnabled"
+  | "automaticFollowUpEnabled";
+
+type PushSendOptions = {
+  preferenceKey?: PushPreferenceKey;
+};
+
 type PushSendResult = {
   sent: number;
   failed: number;
@@ -26,6 +38,10 @@ type StoredPushSubscription = {
   p256dh: string;
   auth: string;
 };
+
+type StoredNotificationPreferences = {
+  pushEnabled: boolean;
+} & Partial<Record<PushPreferenceKey, boolean>>;
 
 let vapidConfigured = false;
 
@@ -115,7 +131,16 @@ async function sendToSubscriptions(subscriptions: StoredPushSubscription[], payl
   return result;
 }
 
-export async function sendPushToTenant(tenantId: string, payload: PushPayload) {
+function isPushAllowed(
+  preferences: StoredNotificationPreferences | null | undefined,
+  preferenceKey?: PushPreferenceKey
+) {
+  if (preferences?.pushEnabled === false) return false;
+  if (preferenceKey && preferences?.[preferenceKey] === false) return false;
+  return true;
+}
+
+export async function sendPushToTenant(tenantId: string, payload: PushPayload, options: PushSendOptions = {}) {
   const subscriptions = await prisma.pushSubscription.findMany({
     where: { tenantId },
     select: {
@@ -126,7 +151,15 @@ export async function sendPushToTenant(tenantId: string, payload: PushPayload) {
       User: {
         select: {
           NotificationPreference: {
-            select: { pushEnabled: true },
+            select: {
+              pushEnabled: true,
+              stockLowEnabled: true,
+              loyalClientThanksEnabled: true,
+              onlineBookingEnabled: true,
+              paymentReceivedEnabled: true,
+              publicBookingChangeEnabled: true,
+              automaticFollowUpEnabled: true,
+            },
           },
         },
       },
@@ -134,7 +167,7 @@ export async function sendPushToTenant(tenantId: string, payload: PushPayload) {
   });
 
   const enabledSubscriptions = subscriptions
-    .filter((subscription) => subscription.User.NotificationPreference?.pushEnabled !== false)
+    .filter((subscription) => isPushAllowed(subscription.User.NotificationPreference, options.preferenceKey))
     .map((subscription) => ({
       id: subscription.id,
       endpoint: subscription.endpoint,
@@ -147,7 +180,7 @@ export async function sendPushToTenant(tenantId: string, payload: PushPayload) {
   return sendToSubscriptions(enabledSubscriptions, payload);
 }
 
-export async function sendPushToUser(userId: string, payload: PushPayload) {
+export async function sendPushToUser(userId: string, payload: PushPayload, options: PushSendOptions = {}) {
   const subscriptions = await prisma.pushSubscription.findMany({
     where: { userId },
     select: {
@@ -158,7 +191,15 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
       User: {
         select: {
           NotificationPreference: {
-            select: { pushEnabled: true },
+            select: {
+              pushEnabled: true,
+              stockLowEnabled: true,
+              loyalClientThanksEnabled: true,
+              onlineBookingEnabled: true,
+              paymentReceivedEnabled: true,
+              publicBookingChangeEnabled: true,
+              automaticFollowUpEnabled: true,
+            },
           },
         },
       },
@@ -166,7 +207,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
   });
 
   const enabledSubscriptions = subscriptions
-    .filter((subscription) => subscription.User.NotificationPreference?.pushEnabled !== false)
+    .filter((subscription) => isPushAllowed(subscription.User.NotificationPreference, options.preferenceKey))
     .map((subscription) => ({
       id: subscription.id,
       endpoint: subscription.endpoint,

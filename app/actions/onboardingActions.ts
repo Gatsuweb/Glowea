@@ -73,7 +73,7 @@ export async function getTenantOnboardingState(knownTenantId?: string): Promise<
   const steps: OnboardingStep[] = [
     {
       id: "profile",
-      title: "Completer mon profil",
+      title: "Compléter mon profil",
       description: "Ajoutez vos informations principales pour personnaliser votre espace.",
       href: "/dashboard/profil",
       completed: profileCompleted,
@@ -81,21 +81,21 @@ export async function getTenantOnboardingState(knownTenantId?: string): Promise<
     {
       id: "publicPage",
       title: "Configurer ma page publique",
-      description: "Publiez votre mini-site pour presenter votre activite.",
+      description: "Publiez votre mini-site pour présenter votre activité.",
       href: "/dashboard/page-publique",
       completed: publicPageCompleted,
     },
     {
       id: "firstService",
-      title: "Ajouter une premi?re prestation",
-      description: "Cr?ez votre premi?re prestation visible ? la r?servation.",
+      title: "Ajouter une première prestation",
+      description: "Créez votre première prestation visible à la réservation.",
       href: "/dashboard/page-publique?tab=prestations",
       completed: firstServiceCompleted,
     },
     {
       id: "firstAppointment",
-      title: "Cr?er mon premier rendez-vous",
-      description: "Ajoutez un rendez-vous pour commencer ? piloter votre planning.",
+      title: "Créer mon premier rendez-vous",
+      description: "Ajoutez un rendez-vous pour commencer à piloter votre planning.",
       href: "/dashboard/agenda",
       completed: firstAppointmentCompleted,
     },

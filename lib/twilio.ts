@@ -160,7 +160,7 @@ export async function sendSms(params: SendSmsParams) {
 
   try {
     console.log("[TWILIO DEBUG] SMS_PROVIDER:", process.env.SMS_PROVIDER);
-    console.log("[TWILIO DEBUG] Account SID:", process.env.TWILIO_ACCOUNT_SID);
+    console.log("[TWILIO DEBUG] Account SID configured:", Boolean(process.env.TWILIO_ACCOUNT_SID));
     console.log("[TWILIO DEBUG] From:", process.env.TWILIO_FROM_NUMBER);
     console.log("[TWILIO DEBUG] Raw TO:", rawPhone);
     console.log("[TWILIO DEBUG] Normalized TO:", normalizedPhone);

@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma";
 import { getAppointmentFinancialSummary } from "@/lib/appointmentFinance";
 import { getAppointmentServicesLabel } from "@/lib/appointmentServices";
 import { stripe } from "@/lib/stripe";
-import { getTenantId } from "@/lib/tenant";
+import { getCurrentUserRecord } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,7 +57,8 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const tenantId = await getTenantId();
+  const currentUserRecord = await getCurrentUserRecord();
+  const tenantId = currentUserRecord.tenantId;
   const params = await context.params;
   const appointmentId = params.id;
   const body = await req.json();
@@ -69,7 +70,7 @@ export async function POST(
   }
 
   const user = await prisma.user.findFirst({
-    where: { id: userId, clerkUserId: userId, tenantId },
+    where: { id: currentUserRecord.id, tenantId },
     select: {
       id: true,
       stripeAccountId: true,

@@ -71,6 +71,7 @@ async function claimReminder(params: {
 }) {
   const existingSent = await prisma.appointmentReminderLog.findFirst({
     where: {
+      tenantId: params.tenantId,
       appointmentId: params.appointmentId,
       type: REMINDER_TYPE,
       channel: "SMS",
@@ -88,6 +89,7 @@ async function claimReminder(params: {
 
   const existingRetryable = await prisma.appointmentReminderLog.findFirst({
     where: {
+      tenantId: params.tenantId,
       appointmentId: params.appointmentId,
       type: REMINDER_TYPE,
       channel: "SMS",
@@ -163,6 +165,11 @@ export async function GET(request: Request) {
         scheduledAt: { gte: windowStart, lte: windowEnd },
         status: { in: [...REMINDER_ELIGIBLE_APPOINTMENT_STATUSES] },
         isDraft: false,
+        Client: {
+          is: {
+            archivedAt: null,
+          },
+        },
       },
       include: {
         Client: true,
@@ -172,18 +179,18 @@ export async function GET(request: Request) {
             BusinessSettings: true,
           },
         },
-       AppointmentReminderLog: {
-        where: {
-          type: REMINDER_TYPE,
-          channel: "SMS",
-          status: "SENT",
-          sentAt: {
-            not: null,
+        AppointmentReminderLog: {
+          where: {
+            type: REMINDER_TYPE,
+            channel: "SMS",
+            status: "SENT",
+            sentAt: {
+              not: null,
+            },
           },
+          select: { id: true, status: true, sentAt: true },
+          take: 1,
         },
-        select: { id: true, status: true, sentAt: true },
-        take: 1,
-      },
       },
       orderBy: { scheduledAt: "asc" },
       take: 200,
@@ -196,8 +203,8 @@ export async function GET(request: Request) {
       const settings = tenant?.BusinessSettings;
       const phone = formatPhone(appointment.Client?.phone);
       const alreadySent = appointment.AppointmentReminderLog.some(
-      (log) => log.status === "SENT"
-    );
+        (log) => log.status === "SENT"
+      );
       const baseDebug = {
         appointmentId: appointment.id,
         tenantPlan: tenant?.subscriptionPlan || null,

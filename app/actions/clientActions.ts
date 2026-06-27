@@ -2,13 +2,41 @@
 
 import prisma from "../../lib/prisma";
 import { revalidatePath } from "next/cache";
+import type { ClientFlagType, ClientRiskLevel } from "@prisma/client";
 import { getTenantId } from "../../lib/tenant";
 import { requireTenantMutationAccess } from "../../lib/subscription";
+import { getRiskLevelFromNoShowCount } from "../../lib/clientVigilance";
 
 const DIRECT_GALLERY_PROJECT_LABEL_PREFIX = "GLOWEA_GALLERY_PROJECT";
 const DIRECT_GALLERY_ROLES = new Set(["before", "after", "other"]);
 
 type DirectGalleryRole = "before" | "after" | "other";
+
+const CLIENT_FLAG_TYPES = new Set<ClientFlagType>(["NO_SHOW", "LATE_CANCEL", "UNPAID", "BEHAVIOR", "OTHER"]);
+const CLIENT_RISK_LEVELS = new Set<ClientRiskLevel>(["LOW", "MEDIUM", "HIGH"]);
+
+function isClientFlagType(value: unknown): value is ClientFlagType {
+  return typeof value === "string" && CLIENT_FLAG_TYPES.has(value as ClientFlagType);
+}
+
+function isClientRiskLevel(value: unknown): value is ClientRiskLevel {
+  return typeof value === "string" && CLIENT_RISK_LEVELS.has(value as ClientRiskLevel);
+}
+
+async function getOwnedActiveClient(tenantId: string, clientId: string) {
+  return prisma.client.findFirst({
+    where: {
+      id: clientId,
+      tenantId,
+      archivedAt: null,
+    },
+    select: {
+      id: true,
+      noShowCount: true,
+      riskLevel: true,
+    },
+  });
+}
 
 function encodeDirectGalleryProjectLabel(data: {
   projectId: string;
@@ -249,6 +277,180 @@ export async function updateClientProfile(data: {
   } catch (error) {
     console.error("Error updating client:", error);
     return { success: false, error: "Erreur lors de la mise a jour du client" };
+  }
+}
+
+export async function archiveClient(clientId: string) {
+  const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
+  try {
+    const existingClient = await prisma.client.findFirst({
+      where: {
+        id: clientId,
+        tenantId: TENANT_ID,
+        archivedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!existingClient) {
+      return { success: false, error: "Cliente introuvable pour ce compte" };
+    }
+
+    await prisma.client.updateMany({
+      where: { id: existingClient.id, tenantId: TENANT_ID },
+      data: {
+        archivedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/clients");
+    revalidatePath("/dashboard/agenda");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error archiving client:", error);
+    return { success: false, error: "Erreur lors de la suppression de la cliente" };
+  }
+}
+
+export async function addClientFlag(data: {
+  clientId: string;
+  type: ClientFlagType;
+  severity: ClientRiskLevel;
+  note?: string;
+}) {
+  const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
+  const type = isClientFlagType(data.type) ? data.type : "OTHER";
+  const severity = isClientRiskLevel(data.severity) ? data.severity : "LOW";
+  const note = data.note?.trim().slice(0, 1000) || null;
+
+  try {
+    const client = await getOwnedActiveClient(TENANT_ID, data.clientId);
+    if (!client) {
+      return { success: false, error: "Cliente introuvable pour ce compte" };
+    }
+
+    const nextNoShowCount = type === "NO_SHOW" ? client.noShowCount + 1 : client.noShowCount;
+    const noShowRiskLevel = getRiskLevelFromNoShowCount(nextNoShowCount);
+    const nextRiskLevel = severity === "HIGH" || client.riskLevel === "HIGH" || noShowRiskLevel === "HIGH"
+      ? "HIGH"
+      : severity === "MEDIUM" || client.riskLevel === "MEDIUM" || noShowRiskLevel === "MEDIUM"
+        ? "MEDIUM"
+        : "LOW";
+
+    const flag = await prisma.$transaction(async (tx) => {
+      const createdFlag = await tx.clientFlag.create({
+        data: {
+          id: `cfl_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+          tenantId: TENANT_ID,
+          clientId: client.id,
+          type,
+          severity,
+          note,
+        },
+      });
+
+      await tx.client.updateMany({
+        where: { id: client.id, tenantId: TENANT_ID },
+        data: {
+          noShowCount: nextNoShowCount,
+          riskLevel: nextRiskLevel,
+          updatedAt: new Date(),
+        },
+      });
+
+      return createdFlag;
+    });
+
+    revalidatePath("/dashboard/clients");
+    revalidatePath("/dashboard/agenda");
+    revalidatePath("/dashboard");
+
+    return { success: true, flag, riskLevel: nextRiskLevel, noShowCount: nextNoShowCount };
+  } catch (error) {
+    console.error("Error adding client flag:", error);
+    return { success: false, error: "Erreur lors de l'ajout du signalement" };
+  }
+}
+
+export async function updateClientRiskLevel(clientId: string, riskLevel: ClientRiskLevel) {
+  const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
+  if (!isClientRiskLevel(riskLevel)) {
+    return { success: false, error: "Niveau de vigilance invalide" };
+  }
+
+  try {
+    const client = await getOwnedActiveClient(TENANT_ID, clientId);
+    if (!client) {
+      return { success: false, error: "Cliente introuvable pour ce compte" };
+    }
+
+    await prisma.client.updateMany({
+      where: { id: client.id, tenantId: TENANT_ID },
+      data: {
+        riskLevel,
+        updatedAt: new Date(),
+      },
+    });
+
+    revalidatePath("/dashboard/clients");
+    revalidatePath("/dashboard/agenda");
+    revalidatePath("/dashboard");
+
+    return { success: true, riskLevel };
+  } catch (error) {
+    console.error("Error updating client risk level:", error);
+    return { success: false, error: "Erreur lors de la mise a jour de la vigilance" };
+  }
+}
+
+export async function clearClientVigilance(clientId: string) {
+  const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
+  try {
+    const client = await getOwnedActiveClient(TENANT_ID, clientId);
+    if (!client) {
+      return { success: false, error: "Cliente introuvable pour ce compte" };
+    }
+
+    await prisma.client.updateMany({
+      where: { id: client.id, tenantId: TENANT_ID },
+      data: {
+        riskLevel: "LOW",
+        noShowCount: 0,
+        updatedAt: new Date(),
+      },
+    });
+
+    revalidatePath("/dashboard/clients");
+    revalidatePath("/dashboard/agenda");
+    revalidatePath("/dashboard");
+
+    return { success: true, riskLevel: "LOW" as const, noShowCount: 0 };
+  } catch (error) {
+    console.error("Error clearing client vigilance:", error);
+    return { success: false, error: "Erreur lors du retrait de la vigilance" };
   }
 }
 

@@ -10,7 +10,7 @@ type DepositType = "fixed" | "percent";
 
 type PaymentSettings = {
   stripeAccountId: string | null;
-  stripeOnboardingComplété: boolean;
+  stripeOnboardingComplete: boolean;
   paymentsEnabled: boolean;
   defaultDepositAmount: number;
   defaultDepositType: DepositType;
@@ -168,7 +168,7 @@ export default function PaymentsSettingsClient({
           </div>
           <div>
             <span>Onboarding</span>
-            <strong>{settings.stripeOnboardingComplété ? "Complété" : "Incomplet"}</strong>
+            <strong>{settings.stripeOnboardingComplete ? "Complété" : "Incomplet"}</strong>
           </div>
           <div>
             <span>Paiements</span>

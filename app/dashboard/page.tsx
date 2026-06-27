@@ -9,6 +9,7 @@ import {
   isActiveStatsAppointment,
 } from "../../lib/appointmentStatus";
 import { getAppointmentServicesSummary } from "../../lib/appointmentServices";
+import { getCurrentUserRecord } from "../../lib/tenant";
 
 export const dynamic = "force-dynamic";
 
@@ -77,8 +78,8 @@ export default async function DashboardPage({
   const previousMonthEnd = new Date(todayStart.getFullYear(), todayStart.getMonth(), 0, 23, 59, 59, 999);
 
   // Use the current user's tenant ID
-  const { getTenantId } = await import("../../lib/tenant");
-  const tenantId = await getTenantId();
+  const currentUserRecord = await getCurrentUserRecord();
+  const tenantId = currentUserRecord.tenantId;
   const { userId } = await auth();
   const resolvedSearchParams = searchParams ? await searchParams : {};
   let checkoutSyncState: "activated" | "pending" | "error" | null = null;
@@ -98,14 +99,14 @@ export default async function DashboardPage({
   const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
 
   const [profileUser, profileTenant, paymentSettings] = await Promise.all([
-    prisma.user.findUnique({ where: { id: tenantId } }),
+    prisma.user.findUnique({ where: { id: currentUserRecord.id } }),
     prisma.tenant.findUnique({
       where: { id: tenantId },
       include: { BusinessSettings: true },
     }),
     userId
       ? prisma.user.findFirst({
-          where: { id: userId, tenantId },
+          where: { id: currentUserRecord.id, tenantId },
           select: {
             stripeAccountId: true,
             stripeOnboardingComplete: true,
@@ -150,6 +151,10 @@ export default async function DashboardPage({
         include: {
           ConsentDocument: {
             where: { documentType: "CONSENT" },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
+          ClientFlag: {
             orderBy: { createdAt: "desc" },
             take: 1,
           },
@@ -429,6 +434,11 @@ export default async function DashboardPage({
       client: {
         id: app.Client?.id || app.clientId,
         name: `${app.Client?.firstName} ${app.Client?.lastName || ''}`.trim(),
+        riskLevel: app.Client?.riskLevel || "LOW",
+        noShowCount: app.Client?.noShowCount || 0,
+        riskReason: app.Client?.noShowCount
+          ? `${app.Client.noShowCount} no-show${app.Client.noShowCount > 1 ? "s" : ""}`
+          : app.Client?.ClientFlag[0]?.note || "",
       },
       service: {
         id: serviceSummary.primaryServiceId || app.Service?.id || app.serviceId || "",
@@ -450,7 +460,13 @@ export default async function DashboardPage({
 
   // Fetch clients and services for NewAppointmentModal
   const clientsData = await prisma.client.findMany({
-    where: { tenantId },
+    where: { tenantId, archivedAt: null },
+    include: {
+      ClientFlag: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
+    },
     orderBy: { firstName: 'asc' },
   });
 
@@ -462,6 +478,11 @@ export default async function DashboardPage({
   const modalClients = clientsData.map(c => ({
     id: c.id,
     name: `${c.firstName} ${c.lastName || ''}`.trim(),
+    riskLevel: c.riskLevel,
+    noShowCount: c.noShowCount,
+    riskReason: c.noShowCount > 0
+      ? `${c.noShowCount} no-show${c.noShowCount > 1 ? "s" : ""}`
+      : c.ClientFlag[0]?.note || "",
   }));
 
   const services = servicesData.map(s => ({
@@ -491,6 +512,7 @@ export default async function DashboardPage({
       id: p.id,
       name: p.name,
       currentQuantity: count,
+      idealQuantity: Math.max(Number(p.alertThreshold || 5), count, 10),
       alertThreshold: p.alertThreshold ? Number(p.alertThreshold) : 5,
     };
   });

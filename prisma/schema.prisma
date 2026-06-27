@@ -255,6 +255,8 @@ model Client {
   birthDate              DateTime?
   referredBy             String?
   isLoyal                Boolean                  @default(false)
+  riskLevel              ClientRiskLevel          @default(LOW)
+  noShowCount            Int                      @default(0)
   firstVisitAt           DateTime?
   lastVisitAt            DateTime?
   visitCount             Int                      @default(0)
@@ -265,6 +267,7 @@ model Client {
   CampaignRecipientLog   CampaignRecipientLog[]
   Tenant                 Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   ClientAllergy          ClientAllergy[]
+  ClientFlag             ClientFlag[]
   ClientMedia            ClientMedia[]
   ClientNote             ClientNote[]
   ClientTagAssignment    ClientTagAssignment[]
@@ -278,6 +281,25 @@ model Client {
   @@index([tenantId, firstName])
   @@index([tenantId])
   @@index([tenantId, lastName])
+  @@index([tenantId, riskLevel])
+}
+
+model ClientFlag {
+  id        String          @id
+  tenantId  String
+  clientId  String
+  type      ClientFlagType
+  severity  ClientRiskLevel @default(LOW)
+  note      String?
+  createdAt DateTime        @default(now())
+  Client    Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  Tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([tenantId])
+  @@index([tenantId, clientId])
+  @@index([tenantId, severity])
+  @@index([tenantId, type])
 }
 
 model Campaign {
@@ -1064,6 +1086,7 @@ model Tenant {
   BillingProfile         BillingProfile?
   BusinessSettings       BusinessSettings?
   Client                 Client[]
+  ClientFlag             ClientFlag[]
   ClientTag              ClientTag[]
   ConsentDocument        ConsentDocument[]
   FinancialGoal          FinancialGoal?
@@ -1200,6 +1223,20 @@ enum ClientNoteType {
   PREFERENCE
   BEHAVIOR
   INTERNAL
+}
+
+enum ClientFlagType {
+  NO_SHOW
+  LATE_CANCEL
+  UNPAID
+  BEHAVIOR
+  OTHER
+}
+
+enum ClientRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
 }
 
 enum ConsentDocumentType {

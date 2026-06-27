@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { BillingProvider, SubscriptionStatus } from "@prisma/client";
+import { auth } from "@clerk/nextjs/server";
+import { Prisma, type BillingProvider, type SubscriptionStatus } from "@prisma/client";
 import prisma from "../../lib/prisma";
 import { type SubscriptionPlanValue } from "../../lib/features";
 import { getSubscriptionAccessFromTenant } from "../../lib/subscription";
@@ -54,6 +55,17 @@ function safeString(value: unknown) {
   return value.trim();
 }
 
+async function getProfileScope() {
+  const { userId } = await auth();
+
+  if (!userId) {
+    throw new Error("Unauthorized");
+  }
+
+  const tenantId = await getTenantId();
+  return { userId, tenantId };
+}
+
 function getDefaultNotificationPreferences(): ProfileNotificationPreferences {
   return {
     pushEnabled: true,
@@ -76,12 +88,12 @@ function mapNotificationPreferences(
 }
 
 export async function getProfileData() {
-  const tenantId = await getTenantId();
+  const { userId, tenantId } = await getProfileScope();
 
   try {
     const [user, tenant] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: tenantId },
+      prisma.user.findFirst({
+        where: { clerkUserId: userId, tenantId },
         include: { NotificationPreference: true },
       }),
       prisma.tenant.findUnique({
@@ -142,7 +154,7 @@ export async function getProfileData() {
 }
 
 export async function updateProfileData(input: Partial<ProfileData>) {
-  const tenantId = await getTenantId();
+  const { userId, tenantId } = await getProfileScope();
 
   const firstName = safeString(input.firstName);
   const lastName = safeString(input.lastName);
@@ -157,29 +169,31 @@ export async function updateProfileData(input: Partial<ProfileData>) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      await tx.user.upsert({
-        where: { id: tenantId },
-        update: {
-          firstName,
-          lastName: lastName || null,
-          fullName: `${firstName} ${lastName}`.trim(),
-          email,
-          phone: phone || null,
-          updatedAt: new Date(),
-        },
-        create: {
-          id: tenantId,
-          clerkUserId: tenantId,
-          email,
-          firstName,
-          lastName: lastName || null,
-          fullName: `${firstName} ${lastName}`.trim(),
-          phone: phone || null,
-          role: "OWNER",
-          tenantId,
-          updatedAt: new Date(),
-        },
+      const userData = {
+        firstName,
+        lastName: lastName || null,
+        fullName: `${firstName} ${lastName}`.trim(),
+        email,
+        phone: phone || null,
+        updatedAt: new Date(),
+      };
+
+      const updatedUser = await tx.user.updateMany({
+        where: { clerkUserId: userId, tenantId },
+        data: userData,
       });
+
+      if (updatedUser.count === 0) {
+        await tx.user.create({
+          data: {
+            id: userId,
+            clerkUserId: userId,
+            ...userData,
+            role: "OWNER",
+            tenantId,
+          },
+        });
+      }
 
       if (salonName) {
         await tx.tenant.update({
@@ -224,6 +238,18 @@ export async function updateProfileData(input: Partial<ProfileData>) {
     return { success: true as const };
   } catch (error) {
     console.error("Error updating profile data:", error);
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const target = error.meta?.target;
+      const targetText = Array.isArray(target) ? target.join(",") : String(target || "");
+
+      if (error.meta?.modelName === "User" || targetText.includes("email")) {
+        return { success: false as const, error: "Cet email est deja utilise par un autre compte" };
+      }
+    }
+
     return { success: false as const, error: "Erreur lors de l'enregistrement du profil" };
   }
 }

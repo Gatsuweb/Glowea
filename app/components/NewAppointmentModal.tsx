@@ -19,6 +19,9 @@ type ClientOption = {
   name: string;
   fullName?: string;
   firstName?: string;
+  riskLevel?: string | null;
+  noShowCount?: number | null;
+  riskReason?: string | null;
 };
 
 type ServiceOption = {
@@ -200,6 +203,15 @@ export default function NewAppointmentModal({
 
   const filteredClients = clients.filter(client => 
     client.name.toLowerCase().includes(clientSearch.toLowerCase())
+  );
+  const selectedClient = clients.find((client) => client.id === selectedClientId) || null;
+  const selectedClientRiskLevel = selectedClient?.riskLevel || "LOW";
+  const selectedClientRiskReason = selectedClient?.riskReason || (
+    selectedClient?.noShowCount ? `${selectedClient.noShowCount} no-show${selectedClient.noShowCount > 1 ? "s" : ""}` : ""
+  );
+  const shouldWarnSelectedClient = Boolean(
+    selectedClient &&
+    (selectedClientRiskLevel === "MEDIUM" || selectedClientRiskLevel === "HIGH" || Number(selectedClient.noShowCount || 0) > 0)
   );
   const preservesCalendarSelection = Boolean(!initialData && initialScheduledAt && initialEndAt);
   const currentPrestations = localServices;
@@ -394,6 +406,12 @@ export default function NewAppointmentModal({
               +
             </button>
           </div>
+          {shouldWarnSelectedClient && (
+            <div className={styles.clientVigilanceAlert}>
+              <strong>Cliente a surveiller</strong>
+              <span>Motif : {selectedClientRiskReason || `risque ${selectedClientRiskLevel.toLowerCase()}`}</span>
+            </div>
+          )}
         </div>
 
         {/* DATE & HEURE */}

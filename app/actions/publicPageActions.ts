@@ -904,7 +904,19 @@ export async function createPublicBooking(input: PublicBookingInput) {
             phone ? { phone } : undefined,
           ].filter(Boolean) as Array<{ email: string } | { phone: string }>,
         },
-        select: { id: true },
+        select: {
+          id: true,
+          riskLevel: true,
+          noShowCount: true,
+          ClientFlag: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              type: true,
+              note: true,
+            },
+          },
+        },
       });
 
       const client = existingClient
@@ -958,6 +970,14 @@ export async function createPublicBooking(input: PublicBookingInput) {
 
       await replaceAppointmentServices(tx, appointment.id, serviceSelection.snapshots);
 
+      const clientRiskReason = existingClient?.noShowCount
+        ? `${existingClient.noShowCount} no-show${existingClient.noShowCount > 1 ? "s" : ""}`
+        : existingClient?.ClientFlag[0]?.note || existingClient?.ClientFlag[0]?.type || "";
+      const clientRiskWarning =
+        existingClient && (existingClient.riskLevel !== "LOW" || existingClient.noShowCount > 0)
+          ? ` Attention : cette cliente a deja ete signalee${clientRiskReason ? `. Motif : ${clientRiskReason}` : ""}.`
+          : "";
+
       await tx.notification.create({
         data: {
           id: `not_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
@@ -966,7 +986,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
           appointmentId: appointment.id,
           type: "OTHER",
           title: "Nouveau rendez-vous via la page publique",
-          body: `${clientFullName} a réservé ${serviceLabel} le ${dateLabel} à ${timeLabel}.`,
+          body: `${clientFullName} a réservé ${serviceLabel} le ${dateLabel} à ${timeLabel}.${clientRiskWarning}`,
         },
       });
 
@@ -1072,7 +1092,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
       url: "/dashboard/agenda",
       tag: `booking-${reservation.appointment.id}`,
       data: { appointmentId: reservation.appointment.id },
-    });
+    }, { preferenceKey: "onlineBookingEnabled" });
   } catch (pushError) {
     console.error("[push] public booking notification failed:", pushError);
   }

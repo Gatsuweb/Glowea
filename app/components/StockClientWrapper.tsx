@@ -45,9 +45,12 @@ type StockCategory = {
   description?: string | null;
 };
 
+type EditableStockProduct = Omit<StockProduct, "trackingType"> & {
+  trackingType?: "UNIDOSE" | "MULTIDOSE";
+};
+
 export default function StockClientWrapper({ 
   initialProducts = [],
-  movements = [],
   categories = []
 }: { 
   initialProducts?: StockProduct[],
@@ -59,7 +62,7 @@ export default function StockClientWrapper({
   const [selectedStatusFilter, setSelectedStatusFilter] = useState("all");
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("all");
   const [isModalOpen, setModalOpen] = useState(false);
-  const [productToEdit, setProductToEdit] = useState<StockProduct | null>(null);
+  const [productToEdit, setProductToEdit] = useState<EditableStockProduct | null>(null);
   const [loadingProductId, setLoadingProductId] = useState<string | null>(null);
 
   const filteredProducts = initialProducts.filter((p) => {
@@ -110,7 +113,10 @@ export default function StockClientWrapper({
   };
 
   const handleEdit = (product: StockProduct) => {
-    setProductToEdit(product);
+    setProductToEdit({
+      ...product,
+      trackingType: product.trackingType === "UNIDOSE" ? "UNIDOSE" : "MULTIDOSE",
+    });
     setModalOpen(true);
   };
 

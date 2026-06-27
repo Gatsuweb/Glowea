@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 import prisma from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
-import { getTenantId } from "@/lib/tenant";
+import { getCurrentUserRecord } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,12 +15,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const tenantId = await getTenantId();
+  const currentUserRecord = await getCurrentUserRecord();
+  const tenantId = currentUserRecord.tenantId;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
   const clerkUser = await currentUser();
 
   const user = await prisma.user.findFirst({
-    where: { id: userId, clerkUserId: userId, tenantId },
+    where: { id: currentUserRecord.id, tenantId },
     select: {
       id: true,
       email: true,
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
     stripeAccountId = account.id;
 
     await prisma.user.update({
-      where: { id: userId },
+      where: { id: user.id },
       data: {
         stripeAccountId,
         stripeOnboardingComplete: false,

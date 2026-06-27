@@ -165,3 +165,56 @@ export async function PATCH(request: Request) {
     );
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const tenantId = await getTenantId();
+    const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
+    if (!subscriptionAccess.canUseApp) {
+      return NextResponse.json(
+        { success: false, error: "Un abonnement actif est necessaire pour supprimer un template" },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json().catch(() => null);
+    const templateId = typeof body?.id === "string" ? body.id : "";
+
+    if (!templateId) {
+      return NextResponse.json({ success: false, error: "Template invalide" }, { status: 400 });
+    }
+
+    const existing = await prisma.messageTemplate.findFirst({
+      where: {
+        id: templateId,
+        tenantId,
+        isSystem: false,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { success: false, error: "Template personnalisable introuvable pour ce compte" },
+        { status: 404 }
+      );
+    }
+
+    await prisma.messageTemplate.update({
+      where: { id: templateId },
+      data: {
+        isActive: false,
+        updatedAt: new Date(),
+      },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting campaign template:", error);
+    return NextResponse.json(
+      { success: false, error: "Impossible de supprimer le template" },
+      { status: 500 }
+    );
+  }
+}

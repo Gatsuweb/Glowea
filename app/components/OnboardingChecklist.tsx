@@ -42,7 +42,7 @@ export default function OnboardingChecklist({ onboarding }: { onboarding: Onboar
       <div className={styles.header}>
         <div className={styles.headerMain}>
           <span className={styles.kicker}>Bienvenue sur Glowea</span>
-          <h2>Guide de demarrage</h2>
+          <h2>Guide de démarrage</h2>
           <p>Configurez votre espace en quelques minutes.</p>
         </div>
         <div className={styles.headerActions}>
@@ -62,7 +62,7 @@ export default function OnboardingChecklist({ onboarding }: { onboarding: Onboar
 
       <div className={styles.progressBlock}>
         <div className={styles.progressMeta}>
-          <strong>{onboarding.completedCount}/{onboarding.totalCount} etapes terminees</strong>
+          <strong>{onboarding.completedCount}/{onboarding.totalCount} étapes terminées</strong>
           <span>{progressPercent}%</span>
         </div>
         <div className={styles.progressTrack}>
@@ -73,7 +73,7 @@ export default function OnboardingChecklist({ onboarding }: { onboarding: Onboar
       {isExpanded && onboarding.nextStep && (
         <div className={styles.nextBanner}>
           <div>
-            <span>Prochaine etape</span>
+            <span>Prochaine étape</span>
             <strong>{onboarding.nextStep.title}</strong>
           </div>
           <Link href={onboarding.nextStep.href}>Continuer</Link>
@@ -92,7 +92,7 @@ export default function OnboardingChecklist({ onboarding }: { onboarding: Onboar
                 <p>{step.description}</p>
               </div>
               <span className={step.completed ? styles.badgeDone : styles.badgeTodo}>
-                {step.completed ? "Fait" : "A faire"}
+                {step.completed ? "Fait" : "À faire"}
               </span>
             </Link>
           ))}

@@ -251,8 +251,8 @@ function ProblemOrbitCard({
   );
   const followX = useTransform(pointerX, [-1, 1], [-mouseRange, mouseRange]);
   const followY = useTransform(pointerY, [-1, 1], [-mouseRange, mouseRange]);
-  const combinedX = useTransform([orbitX, followX], ([a, b]) => a + b);
-  const combinedY = useTransform([orbitY, followY], ([a, b]) => a + b);
+  const combinedX = useTransform([orbitX, followX], ([a, b]: number[]) => a + b);
+  const combinedY = useTransform([orbitY, followY], ([a, b]: number[]) => a + b);
 
   return (
     <motion.article

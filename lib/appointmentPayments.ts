@@ -1,3 +1,4 @@
+import type { PaymentStatus } from "@prisma/client";
 import prisma from "./prisma";
 import {
   AppointmentPaymentMethod,
@@ -137,7 +138,7 @@ export async function recordAppointmentPayment(params: RecordAppointmentPaymentP
         paidAmount: nextPaidAmountCents,
         remainingAmount: nextRemainingAmountCents,
         paymentMethod: normalizedMethod,
-        paymentStatus: nextPaymentStatus,
+        paymentStatus: nextPaymentStatus as PaymentStatus,
         stripeCheckoutSessionId: params.stripeCheckoutSessionId || appointment.stripeCheckoutSessionId,
         stripePaymentIntentId: params.stripePaymentIntentId || appointment.stripePaymentIntentId,
         updatedAt: new Date(),

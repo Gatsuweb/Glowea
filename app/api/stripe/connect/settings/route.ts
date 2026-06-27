@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 import prisma from "@/lib/prisma";
-import { getTenantId } from "@/lib/tenant";
+import { getCurrentUserRecord } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +24,8 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const tenantId = await getTenantId();
+  const currentUserRecord = await getCurrentUserRecord();
+  const tenantId = currentUserRecord.tenantId;
   const body = await req.json();
   const defaultDepositType = normalizeDepositType(body.defaultDepositType);
   const defaultDepositAmount = normalizeDepositAmount(body.defaultDepositAmount);
@@ -34,7 +35,7 @@ export async function PATCH(req: Request) {
   }
 
   const user = await prisma.user.findFirst({
-    where: { id: userId, clerkUserId: userId, tenantId },
+    where: { id: currentUserRecord.id, tenantId },
     select: { id: true },
   });
 
@@ -43,7 +44,7 @@ export async function PATCH(req: Request) {
   }
 
   const updatedUser = await prisma.user.update({
-    where: { id: userId },
+    where: { id: user.id },
     data: {
       defaultDepositAmount,
       defaultDepositType,

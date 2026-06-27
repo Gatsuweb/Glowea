@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import prisma from "@/lib/prisma";
 import { getTenantId } from "@/lib/tenant";
+import { getPushPreferenceUpdate } from "@/lib/pushSubscriptions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,13 +34,13 @@ export async function POST(req: Request) {
   await prisma.notificationPreference.upsert({
     where: { userId },
     update: {
-      pushEnabled: false,
+      ...getPushPreferenceUpdate(false),
       updatedAt: now,
     },
     create: {
       id: `npr_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
       userId,
-      pushEnabled: false,
+      ...getPushPreferenceUpdate(false),
       updatedAt: now,
     },
   });

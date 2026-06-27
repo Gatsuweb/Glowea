@@ -33,10 +33,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = await request.json();
+    const body = await request.json() as Record<string, unknown>;
     const targetSegment = body.targetSegment;
     const templateId = typeof body.templateId === "string" ? body.templateId : "";
-    const clientIds = Array.isArray(body.clientIds) ? body.clientIds.filter((value): value is string => typeof value === "string") : [];
+    const rawClientIds = Array.isArray(body.clientIds) ? body.clientIds : [];
+    const clientIds = rawClientIds.filter((value: unknown): value is string => typeof value === "string");
     const resolvedTargetSegment = isSegment(targetSegment) ? targetSegment : "ALL";
 
     if ((!isSegment(targetSegment) && clientIds.length === 0) || !templateId) {
@@ -56,6 +57,14 @@ export async function POST(request: Request) {
 
     const requestedChannel = isChannel(body.channel) ? body.channel : null;
     const channel = requestedChannel || (template.channel === "EMAIL" ? "EMAIL" : "SMS");
+
+    if (channel === "SMS" && !subscriptionAccess.canUseSms) {
+      return NextResponse.json(
+        { success: false, error: "Les campagnes SMS sont disponibles avec l'abonnement Pro." },
+        { status: 403 }
+      );
+    }
+
     const [clients, businessName] = await Promise.all([
       clientIds.length > 0 ? getClientsByIds(tenantId, clientIds) : getSegmentClients(tenantId, resolvedTargetSegment),
       getBusinessName(tenantId),

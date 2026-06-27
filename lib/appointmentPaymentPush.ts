@@ -76,7 +76,7 @@ export async function sendAppointmentPaymentPushOnce(params: {
       appointmentId: params.appointmentId,
       paymentType: params.paymentType,
     },
-  });
+  }, { preferenceKey: "paymentReceivedEnabled" });
 
   console.log(notification.sentLog);
   return { sent: true as const, result };

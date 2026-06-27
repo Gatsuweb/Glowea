@@ -4,46 +4,15 @@ import { NextResponse } from "next/server";
 import prisma from "../../../../lib/prisma";
 import { getTenantId } from "../../../../lib/tenant";
 import { getTenantSubscriptionAccess } from "../../../../lib/subscription";
+import {
+  canEnableNotificationSetting,
+  getNotificationCompatibilityUpdate,
+  isNotificationSettingKey,
+  toNotificationPreferences,
+} from "../../../../lib/notificationPreferences";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const SETTING_KEYS = [
-  "pushEnabled",
-  "stockLowEnabled",
-  "loyalClientThanksEnabled",
-  "onlineBookingEnabled",
-  "paymentReceivedEnabled",
-  "publicBookingChangeEnabled",
-  "automaticFollowUpEnabled",
-] as const;
-
-type NotificationSettingKey = (typeof SETTING_KEYS)[number];
-
-const PRO_SETTING_KEYS = new Set<NotificationSettingKey>([
-  "onlineBookingEnabled",
-  "paymentReceivedEnabled",
-  "publicBookingChangeEnabled",
-  "automaticFollowUpEnabled",
-]);
-
-type PreferenceShape = Record<NotificationSettingKey, boolean>;
-
-function isNotificationSettingKey(value: unknown): value is NotificationSettingKey {
-  return typeof value === "string" && (SETTING_KEYS as readonly string[]).includes(value);
-}
-
-function toPreferences(preferences: Partial<PreferenceShape> | null | undefined): PreferenceShape {
-  return {
-    pushEnabled: preferences?.pushEnabled ?? true,
-    stockLowEnabled: preferences?.stockLowEnabled ?? true,
-    loyalClientThanksEnabled: preferences?.loyalClientThanksEnabled ?? true,
-    onlineBookingEnabled: preferences?.onlineBookingEnabled ?? true,
-    paymentReceivedEnabled: preferences?.paymentReceivedEnabled ?? true,
-    publicBookingChangeEnabled: preferences?.publicBookingChangeEnabled ?? true,
-    automaticFollowUpEnabled: preferences?.automaticFollowUpEnabled ?? true,
-  };
-}
 
 async function upsertDefaultPreferences(userId: string) {
   return prisma.notificationPreference.upsert({
@@ -72,7 +41,7 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      notificationPreferences: toPreferences(preferences),
+      notificationPreferences: toNotificationPreferences(preferences),
       subscriptionPlan: subscriptionAccess.currentPlan,
       subscriptionStatus: subscriptionAccess.status,
       canUseProFeatures: subscriptionAccess.canUseProFeatures,
@@ -107,7 +76,7 @@ export async function PATCH(request: Request) {
     const tenantId = await getTenantId();
     const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
 
-    if (enabled && PRO_SETTING_KEYS.has(key) && !subscriptionAccess.canUseProFeatures) {
+    if (!canEnableNotificationSetting(key, enabled, subscriptionAccess.canUseProFeatures)) {
       return NextResponse.json(
         {
           success: false,
@@ -121,12 +90,7 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const compatibilityUpdate =
-      key === "stockLowEnabled"
-        ? { stockAlertEnabled: enabled }
-        : key === "automaticFollowUpEnabled"
-          ? { appointmentReminderEnabled: enabled }
-          : {};
+    const compatibilityUpdate = getNotificationCompatibilityUpdate(key, enabled);
 
     const preferences = await prisma.notificationPreference.upsert({
       where: { userId },
@@ -146,7 +110,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({
       success: true,
-      notificationPreferences: toPreferences(preferences),
+      notificationPreferences: toNotificationPreferences(preferences),
       subscriptionPlan: subscriptionAccess.currentPlan,
       subscriptionStatus: subscriptionAccess.status,
       canUseProFeatures: subscriptionAccess.canUseProFeatures,

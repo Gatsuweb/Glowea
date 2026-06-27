@@ -58,6 +58,9 @@ type SmartInsight = {
 type ClientOption = {
   id: string;
   name: string;
+  riskLevel?: string | null;
+  noShowCount?: number | null;
+  riskReason?: string | null;
 };
 
 type ServiceOption = {
@@ -838,6 +841,7 @@ export default function DashboardClientWrapper({
       <SendPromoModal
         isOpen={isSendPromoModalOpen}
         onClose={() => setSendPromoModalOpen(false)}
+        canUseSmsCampaigns={subscriptionAccess.canUseSms}
       />
 
       {weeklyBriefData && (
