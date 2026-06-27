@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import prisma from "../../../../lib/prisma";
 import { REMINDER_ELIGIBLE_APPOINTMENT_STATUSES } from "../../../../lib/appointmentStatus";
 import { getSubscriptionAccessFromTenant } from "../../../../lib/subscription";
-import { sendSms } from "../../../../lib/twilio";
+import { getSmsProvider, getTwilioDiagnostics, sendSms } from "../../../../lib/twilio";
 
 const REMINDER_TYPE = "SMS_24H_REMINDER";
 const WINDOW_BEFORE_MS = 23.5 * 60 * 60 * 1000;
@@ -46,6 +46,13 @@ function maskPhone(phone: string) {
   const digits = phone.replace(/\D/g, "");
   if (digits.length < 4) return "***";
   return `***${digits.slice(-4)}`;
+}
+
+function logSmsReminder(
+  step: string,
+  payload: Record<string, string | number | boolean | null | undefined>
+) {
+  console.log(`[sms-reminder] ${step}`, payload);
 }
 
 function formatSmsMessage(params: {
@@ -139,13 +146,25 @@ async function claimReminder(params: {
 }
 
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-
   const now = new Date();
   const windowStart = new Date(now.getTime() + WINDOW_BEFORE_MS);
   const windowEnd = new Date(now.getTime() + WINDOW_AFTER_MS);
+
+  logSmsReminder("cron_started", {
+    now: now.toISOString(),
+    windowStart: windowStart.toISOString(),
+    windowEnd: windowEnd.toISOString(),
+    provider: getSmsProvider(),
+  });
+
+  if (!isAuthorized(request)) {
+    logSmsReminder("cron_unauthorized", {
+      hasCronSecret: Boolean(process.env.CRON_SECRET),
+      hasAuthorizationHeader: Boolean(request.headers.get("authorization")),
+    });
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+
   const summary = {
     checked: 0,
     sent: 0,
@@ -160,6 +179,15 @@ export async function GET(request: Request) {
   };
 
   try {
+    const twilioDiagnostics = getTwilioDiagnostics();
+    logSmsReminder("twilio_credentials_present", {
+      provider: twilioDiagnostics.resolvedProvider,
+      smsProviderEnvSet: Boolean(twilioDiagnostics.smsProvider),
+      hasAccountSid: twilioDiagnostics.hasAccountSid,
+      hasAuthToken: twilioDiagnostics.hasAuthToken,
+      hasFromNumber: twilioDiagnostics.hasFromNumber,
+    });
+
     const appointments = await prisma.appointment.findMany({
       where: {
         scheduledAt: { gte: windowStart, lte: windowEnd },
@@ -197,6 +225,9 @@ export async function GET(request: Request) {
     });
 
     summary.checked = appointments.length;
+    logSmsReminder("appointments_found", {
+      count: appointments.length,
+    });
 
     for (const appointment of appointments) {
       const tenant = appointment.Tenant;
@@ -205,6 +236,7 @@ export async function GET(request: Request) {
       const alreadySent = appointment.AppointmentReminderLog.some(
         (log) => log.status === "SENT"
       );
+      const subscriptionAccess = tenant ? getSubscriptionAccessFromTenant(tenant) : null;
       const baseDebug = {
         appointmentId: appointment.id,
         tenantPlan: tenant?.subscriptionPlan || null,
@@ -214,38 +246,94 @@ export async function GET(request: Request) {
         alreadySent,
       };
 
+      logSmsReminder("appointment_found", {
+        appointmentId: appointment.id,
+        tenantId: appointment.tenantId,
+        clientId: appointment.clientId,
+        scheduledAt: appointment.scheduledAt.toISOString(),
+        status: appointment.status,
+        alreadySent,
+      });
+
       if (!tenant) {
         summary.skipped += 1;
+        logSmsReminder("skip_missing_tenant", {
+          appointmentId: appointment.id,
+          tenantId: appointment.tenantId,
+        });
         addDebug({ ...baseDebug, reason: "MISSING_TENANT" });
         continue;
       }
 
       if (!appointment.Client) {
         summary.skipped += 1;
+        logSmsReminder("skip_missing_client", {
+          appointmentId: appointment.id,
+          clientId: appointment.clientId,
+          tenantId: appointment.tenantId,
+        });
         addDebug({ ...baseDebug, reason: "MISSING_CLIENT" });
         continue;
       }
 
+      logSmsReminder("client_found", {
+        appointmentId: appointment.id,
+        clientId: appointment.Client.id,
+        tenantId: appointment.tenantId,
+      });
+      logSmsReminder("client_phone", {
+        appointmentId: appointment.id,
+        clientId: appointment.Client.id,
+        hasPhone: Boolean(phone),
+        phonePreview: phone ? maskPhone(phone) : null,
+      });
+      logSmsReminder("sms_enabled", {
+        appointmentId: appointment.id,
+        tenantId: appointment.tenantId,
+        smsRemindersEnabled: Boolean(settings?.smsRemindersEnabled),
+        tenantPlan: tenant.subscriptionPlan,
+        tenantStatus: tenant.subscriptionStatus,
+        canUseSms: Boolean(subscriptionAccess?.canUseSms),
+      });
+
       if (!settings?.smsRemindersEnabled) {
         summary.skipped += 1;
+        logSmsReminder("skip_sms_disabled", {
+          appointmentId: appointment.id,
+          tenantId: appointment.tenantId,
+        });
         addDebug({ ...baseDebug, reason: "SMS_REMINDERS_DISABLED" });
         continue;
       }
 
-      if (!getSubscriptionAccessFromTenant(tenant).canUseSms) {
+      if (!subscriptionAccess?.canUseSms) {
         summary.skipped += 1;
+        logSmsReminder("skip_plan_not_allowed", {
+          appointmentId: appointment.id,
+          tenantId: appointment.tenantId,
+          tenantPlan: tenant.subscriptionPlan,
+          tenantStatus: tenant.subscriptionStatus,
+        });
         addDebug({ ...baseDebug, reason: "PLAN_NOT_ALLOWED" });
         continue;
       }
 
       if (!phone) {
         summary.skipped += 1;
+        logSmsReminder("skip_missing_client_phone", {
+          appointmentId: appointment.id,
+          clientId: appointment.Client.id,
+        });
         addDebug({ ...baseDebug, reason: "MISSING_CLIENT_PHONE" });
         continue;
       }
 
       if (alreadySent) {
         summary.skipped += 1;
+        logSmsReminder("skip_already_sent", {
+          appointmentId: appointment.id,
+          tenantId: appointment.tenantId,
+        });
         addDebug({ ...baseDebug, reason: "ALREADY_SENT" });
         continue;
       }
@@ -258,11 +346,23 @@ export async function GET(request: Request) {
 
       if (!claimed) {
         summary.skipped += 1;
+        logSmsReminder("skip_claim_failed_or_already_claimed", {
+          appointmentId: appointment.id,
+          tenantId: appointment.tenantId,
+        });
         addDebug({ ...baseDebug, reason: "ALREADY_SENT" });
         continue;
       }
 
       try {
+        logSmsReminder("sending_sms", {
+          appointmentId: appointment.id,
+          tenantId: appointment.tenantId,
+          clientId: appointment.Client.id,
+          phonePreview: maskPhone(phone),
+          provider: getSmsProvider(),
+        });
+
         const sms = await sendSms({
           to: phone,
           body: formatSmsMessage({
@@ -270,6 +370,13 @@ export async function GET(request: Request) {
             scheduledAt: appointment.scheduledAt,
             serviceName: appointment.Service?.name,
           }),
+        });
+
+        logSmsReminder("twilio_success", {
+          appointmentId: appointment.id,
+          tenantId: appointment.tenantId,
+          sid: sms.sid,
+          provider: sms.provider,
         });
 
         await prisma.appointmentReminderLog.update({
@@ -284,6 +391,15 @@ export async function GET(request: Request) {
 
         summary.sent += 1;
       } catch (error) {
+        const smsError = error as { code?: string; userMessage?: string; message?: string };
+        logSmsReminder("twilio_error", {
+          appointmentId: appointment.id,
+          tenantId: appointment.tenantId,
+          code: smsError.code,
+          userMessage: smsError.userMessage,
+          message: smsError.message,
+        });
+
         await prisma.appointmentReminderLog.update({
           where: { id: claimed.id },
           data: {
