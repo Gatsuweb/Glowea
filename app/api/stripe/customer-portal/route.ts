@@ -13,6 +13,8 @@ type PortalRequestBody = {
   flow?: string;
 };
 
+type SupportedPortalFlow = "payment_method_update" | "subscription_update";
+
 async function readPortalRequestBody(request: Request): Promise<PortalRequestBody> {
   const text = await request.text();
   if (!text) return {};
@@ -37,6 +39,7 @@ export async function POST(request: Request) {
     where: { id: tenantId },
     select: {
       stripeCustomerId: true,
+      stripeSubscriptionId: true,
     },
   });
 
@@ -50,9 +53,45 @@ export async function POST(request: Request) {
   try {
     const body = await readPortalRequestBody(request);
     const returnTab = body.returnTab === "paiements" ? "paiements" : "abonnements";
-    const flowData = body.flow === "payment_method_update"
-      ? { type: "payment_method_update" as const }
-      : undefined;
+    const flow = body.flow === "payment_method_update" || body.flow === "subscription_update"
+      ? body.flow as SupportedPortalFlow
+      : null;
+    let subscriptionId = tenant.stripeSubscriptionId;
+
+    if (flow === "subscription_update" && !subscriptionId) {
+      const subscriptions = await prisma.subscription.findMany({
+        where: {
+          tenantId,
+          providerCustomerId: tenant.stripeCustomerId,
+          providerSubscriptionId: { not: null },
+          status: { in: ["ACTIVE", "TRIALING", "PAST_DUE", "INCOMPLETE", "PAUSED"] },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 1,
+        select: { providerSubscriptionId: true },
+      });
+
+      subscriptionId = subscriptions[0]?.providerSubscriptionId || null;
+    }
+
+    if (flow === "subscription_update" && !subscriptionId) {
+      return NextResponse.json(
+        { success: false, error: "Aucun abonnement Stripe actif a modifier." },
+        { status: 404 }
+      );
+    }
+
+    const flowData =
+      flow === "payment_method_update"
+        ? { type: "payment_method_update" as const }
+        : flow === "subscription_update"
+          ? {
+              type: "subscription_update" as const,
+              subscription_update: {
+                subscription: subscriptionId!,
+              },
+            }
+          : undefined;
     const session = await createCustomerPortalSession({
       customerId: tenant.stripeCustomerId,
       returnUrl: `${getAppUrl(request.url)}/dashboard/profil?tab=${returnTab}&stripe_portal=return`,

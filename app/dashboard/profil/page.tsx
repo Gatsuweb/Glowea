@@ -271,6 +271,7 @@ export default function ProfilPage() {
   const [savingNotificationKey, setSavingNotificationKey] = useState<NotificationSettingKey | null>(null);
   const [isSavingPush, setIsSavingPush] = useState(false);
   const [isOpeningCustomerPortal, setIsOpeningCustomerPortal] = useState(false);
+  const [isOpeningPlanChangePortal, setIsOpeningPlanChangePortal] = useState(false);
   const [isOpeningBillingPortal, setIsOpeningBillingPortal] = useState(false);
   const [isOpeningPaymentMethodPortal, setIsOpeningPaymentMethodPortal] = useState(false);
   const [isReactivatingSubscription, setIsReactivatingSubscription] = useState(false);
@@ -683,6 +684,9 @@ export default function ProfilPage() {
   const canManageSubscription =
     profileData.subscription.provider === "STRIPE" &&
     Boolean(profileData.subscription.stripeCustomerId);
+  const canChangeSubscription =
+    Boolean(profileData.subscription.stripeCustomerId) &&
+    Boolean(profileData.subscription.stripeSubscriptionId);
   const canManageBilling = Boolean(profileData.subscription.stripeCustomerId);
   const canReactivateSubscription = canManageSubscription && profileData.subscription.cancelAtPeriodEnd;
   const badgeClassName =
@@ -730,6 +734,37 @@ export default function ProfilPage() {
       setError("Une erreur inattendue est survenue");
     } finally {
       setIsOpeningCustomerPortal(false);
+    }
+  };
+
+  const handleOpenPlanChangePortal = async () => {
+    if (!canChangeSubscription || isOpeningPlanChangePortal) return;
+
+    setIsOpeningPlanChangePortal(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch("/api/stripe/customer-portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          returnTab: "abonnements",
+          flow: "subscription_update",
+        }),
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || !data?.success || !data.url) {
+        setError(data?.error || "Impossible d'ouvrir le changement de forfait Stripe.");
+        return;
+      }
+
+      window.location.href = data.url;
+    } catch {
+      setError("Une erreur inattendue est survenue");
+    } finally {
+      setIsOpeningPlanChangePortal(false);
     }
   };
 
@@ -1157,14 +1192,25 @@ export default function ProfilPage() {
                   )}
 
                   <div className={styles.planActions}>
-                    <a className={styles.btnEdit} href="/pricing">Changer de forfait</a>
+                    {canChangeSubscription ? (
+                      <button
+                        type="button"
+                        className={styles.btnEdit}
+                        onClick={handleOpenPlanChangePortal}
+                        disabled={isOpeningPlanChangePortal}
+                      >
+                        {isOpeningPlanChangePortal ? "Ouverture..." : "Changer de forfait"}
+                      </button>
+                    ) : (
+                      <a className={styles.btnEdit} href="/pricing">Changer de forfait</a>
+                    )}
                     <button
                       type="button"
                       className={styles.btnSave}
                       onClick={handleOpenCustomerPortal}
                       disabled={!canManageSubscription || isOpeningCustomerPortal}
                     >
-                      {isOpeningCustomerPortal ? "Ouverture..." : "Gerer mon abonnement"}
+                      {isOpeningCustomerPortal ? "Ouverture..." : "Gérer mon abonnement"}
                     </button>
                     {profileData.subscription.cancelAtPeriodEnd && (
                       <button

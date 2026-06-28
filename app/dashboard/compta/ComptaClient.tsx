@@ -331,9 +331,9 @@ export default function ComptaClient({
   const relanceBannerText =
     relanceCandidates.length > 0
       ? relanceCandidates.length === 1
-        ? `1 cliente n'a pas repris RDV depuis plus de 6 semaines. Une relance personnalis?e pourrait r?cup?rer ~${Math.round(relancePotentialRevenue)}EUR de CA.`
-        : `${relanceCandidates.length} clientes n'ont pas repris RDV depuis plus de 6 semaines. Une relance personnalis?e pourrait r?cup?rer ~${Math.round(relancePotentialRevenue)}EUR de CA.`
-      : "Aucune cliente ? relancer pour le moment.";
+        ? `1 cliente n'a pas repris RDV depuis plus de 6 semaines. Une relance personnalisée pourrait récupérer ~${Math.round(relancePotentialRevenue)}EUR de CA.`
+        : `${relanceCandidates.length} clientes n'ont pas repris RDV depuis plus de 6 semaines. Une relance personnalisée pourrait récupérer ~${Math.round(relancePotentialRevenue)}EUR de CA.`
+      : "Aucune cliente à relancer pour le moment.";
 
   return (
     <main className={styles.layout}>

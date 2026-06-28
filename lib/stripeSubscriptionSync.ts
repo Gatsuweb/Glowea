@@ -16,7 +16,9 @@ function getPlanFromPriceId(priceId?: string | null, metadataPlan?: string | nul
   const prices: Record<string, SubscriptionPlan> = {};
   if (process.env.STRIPE_PRICE_ESSENTIAL) prices[process.env.STRIPE_PRICE_ESSENTIAL] = "ESSENTIAL";
   if (process.env.STRIPE_PRICE_STARTER) prices[process.env.STRIPE_PRICE_STARTER] = "ESSENTIAL";
+  if (process.env.STRIPE_PRICE_ESSENTIAL_YEARLY) prices[process.env.STRIPE_PRICE_ESSENTIAL_YEARLY] = "ESSENTIAL";
   if (process.env.STRIPE_PRICE_PRO) prices[process.env.STRIPE_PRICE_PRO] = "PRO";
+  if (process.env.STRIPE_PRICE_PRO_YEARLY) prices[process.env.STRIPE_PRICE_PRO_YEARLY] = "PRO";
 
   return prices[priceId] ?? getPlanFromMetadata(metadataPlan) ?? "FREE";
 }
