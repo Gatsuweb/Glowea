@@ -36,13 +36,13 @@ const plans: Array<{
   {
     key: "pro",
     name: "Pro",
-    description: "Pour garder l'acces complet et automatiser la croissance de votre activite.",
+    description: "Pour garder l'accès complet et automatiser la croissance de votre activite.",
     features: [
       "Tout Essentiel",
       "SMS automatiques",
       "Emails automatiques",
       "Fidelisation clientes",
-      "Mini-site et reservation en ligne a venir",
+      "Mini-site et réservation en ligne a venir",
     ],
     featured: true,
   },
@@ -93,14 +93,14 @@ function PricingCheckoutContent() {
         <span>Abonnement Glowea</span>
         <h1>Choisissez une formule pour continuer.</h1>
         <p>
-          Votre essai Pro donne acces a toutes les fonctionnalites pendant 14 jours.
+          Votre essai Pro donne accès à toutes les fonctionnalités pendant 14 jours.
           Le paiement active ensuite l&apos;abonnement via Stripe.
         </p>
       </section>
 
       {canceled && (
         <div className={styles.notice} role="status">
-          Paiement annule. Vous pouvez choisir une formule quand vous etes prete.
+          Paiement annulé. Vous pouvez choisir une formule quand vous êtes pretes.
         </div>
       )}
 
@@ -113,10 +113,10 @@ function PricingCheckoutContent() {
       {privateOffer === "founder" ? (
         <section className={styles.privateOffer}>
           <article className={`${styles.card} ${styles.featured}`}>
-            <div className={styles.badge}>Offre beta fondatrice</div>
+            <div className={styles.badge}>Offre bêta fondatrice</div>
             <div className={styles.cardHeader}>
               <h2>Glowea Pro fondatrice</h2>
-              <p>Acces Pro complet au tarif beta reserve aux testeuses invitees.</p>
+              <p>Accès Pro complet au tarif bêta reservé aux testeuses invitées.</p>
             </div>
             <div className={styles.price}>
               <strong>39,90 EUR</strong>
@@ -124,10 +124,10 @@ function PricingCheckoutContent() {
               <small className={styles.priceNote}>facture mensuellement</small>
             </div>
             <ul>
-              <li>Toutes les fonctionnalites Pro</li>
-              <li>Page publique et reservation en ligne</li>
+              <li>Toutes les fonctionnalités Pro</li>
+              <li>Page publique et réservation en ligne</li>
               <li>SMS, emails et campagnes</li>
-              <li>Tarif reserve aux testeuses beta invitees</li>
+              <li>Tarif bêta reservé aux testeuses invitées</li>
             </ul>
             <button
               type="button"
@@ -152,7 +152,7 @@ function PricingCheckoutContent() {
           <section className={styles.grid}>
             {plans.map((plan) => (
               <article key={plan.key} className={`${styles.card} ${plan.featured ? styles.featured : ""}`}>
-                {plan.featured && <div className={styles.badge}>Acces complet</div>}
+                {plan.featured && <div className={styles.badge}>Accès complet</div>}
                 <div className={styles.cardHeader}>
                   <h2>{plan.name}</h2>
                   <p>{plan.description}</p>
