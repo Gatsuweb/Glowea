@@ -12,6 +12,7 @@ import {
 import styles from "./pricing.module.css";
 
 type PlanKey = "essential" | "pro";
+type PrivateOffer = "founder";
 
 const plans: Array<{
   key: PlanKey;
@@ -58,11 +59,12 @@ export default function PricingCheckoutClient() {
 function PricingCheckoutContent() {
   const searchParams = useSearchParams();
   const canceled = searchParams.get("canceled") === "true";
+  const privateOffer: PrivateOffer | null = searchParams.get("offer") === "founder" ? "founder" : null;
   const { billing } = usePricingBilling();
   const [loadingPlan, setLoadingPlan] = useState<PlanKey | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function startCheckout(plan: PlanKey, selectedBilling: BillingCycle) {
+  async function startCheckout(plan: PlanKey, selectedBilling: BillingCycle, offer?: PrivateOffer) {
     setLoadingPlan(plan);
     setError(null);
 
@@ -70,7 +72,7 @@ function PricingCheckoutContent() {
       const response = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, billing: selectedBilling }),
+        body: JSON.stringify({ plan, billing: selectedBilling, offer }),
       });
 
       const payload = await response.json();
@@ -108,44 +110,77 @@ function PricingCheckoutContent() {
         </div>
       )}
 
-      <PricingBillingToggle
-        className={styles.billingToggle}
-        optionClassName={styles.billingOption}
-        activeClassName={styles.billingOptionActive}
-        recommendedClassName={styles.billingOptionRecommended}
-        badgeClassName={styles.billingBadge}
-      />
-
-      <section className={styles.grid}>
-        {plans.map((plan) => (
-          <article key={plan.key} className={`${styles.card} ${plan.featured ? styles.featured : ""}`}>
-            {plan.featured && <div className={styles.badge}>Acces complet</div>}
+      {privateOffer === "founder" ? (
+        <section className={styles.privateOffer}>
+          <article className={`${styles.card} ${styles.featured}`}>
+            <div className={styles.badge}>Offre beta fondatrice</div>
             <div className={styles.cardHeader}>
-              <h2>{plan.name}</h2>
-              <p>{plan.description}</p>
+              <h2>Glowea Pro fondatrice</h2>
+              <p>Acces Pro complet au tarif beta reserve aux testeuses invitees.</p>
             </div>
-            <PlanPriceDisplay
-              plan={plan.key}
-              priceClassName={styles.price}
-              noteClassName={styles.priceNote}
-              savingClassName={styles.savingBadge}
-            />
+            <div className={styles.price}>
+              <strong>39,90 EUR</strong>
+              <span>/ mois</span>
+              <small className={styles.priceNote}>facture mensuellement</small>
+            </div>
             <ul>
-              {plan.features.map((feature) => (
-                <li key={feature}>{feature}</li>
-              ))}
+              <li>Toutes les fonctionnalites Pro</li>
+              <li>Page publique et reservation en ligne</li>
+              <li>SMS, emails et campagnes</li>
+              <li>Tarif reserve aux testeuses beta invitees</li>
             </ul>
             <button
               type="button"
-              className={plan.featured ? styles.primaryButton : styles.secondaryButton}
-              onClick={() => startCheckout(plan.key, billing)}
+              className={styles.primaryButton}
+              onClick={() => startCheckout("pro", "monthly", "founder")}
               disabled={loadingPlan !== null}
             >
-              {loadingPlan === plan.key ? "Redirection..." : `Choisir ${plan.name}`}
+              {loadingPlan === "pro" ? "Redirection..." : "Activer l'offre fondatrice"}
             </button>
           </article>
-        ))}
-      </section>
+        </section>
+      ) : (
+        <>
+          <PricingBillingToggle
+            className={styles.billingToggle}
+            optionClassName={styles.billingOption}
+            activeClassName={styles.billingOptionActive}
+            recommendedClassName={styles.billingOptionRecommended}
+            badgeClassName={styles.billingBadge}
+          />
+
+          <section className={styles.grid}>
+            {plans.map((plan) => (
+              <article key={plan.key} className={`${styles.card} ${plan.featured ? styles.featured : ""}`}>
+                {plan.featured && <div className={styles.badge}>Acces complet</div>}
+                <div className={styles.cardHeader}>
+                  <h2>{plan.name}</h2>
+                  <p>{plan.description}</p>
+                </div>
+                <PlanPriceDisplay
+                  plan={plan.key}
+                  priceClassName={styles.price}
+                  noteClassName={styles.priceNote}
+                  savingClassName={styles.savingBadge}
+                />
+                <ul>
+                  {plan.features.map((feature) => (
+                    <li key={feature}>{feature}</li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  className={plan.featured ? styles.primaryButton : styles.secondaryButton}
+                  onClick={() => startCheckout(plan.key, billing)}
+                  disabled={loadingPlan !== null}
+                >
+                  {loadingPlan === plan.key ? "Redirection..." : `Choisir ${plan.name}`}
+                </button>
+              </article>
+            ))}
+          </section>
+        </>
+      )}
     </main>
   );
 }

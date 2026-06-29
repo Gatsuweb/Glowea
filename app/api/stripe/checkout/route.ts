@@ -29,6 +29,7 @@ const priceMap = {
 
 type CheckoutPlan = keyof typeof priceMap;
 type CheckoutBilling = "monthly" | "yearly";
+type CheckoutOffer = "founder";
 
 function isCheckoutPlan(value: unknown): value is CheckoutPlan {
   return value === "essential" || value === "pro";
@@ -36,6 +37,10 @@ function isCheckoutPlan(value: unknown): value is CheckoutPlan {
 
 function isCheckoutBilling(value: unknown): value is CheckoutBilling {
   return value === "monthly" || value === "yearly";
+}
+
+function isCheckoutOffer(value: unknown): value is CheckoutOffer {
+  return value === "founder";
 }
 
 async function createStripeCustomer(params: {
@@ -72,7 +77,7 @@ export async function POST(req: Request) {
   const tenantId = currentUserRecord.tenantId;
   const appUrl = getAppUrl(req.url);
 
-  const { plan, billing } = await req.json();
+  const { plan, billing, offer } = await req.json();
 
   if (!isCheckoutPlan(plan)) {
     return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
@@ -82,9 +87,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid billing" }, { status: 400 });
   }
 
-  const priceId = priceMap[plan][billing];
+  const checkoutOffer = isCheckoutOffer(offer) ? offer : null;
+  const resolvedBilling: CheckoutBilling = checkoutOffer === "founder" ? "monthly" : billing;
+  const priceId =
+    checkoutOffer === "founder" && plan === "pro"
+      ? process.env.STRIPE_PRICE_PRO_BETA_MONTHLY
+      : priceMap[plan][resolvedBilling];
+
+  if (checkoutOffer === "founder" && plan !== "pro") {
+    return NextResponse.json({ error: "Invalid private offer" }, { status: 400 });
+  }
+
   if (!priceId) {
-    return NextResponse.json({ error: `Missing Stripe ${billing} price configuration` }, { status: 500 });
+    const priceName = checkoutOffer === "founder" ? "STRIPE_PRICE_PRO_BETA_MONTHLY" : `Stripe ${resolvedBilling} price`;
+    return NextResponse.json({ error: `Missing ${priceName} configuration` }, { status: 500 });
   }
 
   const tenant = await prisma.tenant.findUnique({
@@ -139,6 +155,14 @@ export async function POST(req: Request) {
     });
   }
 
+  const metadata = {
+    userId,
+    tenantId,
+    plan,
+    billing: resolvedBilling,
+    ...(checkoutOffer ? { offer: checkoutOffer } : {}),
+  };
+
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
@@ -148,22 +172,12 @@ export async function POST(req: Request) {
         quantity: 1,
       },
     ],
-    metadata: {
-      userId,
-      tenantId,
-      plan,
-      billing,
-    },
+    metadata,
     subscription_data: {
-      metadata: {
-        userId,
-        tenantId,
-        plan,
-        billing,
-      },
+      metadata,
     },
     success_url: `${appUrl}/dashboard?success=true&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${appUrl}/pricing?canceled=true`,
+    cancel_url: `${appUrl}/pricing?${checkoutOffer === "founder" ? "offer=founder&" : ""}canceled=true`,
   });
 
   return NextResponse.json({ url: checkoutSession.url });

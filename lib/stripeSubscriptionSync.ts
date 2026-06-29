@@ -19,6 +19,7 @@ function getPlanFromPriceId(priceId?: string | null, metadataPlan?: string | nul
   if (process.env.STRIPE_PRICE_ESSENTIAL_YEARLY) prices[process.env.STRIPE_PRICE_ESSENTIAL_YEARLY] = "ESSENTIAL";
   if (process.env.STRIPE_PRICE_PRO) prices[process.env.STRIPE_PRICE_PRO] = "PRO";
   if (process.env.STRIPE_PRICE_PRO_YEARLY) prices[process.env.STRIPE_PRICE_PRO_YEARLY] = "PRO";
+  if (process.env.STRIPE_PRICE_PRO_BETA_MONTHLY) prices[process.env.STRIPE_PRICE_PRO_BETA_MONTHLY] = "PRO";
 
   return prices[priceId] ?? getPlanFromMetadata(metadataPlan) ?? "FREE";
 }

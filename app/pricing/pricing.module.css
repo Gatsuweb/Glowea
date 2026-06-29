@@ -66,6 +66,12 @@
   margin: 0 auto;
 }
 
+.privateOffer {
+  display: grid;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
 .billingToggle {
   display: flex;
   align-items: center;
