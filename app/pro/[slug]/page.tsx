@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import type { CSSProperties } from "react";
 import { absoluteUrl } from "../../../lib/seo";
 import prisma from "../../../lib/prisma";
 import { syncAppointmentPaymentFromCheckoutSessionId } from "../../../lib/stripeAppointmentSync";
@@ -107,6 +106,10 @@ async function getPublicProfile(slug: string) {
 
 type PublicProfileForSeo = NonNullable<Awaited<ReturnType<typeof getPublicProfile>>>;
 
+function getBusinessName(profile: PublicProfileForSeo) {
+  return profile.businessName || profile.Tenant.name;
+}
+
 function isPublicProfileIndexable(profile: PublicProfileForSeo | null): profile is PublicProfileForSeo {
   return Boolean(
     profile &&
@@ -116,14 +119,19 @@ function isPublicProfileIndexable(profile: PublicProfileForSeo | null): profile 
 }
 
 function getPublicProfileTitle(profile: PublicProfileForSeo) {
-  const businessName = profile.businessName || profile.Tenant.name;
+  const businessName = getBusinessName(profile);
   return profile.city
     ? `${businessName} - Reservation beaute a ${profile.city}`
     : `${businessName} - Reservation beaute`;
 }
 
+function getPublicProfileSocialTitle(profile: PublicProfileForSeo) {
+  const businessName = getBusinessName(profile);
+  return profile.city ? `${businessName} - ${profile.city}` : businessName;
+}
+
 function getPublicProfileDescription(profile: PublicProfileForSeo) {
-  const businessName = profile.businessName || profile.Tenant.name;
+  const businessName = getBusinessName(profile);
   const serviceNames = profile.Tenant.Service.slice(0, 3).map((service) => service.name).filter(Boolean);
   const servicesText = serviceNames.length ? ` Prestations: ${serviceNames.join(", ")}.` : "";
   const cityText = profile.city ? ` a ${profile.city}` : "";
@@ -132,6 +140,94 @@ function getPublicProfileDescription(profile: PublicProfileForSeo) {
     `${businessName} vous accueille${cityText} pour des prestations beaute avec reservation en ligne.`;
 
   return `${description}${servicesText}`.replace(/\s+/g, " ").trim().slice(0, 160);
+}
+
+function getPublicProfileImage(profile: PublicProfileForSeo) {
+  return absoluteUrl(profile.coverImageUrl || profile.avatarUrl || "/landing/fond.png");
+}
+
+function getPublicProfileImageAlt(profile: PublicProfileForSeo) {
+  return profile.city
+    ? `${getBusinessName(profile)} a ${profile.city}`
+    : getBusinessName(profile);
+}
+
+function getProfilePageDescription(profile: PublicProfileForSeo) {
+  return profile.description || "Des prestations beaute soignees, avec reservation simple et suivi personnalise.";
+}
+
+function getProfileAddress(profile: PublicProfileForSeo) {
+  if (!profile.address && !profile.city) return undefined;
+
+  return {
+    "@type": "PostalAddress",
+    ...(profile.address ? { streetAddress: profile.address } : {}),
+    ...(profile.city ? { addressLocality: profile.city } : {}),
+  };
+}
+
+function getProfileJsonLd(profile: PublicProfileForSeo) {
+  const url = absoluteUrl(`/pro/${profile.slug}`);
+  const reviews = profile.Tenant.Review;
+  const averageRating = reviews.length
+    ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+    : 0;
+  const services = profile.Tenant.Service.map((service) => ({
+    "@type": "Offer",
+    itemOffered: {
+      "@type": "Service",
+      name: service.name,
+      ...(service.description ? { description: service.description } : {}),
+      ...(service.imageUrl ? { image: absoluteUrl(service.imageUrl) } : {}),
+    },
+  }));
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "BeautySalon",
+    name: getBusinessName(profile),
+    description: getProfilePageDescription(profile),
+    url,
+    image: getPublicProfileImage(profile),
+    ...(getProfileAddress(profile) ? { address: getProfileAddress(profile) } : {}),
+    ...(profile.phone ? { telephone: profile.phone } : {}),
+    ...(profile.email ? { email: profile.email } : {}),
+    ...(profile.openingHours ? { openingHours: profile.openingHours } : {}),
+    ...(services.length
+      ? {
+          hasOfferCatalog: {
+            "@type": "OfferCatalog",
+            name: "Prestations",
+            itemListElement: services,
+          },
+        }
+      : {}),
+    ...(reviews.length
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: Number(averageRating.toFixed(1)),
+            reviewCount: reviews.length,
+            bestRating: 5,
+            worstRating: 1,
+          },
+          review: reviews.map((review) => ({
+            "@type": "Review",
+            author: {
+              "@type": "Person",
+              name: review.authorName,
+            },
+            reviewBody: review.comment,
+            reviewRating: {
+              "@type": "Rating",
+              ratingValue: review.rating,
+              bestRating: 5,
+              worstRating: 1,
+            },
+          })),
+        }
+      : {}),
+  };
 }
 
 export async function generateMetadata({
@@ -152,15 +248,42 @@ export async function generateMetadata({
     };
   }
 
+  const title = getPublicProfileTitle(profile);
+  const socialTitle = getPublicProfileSocialTitle(profile);
+  const description = getPublicProfileDescription(profile);
+  const url = absoluteUrl(`/pro/${profile.slug}`);
+  const image = getPublicProfileImage(profile);
+  const imageAlt = getPublicProfileImageAlt(profile);
+
   return {
-    title: getPublicProfileTitle(profile),
-    description: getPublicProfileDescription(profile),
+    title,
+    description,
     alternates: {
-      canonical: absoluteUrl(`/pro/${profile.slug}`),
+      canonical: url,
     },
     robots: {
       index: true,
       follow: true,
+    },
+    openGraph: {
+      title: socialTitle,
+      description,
+      url,
+      siteName: "Glowea",
+      type: "website",
+      locale: "fr_FR",
+      images: [
+        {
+          url: image,
+          alt: imageAlt,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: socialTitle,
+      description,
+      images: [image],
     },
   };
 }
@@ -201,8 +324,12 @@ export default async function PublicProPage({
     imageUrl: service.imageUrl || "",
   }));
 
+  const title = getBusinessName(profile);
   const gallery = profile.Tenant.GalleryImage.length > 0 ? profile.Tenant.GalleryImage : fallbackGallery;
-  const galleryImages = gallery.map((image) => ({ imageUrl: image.imageUrl, alt: image.alt || "Galerie beaute" }));
+  const galleryImages = gallery.map((image) => ({
+    imageUrl: image.imageUrl,
+    alt: image.alt || `Galerie beaute de ${title}`,
+  }));
   const bookingServices = services.map((service) => ({
     id: service.id,
     name: service.name,
@@ -210,24 +337,36 @@ export default async function PublicProPage({
     price: service.price,
   }));
   const instagramUrl = normalizeInstagram(profile.instagramUrl);
-  const title = profile.businessName || profile.Tenant.name;
   const reviews = profile.Tenant.Review;
   const averageRating = reviews.length
     ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
     : 0;
+  const profileJsonLd = getProfileJsonLd(profile);
 
   return (
     <main className={styles.page}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(profileJsonLd) }}
+      />
       <div className={styles.shell}>
         <aside className={styles.sidebar}>
           <div className={styles.profileCard}>
             <div className={styles.coverWrap}>
               {/* eslint-disable-next-line @next/next/no-img-element -- Public profile URLs are user-configured and not constrained to Next image domains. */}
-              <img src={profile.coverImageUrl || "/landing/fond.png"} alt="" className={styles.coverImage} />
+              <img
+                src={profile.coverImageUrl || "/landing/fond.png"}
+                alt={`Photo de couverture de ${title}`}
+                className={styles.coverImage}
+              />
             </div>
             <div className={styles.identityRow}>
               {/* eslint-disable-next-line @next/next/no-img-element -- Public avatar URLs are user-configured and not constrained to Next image domains. */}
-              <img src={profile.avatarUrl || "/logo-mini.png"} alt="" className={styles.avatar} />
+              <img
+                src={profile.avatarUrl || "/logo-mini.png"}
+                alt={`Logo ou portrait de ${title}`}
+                className={styles.avatar}
+              />
               <div>
                 <span className={styles.kicker}>Studio beaute</span>
                 <h1>{title}</h1>
@@ -287,13 +426,14 @@ export default async function PublicProPage({
                   initialServiceId={service.id}
                   triggerClassName={styles.serviceCardButton}
                   triggerLabel={`Reserver ${service.name}`}
-                  triggerStyle={
-                    {
-                      "--service-card-image": `url("${getServiceCardImage(service)}")`,
-                    } as CSSProperties
-                  }
                   triggerContent={(
                     <>
+                      {/* eslint-disable-next-line @next/next/no-img-element -- Public service URLs are user-configured and not constrained to Next image domains. */}
+                      <img
+                        src={getServiceCardImage(service)}
+                        alt={`Prestation ${service.name} chez ${title}`}
+                        className={styles.serviceCardImage}
+                      />
                       <div className={styles.serviceCardTop}>
                         <span className={styles.serviceCategory}>{service.category}</span>
                         <div className={styles.serviceCardCopy}>

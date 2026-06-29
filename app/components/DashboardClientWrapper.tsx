@@ -845,6 +845,7 @@ export default function DashboardClientWrapper({
         isOpen={isSendPromoModalOpen}
         onClose={() => setSendPromoModalOpen(false)}
         canUseSmsCampaigns={subscriptionAccess.canUseSms}
+        availableClients={clients}
       />
 
       {weeklyBriefData && (

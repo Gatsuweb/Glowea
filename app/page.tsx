@@ -13,18 +13,49 @@ import {
 } from "./components/PricingBilling";
 import ProblemOrbitSection from "./components/ProblemOrbitSection";
 import SolutionConvergenceSection from "./components/SolutionConvergenceSection";
+import { absoluteUrl } from "../lib/seo";
 import styles from "./page.module.css";
+
+const homeTitle = "Glowea - Plateforme de reservation beaute";
+const homeDescription =
+  "Centralisez rendez-vous, clientes, rappels, paiements, stock et sessions techniques dans une plateforme pensee pour les professionnelles de la beaute.";
 
 export const metadata: Metadata = {
   title: {
-    absolute: "Glowea - Plateforme de reservation beaute",
+    absolute: homeTitle,
   },
-  description:
-    "Centralisez rendez-vous, clientes, rappels, paiements, stock et sessions techniques dans une plateforme pensee pour les professionnelles de la beaute.",
+  description: homeDescription,
   alternates: {
     canonical: "/",
   },
 };
+
+const homeJsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Glowea",
+    url: absoluteUrl("/"),
+    logo: absoluteUrl("/logo-glowea-fonce.png"),
+    description: homeDescription,
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Glowea",
+    url: absoluteUrl("/"),
+    description: homeDescription,
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "Glowea",
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
+    url: absoluteUrl("/"),
+    description: homeDescription,
+  },
+];
 
 const metrics = [
   { value: "6", label: "RDV aujourd'hui", type: "appointments" },
@@ -267,6 +298,10 @@ const faqs = [
 export default function Home() {
   return (
     <main className={styles.page}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(homeJsonLd) }}
+      />
       <LandingLenis />
       <LandingNavbar />
 

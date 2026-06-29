@@ -234,7 +234,7 @@ export async function getSegmentClients(tenantId: string, segment: CampaignTarge
       visits: client.visitCount || client.Appointment.length,
     }))
     .sort((a, b) => b.revenue - a.revenue || b.visits - a.visits)
-    .slice(0, 50)
+    .slice(0, 5)
     .map((entry) => entry.client);
 }
 

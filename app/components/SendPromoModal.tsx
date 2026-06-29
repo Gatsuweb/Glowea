@@ -3,8 +3,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styles from "./NewAppointmentModal.module.css";
 
-type TargetSegment = "ALL" | "TOP_CLIENTS" | "INACTIVE";
+type TargetSegment = "ALL" | "TOP_CLIENTS" | "INACTIVE" | "MANUAL";
 type CampaignChannel = "SMS" | "EMAIL" | "MOCK";
+
+type ClientOption = {
+  id: string;
+  name: string;
+};
 
 type Template = {
   id: string;
@@ -49,12 +54,14 @@ interface SendPromoModalProps {
   isOpen: boolean;
   onClose: () => void;
   canUseSmsCampaigns: boolean;
+  availableClients: ClientOption[];
 }
 
 const SEGMENTS: Array<{ value: TargetSegment; label: string; help: string }> = [
   { value: "ALL", label: "Toutes", help: "Clientes actives du compte" },
-  { value: "TOP_CLIENTS", label: "Top clientes", help: "CA estime, puis nombre de visites" },
+  { value: "TOP_CLIENTS", label: "Top clientes", help: "5 meilleures clientes par CA estime, puis nombre de visites" },
   { value: "INACTIVE", label: "Inactives", help: "Sans activite recente depuis 90 jours" },
+  { value: "MANUAL", label: "Manuel", help: "Choisir exactement les clientes a contacter" },
 ];
 
 const CHANNELS: Array<{ value: CampaignChannel; label: string }> = [
@@ -63,11 +70,18 @@ const CHANNELS: Array<{ value: CampaignChannel; label: string }> = [
   { value: "EMAIL", label: "Email" },
 ];
 
-export default function SendPromoModal({ isOpen, onClose, canUseSmsCampaigns }: SendPromoModalProps) {
+export default function SendPromoModal({
+  isOpen,
+  onClose,
+  canUseSmsCampaigns,
+  availableClients,
+}: SendPromoModalProps) {
   const [targetSegment, setTargetSegment] = useState<TargetSegment>("ALL");
   const [channel, setChannel] = useState<CampaignChannel>(canUseSmsCampaigns ? "MOCK" : "EMAIL");
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [manualSearch, setManualSearch] = useState("");
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
@@ -91,6 +105,23 @@ export default function SendPromoModal({ isOpen, onClose, canUseSmsCampaigns }: 
       return true;
     });
   }, [channel, templates]);
+  const normalizedClients = useMemo(
+    () => [...availableClients].sort((a, b) => a.name.localeCompare(b.name, "fr-FR")),
+    [availableClients]
+  );
+  const filteredManualClients = useMemo(() => {
+    const query = manualSearch.trim().toLowerCase();
+    if (!query) return normalizedClients;
+    return normalizedClients.filter((client) => client.name.toLowerCase().includes(query));
+  }, [manualSearch, normalizedClients]);
+  const selectedManualClients = useMemo(
+    () => normalizedClients.filter((client) => selectedClientIds.includes(client.id)),
+    [normalizedClients, selectedClientIds]
+  );
+  const requestClientIds = useMemo(
+    () => (targetSegment === "MANUAL" ? selectedClientIds : []),
+    [selectedClientIds, targetSegment]
+  );
 
   useEffect(() => {
     if (!canUseSmsCampaigns && channel === "SMS") setChannel("EMAIL");
@@ -104,6 +135,8 @@ export default function SendPromoModal({ isOpen, onClose, canUseSmsCampaigns }: 
     setError("");
     setSuccess("");
     setPreview(null);
+    setManualSearch("");
+    setSelectedClientIds([]);
 
     fetch("/api/campaigns/templates")
       .then((response) => response.json())
@@ -145,6 +178,11 @@ export default function SendPromoModal({ isOpen, onClose, canUseSmsCampaigns }: 
       return;
     }
 
+    if (targetSegment === "MANUAL" && requestClientIds.length === 0) {
+      setPreview(null);
+      return;
+    }
+
     const controller = new AbortController();
     setIsLoadingPreview(true);
     setError("");
@@ -152,7 +190,12 @@ export default function SendPromoModal({ isOpen, onClose, canUseSmsCampaigns }: 
     fetch("/api/campaigns/preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetSegment, templateId: selectedTemplateId, channel }),
+      body: JSON.stringify({
+        targetSegment,
+        templateId: selectedTemplateId,
+        channel,
+        ...(requestClientIds.length > 0 ? { clientIds: requestClientIds } : {}),
+      }),
       signal: controller.signal,
     })
       .then((response) => response.json())
@@ -169,19 +212,27 @@ export default function SendPromoModal({ isOpen, onClose, canUseSmsCampaigns }: 
       .finally(() => setIsLoadingPreview(false));
 
     return () => controller.abort();
-  }, [channel, isOpen, selectedTemplateId, targetSegment]);
+  }, [channel, isOpen, requestClientIds, selectedTemplateId, targetSegment]);
 
   if (!isOpen) return null;
 
   const isMockMode = channel === "MOCK" || preview?.providerMode === "mock";
   const currentPreview = preview;
+  const hasManualSelection = targetSegment !== "MANUAL" || requestClientIds.length > 0;
   const canSend =
     Boolean(selectedTemplateId) &&
+    hasManualSelection &&
     currentPreview !== null &&
     currentPreview.totalTargeted > 0 &&
     currentPreview.sendableCount > 0 &&
     !isLoadingPreview &&
     !isSending;
+
+  function toggleManualClient(clientId: string) {
+    setSelectedClientIds((prev) =>
+      prev.includes(clientId) ? prev.filter((id) => id !== clientId) : [...prev, clientId]
+    );
+  }
 
   const handleSend = async () => {
     if (!canSend || !preview || !selectedTemplate) return;
@@ -200,7 +251,12 @@ export default function SendPromoModal({ isOpen, onClose, canUseSmsCampaigns }: 
       const response = await fetch("/api/campaigns/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetSegment, templateId: selectedTemplateId, channel }),
+        body: JSON.stringify({
+          targetSegment,
+          templateId: selectedTemplateId,
+          channel,
+          ...(requestClientIds.length > 0 ? { clientIds: requestClientIds } : {}),
+        }),
       });
       const data = await response.json() as SendCampaignResponse;
       if (!data.success) throw new Error(data.error || "Envoi impossible");
@@ -259,6 +315,59 @@ export default function SendPromoModal({ isOpen, onClose, canUseSmsCampaigns }: 
               </button>
             ))}
           </div>
+          {targetSegment === "MANUAL" && (
+            <div style={{ marginTop: "14px" }}>
+              <input
+                type="text"
+                className={styles.clientInput}
+                placeholder="Rechercher une cliente"
+                value={manualSearch}
+                onChange={(event) => setManualSearch(event.target.value)}
+              />
+              <div style={{ ...mutedStyle, marginTop: "10px" }}>
+                {selectedClientIds.length} cliente(s) selectionnée(s).
+              </div>
+              {selectedManualClients.length > 0 && (
+                <div style={chipsWrapStyle}>
+                  {selectedManualClients.map((client) => (
+                    <button
+                      key={client.id}
+                      type="button"
+                      onClick={() => toggleManualClient(client.id)}
+                      style={selectedChipStyle}
+                    >
+                      {client.name} ×
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div style={manualListStyle}>
+                {filteredManualClients.length === 0 && (
+                  <div style={mutedStyle}>Aucune cliente ne correspond a la recherche.</div>
+                )}
+                {filteredManualClients.map((client) => {
+                  const isSelected = selectedClientIds.includes(client.id);
+                  return (
+                    <button
+                      key={client.id}
+                      type="button"
+                      onClick={() => toggleManualClient(client.id)}
+                      style={{
+                        ...manualClientButtonStyle,
+                        borderColor: isSelected ? "var(--tertiary)" : "#E8E1E1",
+                        background: isSelected ? "#FAF4F4" : "white",
+                      }}
+                    >
+                      <span style={{ fontWeight: 600, color: "#333", textAlign: "left" }}>{client.name}</span>
+                      <span style={{ ...manualClientBadgeStyle, background: isSelected ? "var(--tertiary)" : "#EFE7E2", color: isSelected ? "white" : "#6B5B53" }}>
+                        {isSelected ? "Selectionnee" : "Ajouter"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className={styles.sectionWhite}>
@@ -342,6 +451,11 @@ export default function SendPromoModal({ isOpen, onClose, canUseSmsCampaigns }: 
 
         <div className={styles.sectionWhite}>
           <div className={styles.sectionTitle}>4. Apercu avant envoi</div>
+          {!hasManualSelection && (
+            <div style={{ ...mutedStyle, marginBottom: "10px" }}>
+              Selectionnez au moins une cliente dans l&apos;onglet manuel pour preparer l&apos;apercu.
+            </div>
+          )}
           {isLoadingPreview && <div style={mutedStyle}>Calcul de la cible...</div>}
           {!isLoadingPreview && preview && (
             <>
@@ -358,7 +472,9 @@ export default function SendPromoModal({ isOpen, onClose, canUseSmsCampaigns }: 
               )}
             </>
           )}
-          {!isLoadingPreview && !preview && <div style={mutedStyle}>Selectionnez un template pour voir l&apos;apercu.</div>}
+          {!isLoadingPreview && !preview && hasManualSelection && (
+            <div style={mutedStyle}>Selectionnez un template pour voir l&apos;apercu.</div>
+          )}
         </div>
 
         {error && <div style={errorStyle}>{error}</div>}
@@ -488,4 +604,51 @@ const previewBoxStyle: React.CSSProperties = {
   minHeight: "72px",
   padding: "14px",
   whiteSpace: "pre-wrap",
+};
+
+const manualListStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "10px",
+  marginTop: "12px",
+  maxHeight: "240px",
+  overflowY: "auto",
+};
+
+const manualClientButtonStyle: React.CSSProperties = {
+  alignItems: "center",
+  border: "1px solid #E8E1E1",
+  borderRadius: "12px",
+  cursor: "pointer",
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  padding: "12px 14px",
+  width: "100%",
+};
+
+const manualClientBadgeStyle: React.CSSProperties = {
+  borderRadius: "999px",
+  fontSize: "0.75rem",
+  fontWeight: 700,
+  padding: "6px 10px",
+  whiteSpace: "nowrap",
+};
+
+const chipsWrapStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+  marginTop: "12px",
+};
+
+const selectedChipStyle: React.CSSProperties = {
+  background: "#FAF4F4",
+  border: "1px solid #E5C5C5",
+  borderRadius: "999px",
+  color: "var(--tertiary)",
+  cursor: "pointer",
+  fontSize: "0.8rem",
+  fontWeight: 600,
+  padding: "8px 12px",
 };
