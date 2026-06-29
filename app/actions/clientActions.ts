@@ -138,6 +138,10 @@ export async function updateClientProfile(data: {
   allergies?: Array<{ label: string; notes?: string }>;
 }) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
 
   try {
     const existingClient = await prisma.client.findFirst({

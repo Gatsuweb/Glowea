@@ -12,7 +12,13 @@ type ServiceItem = {
   color: string | null;
 };
 
-export default function PrestationsTab() {
+export default function PrestationsTab({
+  isReadOnlyAccess = false,
+  readOnlyMessage = "Votre abonnement n'est plus actif. Vous pouvez consulter vos donnees, mais les actions sont desactivees.",
+}: {
+  isReadOnlyAccess?: boolean;
+  readOnlyMessage?: string;
+}) {
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -36,6 +42,11 @@ export default function PrestationsTab() {
   }, []);
 
   const handleAdd = async () => {
+    if (isReadOnlyAccess) {
+      alert(readOnlyMessage);
+      return;
+    }
+
     if (!newService.name.trim()) return;
     
     const res = await createService({
@@ -55,6 +66,11 @@ export default function PrestationsTab() {
   };
 
   const handleDelete = async (id: string) => {
+    if (isReadOnlyAccess) {
+      alert(readOnlyMessage);
+      return;
+    }
+
     if (confirm("Êtes-vous sûr de vouloir supprimer cette prestation ?")) {
       const res = await deleteService(id);
       if (res.success) {
@@ -69,10 +85,16 @@ export default function PrestationsTab() {
     <section className={styles.card}>
       <div className={styles.cardHeader}>
         <h2 className={styles.cardTitle}>Mes Prestations</h2>
-        <button className={styles.btnEdit} onClick={() => setIsAdding(!isAdding)}>
+        <button className={styles.btnEdit} onClick={() => setIsAdding(!isAdding)} disabled={isReadOnlyAccess}>
           {isAdding ? "Annuler" : "+ Ajouter"}
         </button>
       </div>
+
+      {isReadOnlyAccess && (
+        <div className={`${styles.statusMessage} ${styles.statusError}`} role="alert">
+          {readOnlyMessage}
+        </div>
+      )}
 
       {isAdding && (
         <div className={styles.serviceCreateBox}>
@@ -116,7 +138,7 @@ export default function PrestationsTab() {
                 onChange={(e) => setNewService({...newService, color: e.target.value})} 
               />
             </div>
-            <button className={`${styles.btnSave} ${styles.serviceSaveButton}`} onClick={handleAdd}>Sauvegarder</button>
+            <button className={`${styles.btnSave} ${styles.serviceSaveButton}`} onClick={handleAdd} disabled={isReadOnlyAccess}>Sauvegarder</button>
           </div>
         </div>
       )}
@@ -139,6 +161,7 @@ export default function PrestationsTab() {
               <button 
                 className={styles.serviceDeleteButton}
                 onClick={() => handleDelete(service.id)}
+                disabled={isReadOnlyAccess}
                 title="Supprimer"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

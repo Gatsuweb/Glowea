@@ -2,6 +2,7 @@
 
 import prisma from "../../lib/prisma";
 import { getTenantId } from "../../lib/tenant";
+import { requireTenantMutationAccess } from "../../lib/subscription";
 import {
   COMPLETED_APPOINTMENT_STATUSES,
   getActiveStatsAppointmentWhere,
@@ -258,6 +259,11 @@ export async function createTransaction(data: {
   date: string;
 }) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const transaction = await prisma.financialTransaction.create({
       data: {
@@ -747,6 +753,11 @@ export async function createCharge(data: {
   startDate: string;
 }) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     if (data.isRecurring && data.frequency) {
       const recurring = await prisma.recurringExpense.create({

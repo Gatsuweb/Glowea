@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import prisma from "../../lib/prisma";
 import { getSupabaseAdminClient, publicStorageBucket } from "../../lib/supabaseAdmin";
 import { getTenantId } from "../../lib/tenant";
+import { requireTenantMutationAccess } from "../../lib/subscription";
 import { getProductCategoryBySlug } from "../../src/constants/productCategories";
 import { getAppointmentServicesSummary } from "../../lib/appointmentServices";
 import { notifyStockLowIfNeeded } from "../../lib/notificationEvents";
@@ -428,6 +429,11 @@ export async function startSession(data: {
   category: "LASHES" | "BROWLIFT" | "LASH_LIFT" | "NAILS";
 }) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     await upsertBaseSession(TENANT_ID, {
       appointmentId: data.appointmentId,
@@ -601,6 +607,11 @@ export async function saveLashSession(data: {
   photos?: PhotoInput[];
 }) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const lashSessionId = `lash_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const sessionStatus = data.status || "COMPLETED";
@@ -667,6 +678,11 @@ export async function saveBrowliftSession(data: {
   photos?: PhotoInput[];
 }) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const browliftSessionId = `brow_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const sessionStatus = data.status || "COMPLETED";
@@ -718,6 +734,11 @@ export async function saveLashLiftSession(data: {
   photos?: PhotoInput[];
 }) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const lashLiftSessionId = `lashlift_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const sessionStatus = data.status || "COMPLETED";
@@ -775,6 +796,11 @@ export async function saveNailSession(data: {
   photos?: PhotoInput[];
 }) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const nailSessionId = `nail_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     const sessionStatus = data.status || "COMPLETED";

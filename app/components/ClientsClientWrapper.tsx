@@ -267,7 +267,17 @@ function buildClientGalleryProjects(clientMedia: any[]) {
     .sort((a, b) => b.orderValue - a.orderValue);
 }
 
-export default function ClientsClientWrapper({ clients, services = [] }: { clients: any[]; services?: any[] }) {
+export default function ClientsClientWrapper({
+  clients,
+  services = [],
+  isReadOnlyAccess = false,
+  readOnlyMessage = "Votre abonnement n'est plus actif. Vous pouvez consulter vos donnees, mais les actions sont desactivees.",
+}: {
+  clients: any[];
+  services?: any[];
+  isReadOnlyAccess?: boolean;
+  readOnlyMessage?: string;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [clientList, setClientList] = useState<any[]>(clients);
@@ -337,6 +347,14 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [projectForm, setProjectForm] = useState({ title: "", description: "" });
   const [projectSaveError, setProjectSaveError] = useState<string | null>(null);
+
+  const blockReadOnlyAction = () => {
+    if (!isReadOnlyAccess) return false;
+    setClientError(readOnlyMessage);
+    setConsentError(readOnlyMessage);
+    setProjectSaveError(readOnlyMessage);
+    return true;
+  };
   const [savingProjectId, setSavingProjectId] = useState<string | null>(null);
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
   const [isAddingProject, setIsAddingProject] = useState(false);
@@ -414,6 +432,8 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   };
 
   const handleSaveConsent = async () => {
+    if (blockReadOnlyAction()) return;
+
     setIsLoadingConsent(true);
     setConsentError(null);
     setConsentSuccess(null);
@@ -572,6 +592,8 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   };
 
   const createGalleryProject = async () => {
+    if (blockReadOnlyAction()) return;
+
     if (!selectedClient) return;
 
     const photosToUpload = Object.entries(newProjectPhotos) as Array<[NewGalleryProjectPhotoRole, NewGalleryProjectPhoto]>;
@@ -653,6 +675,8 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   };
 
   const startEditingProject = (project: any) => {
+    if (blockReadOnlyAction()) return;
+
     setEditingProjectId(project.id);
     setProjectForm({
       title: project.title || "",
@@ -667,6 +691,8 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   };
 
   const saveGalleryProject = async (project: any) => {
+    if (blockReadOnlyAction()) return;
+
     if (!selectedClient) return;
 
     setSavingProjectId(project.id);
@@ -696,6 +722,8 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   };
 
   const deleteGalleryProject = async (project: any) => {
+    if (blockReadOnlyAction()) return;
+
     if (!selectedClient) return;
 
     const confirmed = window.confirm("Supprimer ce projet de la galerie cliente ?");
@@ -740,6 +768,8 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   };
 
   const handleSaveClient = async () => {
+    if (blockReadOnlyAction()) return;
+
     if (!selectedClient) {
       return;
     }
@@ -791,6 +821,8 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   };
 
   const handleArchiveClient = async () => {
+    if (blockReadOnlyAction()) return;
+
     if (!selectedClient || isDeletingClient) {
       return;
     }
@@ -845,6 +877,8 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   };
 
   const handleAddClientFlag = async () => {
+    if (blockReadOnlyAction()) return;
+
     if (!selectedClient || isSavingVigilance) return;
 
     setIsSavingVigilance(true);
@@ -880,6 +914,8 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   };
 
   const handleRiskLevelChange = async (riskLevel: ClientRiskLevel) => {
+    if (blockReadOnlyAction()) return;
+
     if (!selectedClient || isSavingVigilance) return;
 
     setIsSavingVigilance(true);
@@ -905,6 +941,8 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   };
 
   const handleClearVigilance = async () => {
+    if (blockReadOnlyAction()) return;
+
     if (!selectedClient || isSavingVigilance) return;
     if (!window.confirm("Retirer cette cliente de la vigilance ? L'historique des signalements sera conserve.")) return;
 
@@ -1062,6 +1100,8 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   }, []).map((p: any) => ({ ...p, ca: `${(p.ca / 100).toFixed(2)} €` }));
 
   const openAppointmentEditor = (rdv: any) => {
+    if (blockReadOnlyAction()) return;
+
     if (!selectedClient) return;
 
     const appointment = rdv.originalApp;
@@ -1091,6 +1131,8 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
   };
 
   const openNewAppointmentForSelectedClient = () => {
+    if (blockReadOnlyAction()) return;
+
     if (!selectedClient) return;
 
     setAppointmentToEdit(null);
@@ -1099,6 +1141,11 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
 
   return (
     <main className={styles.layout}>
+      {isReadOnlyAccess && (
+        <div className={styles.formError} role="alert">
+          {readOnlyMessage}
+        </div>
+      )}
       <button
         type="button"
         className={styles.mobileDirectoryToggle}
@@ -1122,7 +1169,11 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
           <button
             type="button"
             className={styles.addClientButton}
-            onClick={() => setNewClientModalOpen(true)}
+            onClick={() => {
+              if (blockReadOnlyAction()) return;
+              setNewClientModalOpen(true);
+            }}
+            disabled={isReadOnlyAccess}
           >
             + Ajouter un client
           </button>
@@ -1152,7 +1203,11 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
             <button
               type="button"
               className={styles.bulkActionButton}
-              onClick={() => setSendTemplateModalOpen(true)}
+              onClick={() => {
+                if (blockReadOnlyAction()) return;
+                setSendTemplateModalOpen(true);
+              }}
+              disabled={isReadOnlyAccess}
             >
               Envoyer un template mail
             </button>
@@ -1218,17 +1273,18 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                 type="button"
                 className={styles.btnNewRdv}
                 onClick={openNewAppointmentForSelectedClient}
-                disabled={!selectedClient}
+                disabled={!selectedClient || isReadOnlyAccess}
               >
                 + Nouveau RDV
               </button>
               <button
                 className={styles.iconBtn}
                 onClick={() => {
+                  if (blockReadOnlyAction()) return;
                   setActiveTab("infos");
                   setIsEditingContact(true);
                 }}
-                disabled={!selectedClient}
+                disabled={!selectedClient || isReadOnlyAccess}
                 title="Modifier la cliente"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1239,7 +1295,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
               <button
                 className={styles.deleteClientBtn}
                 onClick={handleArchiveClient}
-                disabled={!selectedClient || isDeletingClient}
+                disabled={!selectedClient || isDeletingClient || isReadOnlyAccess}
                 title="Supprimer la cliente"
                 type="button"
               >
@@ -1321,8 +1377,11 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                   <button
                     className={styles.iconBtn}
                     style={{ borderColor: 'transparent' }}
-                    onClick={() => setIsEditingContact(true)}
-                    disabled={!selectedClient || isSavingClient}
+                    onClick={() => {
+                      if (blockReadOnlyAction()) return;
+                      setIsEditingContact(true);
+                    }}
+                    disabled={!selectedClient || isSavingClient || isReadOnlyAccess}
                     title="Modifier les coordonnees"
                   >
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1366,7 +1425,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                   </div>
                   <div className={styles.formActions}>
                     <button className={styles.btnOutline} onClick={resetClientForm} disabled={isSavingClient}>Annuler</button>
-                    <button className={styles.btnNewRdv} onClick={handleSaveClient} disabled={isSavingClient}>
+                    <button className={styles.btnNewRdv} onClick={handleSaveClient} disabled={isSavingClient || isReadOnlyAccess}>
                       {isSavingClient ? "Enregistrement..." : "Enregistrer"}
                     </button>
                   </div>
@@ -1409,8 +1468,11 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                   <button
                     className={styles.iconBtn}
                     style={{ borderColor: 'transparent' }}
-                    onClick={() => setIsEditingHealth(true)}
-                    disabled={!selectedClient || isSavingClient}
+                    onClick={() => {
+                      if (blockReadOnlyAction()) return;
+                      setIsEditingHealth(true);
+                    }}
+                    disabled={!selectedClient || isSavingClient || isReadOnlyAccess}
                     title="Modifier notes et allergies"
                   >
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1444,7 +1506,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                   </label>
                   <div className={styles.formActions}>
                     <button className={styles.btnOutline} onClick={resetClientForm} disabled={isSavingClient}>Annuler</button>
-                    <button className={styles.btnNewRdv} onClick={handleSaveClient} disabled={isSavingClient}>
+                    <button className={styles.btnNewRdv} onClick={handleSaveClient} disabled={isSavingClient || isReadOnlyAccess}>
                       {isSavingClient ? "Enregistrement..." : "Enregistrer"}
                     </button>
                   </div>
@@ -1489,7 +1551,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                     className={styles.vigilanceSelect}
                     value={selectedClientRiskLevel}
                     onChange={(event) => handleRiskLevelChange(event.target.value as ClientRiskLevel)}
-                    disabled={!selectedClient || isSavingVigilance}
+                    disabled={!selectedClient || isSavingVigilance || isReadOnlyAccess}
                     aria-label="Modifier le niveau de vigilance"
                   >
                     <option value="LOW">Risque faible</option>
@@ -1500,7 +1562,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                     type="button"
                     className={styles.btnOutline}
                     onClick={handleClearVigilance}
-                    disabled={!selectedClient || isSavingVigilance || !isSelectedClientUnderVigilance}
+                    disabled={!selectedClient || isSavingVigilance || !isSelectedClientUnderVigilance || isReadOnlyAccess}
                   >
                     Retirer
                   </button>
@@ -1518,7 +1580,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                   className={styles.formInput}
                   value={flagForm.type}
                   onChange={(event) => setFlagForm((current) => ({ ...current, type: event.target.value as ClientFlagType }))}
-                  disabled={!selectedClient || isSavingVigilance}
+                  disabled={!selectedClient || isSavingVigilance || isReadOnlyAccess}
                   aria-label="Type de signalement"
                 >
                   <option value="NO_SHOW">No-show</option>
@@ -1531,7 +1593,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                   className={styles.formInput}
                   value={flagForm.severity}
                   onChange={(event) => setFlagForm((current) => ({ ...current, severity: event.target.value as ClientRiskLevel }))}
-                  disabled={!selectedClient || isSavingVigilance}
+                  disabled={!selectedClient || isSavingVigilance || isReadOnlyAccess}
                   aria-label="Gravite du signalement"
                 >
                   <option value="LOW">Faible</option>
@@ -1543,13 +1605,13 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                   value={flagForm.note}
                   onChange={(event) => setFlagForm((current) => ({ ...current, note: event.target.value }))}
                   placeholder="Note interne optionnelle"
-                  disabled={!selectedClient || isSavingVigilance}
+                  disabled={!selectedClient || isSavingVigilance || isReadOnlyAccess}
                 />
                 <button
                   type="button"
                   className={styles.btnNewRdv}
                   onClick={handleAddClientFlag}
-                  disabled={!selectedClient || isSavingVigilance}
+                  disabled={!selectedClient || isSavingVigilance || isReadOnlyAccess}
                 >
                   {isSavingVigilance ? "Enregistrement..." : "Ajouter un signalement"}
                 </button>
@@ -1583,6 +1645,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                   type="button"
                   className={styles.projectEditButton}
                   onClick={() => {
+                    if (blockReadOnlyAction()) return;
                     if (isAddingProject) {
                       resetNewProjectForm();
                     } else {
@@ -1590,7 +1653,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                       setProjectSaveError(null);
                     }
                   }}
-                  disabled={isCreatingProject}
+                  disabled={isCreatingProject || isReadOnlyAccess}
                 >
                   {isAddingProject ? "Fermer" : "Ajouter un projet"}
                 </button>
@@ -1944,7 +2007,14 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                 Consentement aux soins, informations de sensibilite et autorisation d'image. Une nouvelle version signee est archivee a chaque sauvegarde.
               </p>
               {!isEditingConsent ? (
-                <button className={styles.btnNewRdv} onClick={() => setIsEditingConsent(true)} disabled={isLoadingConsent || !selectedClient}>
+                <button
+                  className={styles.btnNewRdv}
+                  onClick={() => {
+                    if (blockReadOnlyAction()) return;
+                    setIsEditingConsent(true);
+                  }}
+                  disabled={isLoadingConsent || !selectedClient || isReadOnlyAccess}
+                >
                   {consentSignedAt ? "Renouveler" : "Remplir"}
                 </button>
               ) : (
@@ -1952,7 +2022,7 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                   <button className={styles.btnNewRdv} onClick={() => { setIsEditingConsent(false); loadConsent(); }} disabled={isLoadingConsent}>
                     Annuler
                   </button>
-                  <button className={styles.btnNewRdv} onClick={handleSaveConsent} disabled={isLoadingConsent}>
+                  <button className={styles.btnNewRdv} onClick={handleSaveConsent} disabled={isLoadingConsent || isReadOnlyAccess}>
                     {isLoadingConsent ? "Enregistrement..." : "Signer et enregistrer"}
                   </button>
                 </div>
@@ -2049,14 +2119,14 @@ export default function ClientsClientWrapper({ clients, services = [] }: { clien
                     <h4>Consentement aux soins</h4>
                     <p>La cliente confirme avoir transmis les informations utiles et autorise la realisation de la prestation.</p>
                   </div>
-                  <input type="checkbox" checked={consentData.careConsentAccepted} disabled={!isEditingConsent} onChange={(e) => setConsentData({ ...consentData, careConsentAccepted: e.target.checked })} />
+                  <input type="checkbox" checked={consentData.careConsentAccepted} disabled={!isEditingConsent || isReadOnlyAccess} onChange={(e) => setConsentData({ ...consentData, careConsentAccepted: e.target.checked })} />
                 </label>
                 <label className={`${styles.consentRow} ${isEditingConsent ? styles.consentRowEditable : ""}`}>
                   <div className={styles.consentRowText}>
                     <h4>Conservation des donnees de suivi</h4>
                     <p>Autorise Glowea a conserver cette fiche pour le suivi client et la tracabilite des soins.</p>
                   </div>
-                  <input type="checkbox" checked={consentData.dataConsentAccepted} disabled={!isEditingConsent} onChange={(e) => setConsentData({ ...consentData, dataConsentAccepted: e.target.checked })} />
+                  <input type="checkbox" checked={consentData.dataConsentAccepted} disabled={!isEditingConsent || isReadOnlyAccess} onChange={(e) => setConsentData({ ...consentData, dataConsentAccepted: e.target.checked })} />
                 </label>
                 <div className={styles.consentRow}>
                   <div className={styles.consentRowText}>

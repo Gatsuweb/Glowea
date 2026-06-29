@@ -103,10 +103,14 @@ export default function ComptaClient({
   initialData,
   initialStatsData,
   currentMonth,
+  isReadOnlyAccess = false,
+  readOnlyMessage = "Votre abonnement n'est plus actif. Vous pouvez consulter vos donnees, mais les actions sont desactivees.",
 }: {
   initialData: VueEnsembleData;
   initialStatsData: StatsData | null;
   currentMonth: string;
+  isReadOnlyAccess?: boolean;
+  readOnlyMessage?: string;
 }) {
   const [filterType, setFilterType] = useState("all");
   const [filterMonth, setFilterMonth] = useState(currentMonth);
@@ -119,6 +123,7 @@ export default function ComptaClient({
   const [isChargeModalOpen, setIsChargeModalOpen] = useState(false);
   const [isRelanceModalOpen, setRelanceModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [readOnlyError, setReadOnlyError] = useState<string | null>(null);
 
   // Form states Transaction
   const [transType, setTransType] = useState<'INCOME' | 'EXPENSE'>('INCOME');
@@ -159,6 +164,11 @@ export default function ComptaClient({
 
   const handleCreateTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnlyAccess) {
+      setReadOnlyError(readOnlyMessage);
+      return;
+    }
+
     setIsSubmitting(true);
     const res = await createTransaction({
       type: transType,
@@ -179,6 +189,11 @@ export default function ComptaClient({
 
   const handleCreateCharge = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnlyAccess) {
+      setReadOnlyError(readOnlyMessage);
+      return;
+    }
+
     setIsSubmitting(true);
     const res = await createCharge({
       label: chargeLabel,
@@ -338,6 +353,12 @@ export default function ComptaClient({
   return (
     <main className={styles.layout}>
       <h1 className={styles.title}>Ma Compta</h1>
+
+      {(isReadOnlyAccess || readOnlyError) && (
+        <div className={styles.statusBanner || styles.card} role="alert">
+          {readOnlyError || readOnlyMessage}
+        </div>
+      )}
 
       {/* Bilan Section Dynamique */}
       <section className={styles.bilanDynamicSection} id="compta-export-container">
@@ -783,8 +804,32 @@ export default function ComptaClient({
               </select>
             </div>
             <div className={styles.filterActions}>
-              <button className={styles.btnGreen} onClick={() => setIsTransactionModalOpen(true)}>Nouvelle transaction</button>
-              <button className={styles.btnDarkRed} onClick={() => setIsChargeModalOpen(true)}>Nouvelle charge</button>
+              <button
+                className={styles.btnGreen}
+                onClick={() => {
+                  if (isReadOnlyAccess) {
+                    setReadOnlyError(readOnlyMessage);
+                    return;
+                  }
+                  setIsTransactionModalOpen(true);
+                }}
+                disabled={isReadOnlyAccess}
+              >
+                Nouvelle transaction
+              </button>
+              <button
+                className={styles.btnDarkRed}
+                onClick={() => {
+                  if (isReadOnlyAccess) {
+                    setReadOnlyError(readOnlyMessage);
+                    return;
+                  }
+                  setIsChargeModalOpen(true);
+                }}
+                disabled={isReadOnlyAccess}
+              >
+                Nouvelle charge
+              </button>
             </div>
           </section>
 
@@ -1036,7 +1081,7 @@ export default function ComptaClient({
               </div>
               <div className={styles.modalFooter}>
                 <button type="button" className={styles.btnWhite} onClick={() => setIsTransactionModalOpen(false)}>Annuler</button>
-                <button type="submit" className={styles.btnGreen} disabled={isSubmitting}>
+                <button type="submit" className={styles.btnGreen} disabled={isSubmitting || isReadOnlyAccess}>
                   {isSubmitting ? 'Création...' : 'Créer'}
                 </button>
               </div>
@@ -1153,7 +1198,7 @@ export default function ComptaClient({
               </div>
               <div className={styles.modalFooter}>
                 <button type="button" className={styles.btnWhite} onClick={() => setIsChargeModalOpen(false)}>Annuler</button>
-                <button type="submit" className={styles.btnDarkRed} disabled={isSubmitting}>
+                <button type="submit" className={styles.btnDarkRed} disabled={isSubmitting || isReadOnlyAccess}>
                   {isSubmitting ? 'Création...' : 'Créer la charge'}
                 </button>
               </div>

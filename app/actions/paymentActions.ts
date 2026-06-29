@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getTenantId } from "../../lib/tenant";
 import { normalizeAppointmentPaymentMethod } from "../../lib/appointmentFinance";
 import { recordAppointmentPayment } from "../../lib/appointmentPayments";
+import { requireTenantMutationAccess } from "../../lib/subscription";
 
 
 export async function processPayment(data: {
@@ -15,6 +16,11 @@ export async function processPayment(data: {
   serviceName: string;
 }) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const { appointmentId, clientId, amount, paymentMethod, serviceName } = data;
 

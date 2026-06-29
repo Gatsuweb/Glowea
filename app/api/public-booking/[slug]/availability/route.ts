@@ -31,7 +31,18 @@ export async function GET(
 
   const profile = await prisma.publicProfile.findUnique({
     where: { slug: params.slug },
-    include: { Tenant: true },
+    include: {
+      Tenant: {
+        include: {
+          Subscription: {
+            select: {
+              currentPeriodEnd: true,
+              cancelAtPeriodEnd: true,
+            },
+          },
+        },
+      },
+    },
   });
 
   if (!profile || !profile.isPublished || !getSubscriptionAccessFromTenant(profile.Tenant).canUseBooking) {

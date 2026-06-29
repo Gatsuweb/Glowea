@@ -2,6 +2,7 @@ import React from "react";
 import prisma from "../../../lib/prisma";
 import StockClientWrapper from "../../components/StockClientWrapper";
 import { getTenantId } from "../../../lib/tenant";
+import { getTenantSubscriptionAccess } from "../../../lib/subscription";
 import {
   PRODUCT_CATEGORIES,
   getProductCategoryBySlug,
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 export default async function StockPage() {
   const TENANT_ID = await getTenantId();
+  const subscriptionAccess = await getTenantSubscriptionAccess(TENANT_ID);
   const existingBusinessCategories = await prisma.productCategory.findMany({
     where: {
       tenantId: TENANT_ID,
@@ -24,7 +26,7 @@ export default async function StockPage() {
   const existingSlugs = new Set(existingBusinessCategories.map((category) => category.slug).filter(Boolean));
   const missingCategories = PRODUCT_CATEGORIES.filter((category) => !existingSlugs.has(category.id));
 
-  if (missingCategories.length > 0) {
+  if (subscriptionAccess.canUseApp && missingCategories.length > 0) {
     await prisma.productCategory.createMany({
       data: missingCategories.map((category, index) => ({
         id: `pcat_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
@@ -124,5 +126,13 @@ export default async function StockPage() {
     description: getProductCategoryBySlug(cat.slug)?.description || null,
   }));
 
-  return <StockClientWrapper initialProducts={products} movements={movements} categories={categories} />;
+  return (
+    <StockClientWrapper
+      initialProducts={products}
+      movements={movements}
+      categories={categories}
+      isReadOnlyAccess={subscriptionAccess.isReadOnly}
+      readOnlyMessage={subscriptionAccess.message || undefined}
+    />
+  );
 }

@@ -290,6 +290,12 @@ async function ensurePublicProfile(tenantId: string) {
       BillingProfile: true,
       User: { where: { role: "OWNER" }, take: 1 },
       PublicProfile: true,
+      Subscription: {
+        select: {
+          currentPeriodEnd: true,
+          cancelAtPeriodEnd: true,
+        },
+      },
     },
   });
 
@@ -300,6 +306,32 @@ async function ensurePublicProfile(tenantId: string) {
   const owner = tenant.User[0];
   const businessName = tenant.BusinessSettings?.displayName || tenant.name;
   const slug = await getUniqueSlug(businessName, tenantId);
+
+  if (!getSubscriptionAccessFromTenant(tenant).canUsePublicPage) {
+    return {
+      tenant,
+      profile: {
+        id: "",
+        tenantId,
+        slug,
+        isPublished: false,
+        businessName,
+        ownerName: owner?.fullName || null,
+        description: "Un espace beaute pense pour des prestations soignees et un suivi client professionnel.",
+        address: tenant.BillingProfile?.addressLine1 || null,
+        city: tenant.BillingProfile?.city || null,
+        phone: owner?.phone || null,
+        email: owner?.email || null,
+        instagramUrl: null,
+        websiteUrl: null,
+        openingHours: "Lun - Sam, sur rendez-vous",
+        coverImageUrl: null,
+        avatarUrl: null,
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+      },
+    };
+  }
 
   const profile = await prisma.publicProfile.create({
     data: {
@@ -403,12 +435,13 @@ export async function getPublicPageConfig() {
 
 export async function updatePublicProfile(input: PublicProfileInput) {
   const tenantId = await getTenantId();
-  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  const access = await getTenantSubscriptionAccess(tenantId);
 
-  if (!getSubscriptionAccessFromTenant(tenant).canUsePublicPage) {
+  if (!access.canUsePublicPage) {
     return { success: false as const, error: "La page publique est disponible avec Glowea Pro." };
   }
 
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
   const existing = await prisma.publicProfile.findUnique({ where: { tenantId } });
   const nextSlug = await getUniqueSlug(input.slug || input.businessName || "pro", tenantId);
 
@@ -827,7 +860,18 @@ export async function createPublicBooking(input: PublicBookingInput) {
 
   const profile = await prisma.publicProfile.findUnique({
     where: { slug },
-    include: { Tenant: true },
+    include: {
+      Tenant: {
+        include: {
+          Subscription: {
+            select: {
+              currentPeriodEnd: true,
+              cancelAtPeriodEnd: true,
+            },
+          },
+        },
+      },
+    },
   });
 
   if (!profile || !profile.isPublished || !getSubscriptionAccessFromTenant(profile.Tenant).canUseBooking) {

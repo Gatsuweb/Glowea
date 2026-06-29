@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "../../../../../lib/prisma";
+import { requireTenantMutationAccess } from "../../../../../lib/subscription";
 import { getSupabaseAdminClient, publicStorageBucket } from "../../../../../lib/supabaseAdmin";
 import { getTenantId } from "../../../../../lib/tenant";
 
@@ -17,6 +18,14 @@ function getFileExtension(file: File) {
 export async function POST(request: Request) {
   try {
     const tenantId = await getTenantId();
+    const access = await requireTenantMutationAccess(tenantId);
+    if (!access.allowed) {
+      return NextResponse.json(
+        { success: false, error: access.error },
+        { status: 403 }
+      );
+    }
+
     const formData = await request.formData();
     const fileEntry = formData.get("file");
     const clientId = typeof formData.get("clientId") === "string" ? String(formData.get("clientId")) : "";

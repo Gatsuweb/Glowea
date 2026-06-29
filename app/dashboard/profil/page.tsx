@@ -725,6 +725,9 @@ export default function ProfilPage() {
       const data = await response.json().catch(() => null);
 
       if (!response.ok || !data?.success || !data.url) {
+        if (data?.code === "STRIPE_CUSTOMER_ENVIRONMENT_MISMATCH") {
+          await refreshProfileData();
+        }
         setError(data?.error || "Impossible d'ouvrir le portail Stripe.");
         return;
       }
@@ -756,6 +759,11 @@ export default function ProfilPage() {
       const data = await response.json().catch(() => null);
 
       if (!response.ok || !data?.success || !data.url) {
+        if (data?.code === "STRIPE_CUSTOMER_ENVIRONMENT_MISMATCH") {
+          await refreshProfileData();
+          router.push("/pricing");
+          return;
+        }
         setError(data?.error || "Impossible d'ouvrir le changement de forfait Stripe.");
         return;
       }
@@ -791,6 +799,9 @@ export default function ProfilPage() {
       const data = await response.json().catch(() => null);
 
       if (!response.ok || !data?.success || !data.url) {
+        if (data?.code === "STRIPE_CUSTOMER_ENVIRONMENT_MISMATCH") {
+          await refreshProfileData();
+        }
         setBillingError(data?.error || "Impossible d'ouvrir le portail Stripe.");
         return;
       }
@@ -1092,7 +1103,10 @@ export default function ProfilPage() {
           )}
 
           {activeTab === 'prestations' && (
-            <PrestationsTab />
+            <PrestationsTab
+              isReadOnlyAccess={!profileData.subscription.canUseApp}
+              readOnlyMessage="Votre abonnement n'est plus actif. Vous pouvez consulter vos donnees, mais les actions sont desactivees."
+            />
           )}
 
           {activeTab === 'agenda' && (

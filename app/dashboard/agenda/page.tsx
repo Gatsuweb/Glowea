@@ -1,6 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import AgendaClientWrapper from "../../components/AgendaClientWrapper";
 import { getAgendaPanelData } from "../../../lib/agendaPanelData";
+import { getTenantSubscriptionAccess } from "../../../lib/subscription";
 import { syncAppointmentPaymentFromCheckoutSessionId } from "../../../lib/stripeAppointmentSync";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,16 @@ export default async function AgendaPage({
     }
   }
 
-  const agendaData = await getAgendaPanelData(tenantId, userId);
+  const [agendaData, subscriptionAccess] = await Promise.all([
+    getAgendaPanelData(tenantId, userId),
+    getTenantSubscriptionAccess(tenantId),
+  ]);
 
-  return <AgendaClientWrapper {...agendaData} />;
+  return (
+    <AgendaClientWrapper
+      {...agendaData}
+      isReadOnlyAccess={subscriptionAccess.isReadOnly}
+      readOnlyMessage={subscriptionAccess.message || undefined}
+    />
+  );
 }

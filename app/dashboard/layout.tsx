@@ -6,6 +6,7 @@ import OnboardingChecklist from "../components/OnboardingChecklist";
 import QuickAgendaDrawer from "../components/QuickAgendaDrawer";
 import PushNotificationManager from "../components/PushNotificationManager";
 import { getAgendaPanelData } from "../../lib/agendaPanelData";
+import { getTenantSubscriptionAccess } from "../../lib/subscription";
 import { getTenantId } from "../../lib/tenant";
 import { getTenantOnboardingState } from "../actions/onboardingActions";
 import styles from "./layout.module.css";
@@ -27,16 +28,22 @@ export default async function DashboardLayout({
   }
 
   const tenantId = await getTenantId();
-  const [quickAgendaData, onboarding] = await Promise.all([
+  const [quickAgendaData, onboarding, subscriptionAccess] = await Promise.all([
     getAgendaPanelData(tenantId, userId),
     getTenantOnboardingState(tenantId),
+    getTenantSubscriptionAccess(tenantId),
   ]);
+  const quickAgendaProps = {
+    ...quickAgendaData,
+    isReadOnlyAccess: subscriptionAccess.isReadOnly,
+    readOnlyMessage: subscriptionAccess.message || undefined,
+  };
 
   return (
     <>
       <Navbar />
       <GlobalHeader />
-      <QuickAgendaDrawer agendaData={quickAgendaData} />
+      <QuickAgendaDrawer agendaData={quickAgendaProps} />
       <PushNotificationManager />
       <OnboardingChecklist onboarding={onboarding} />
       <div className={styles.layoutWrapper}>

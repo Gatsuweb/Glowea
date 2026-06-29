@@ -3,6 +3,7 @@
 import prisma from "../../lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "../../lib/tenant";
+import { requireTenantMutationAccess } from "../../lib/subscription";
 
 function revalidateServiceViews() {
   revalidatePath("/dashboard");
@@ -35,6 +36,11 @@ export async function createService(data: {
   color?: string;
 }) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const name = data.name.trim();
     if (!name) {
@@ -106,6 +112,11 @@ export async function updateService(id: string, data: {
   color?: string;
 }) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const service = await prisma.service.update({
       where: { id, tenantId: TENANT_ID },
@@ -126,6 +137,11 @@ export async function updateService(id: string, data: {
 
 export async function deleteService(id: string) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantMutationAccess(TENANT_ID);
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const existingService = await prisma.service.findFirst({
       where: { id, tenantId: TENANT_ID, isActive: true },

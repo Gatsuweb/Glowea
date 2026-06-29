@@ -2,6 +2,10 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 import prisma from "@/lib/prisma";
+import {
+  clearTenantStripeBillingReferences,
+  isMissingStripeCustomerError,
+} from "@/lib/stripeBillingRecovery";
 import { createCustomerPortalSession, getAppUrl } from "@/lib/stripeCustomerPortal";
 import { getTenantId } from "@/lib/tenant";
 
@@ -100,6 +104,19 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, url: session.url });
   } catch (error) {
+    if (isMissingStripeCustomerError(error)) {
+      await clearTenantStripeBillingReferences(tenantId);
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Votre ancien client Stripe n'existe pas dans cet environnement. Les references Stripe ont ete reinitialisees, choisissez une formule pour demarrer l'abonnement en production.",
+          code: "STRIPE_CUSTOMER_ENVIRONMENT_MISMATCH",
+        },
+        { status: 409 }
+      );
+    }
+
     console.error("Error creating Stripe customer portal session:", error);
     return NextResponse.json(
       { success: false, error: "Impossible d'ouvrir le portail Stripe." },

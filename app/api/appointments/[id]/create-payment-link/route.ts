@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAppointmentFinancialSummary } from "@/lib/appointmentFinance";
 import { getAppointmentServicesLabel } from "@/lib/appointmentServices";
+import { requireTenantMutationAccess } from "@/lib/subscription";
 import { stripe } from "@/lib/stripe";
 import { getCurrentUserRecord } from "@/lib/tenant";
 
@@ -59,6 +60,11 @@ export async function POST(
 
   const currentUserRecord = await getCurrentUserRecord();
   const tenantId = currentUserRecord.tenantId;
+  const access = await requireTenantMutationAccess(tenantId);
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.error }, { status: 403 });
+  }
+
   const params = await context.params;
   const appointmentId = params.id;
   const body = await req.json();

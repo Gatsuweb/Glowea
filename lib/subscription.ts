@@ -5,6 +5,7 @@ export type SubscriptionAccess = {
   isTrialing: boolean;
   isTrialExpired: boolean;
   isActive: boolean;
+  isReadOnly: boolean;
   currentPlan: SubscriptionPlan;
   canUseApp: boolean;
   canUseProFeatures: boolean;
@@ -13,10 +14,11 @@ export type SubscriptionAccess = {
   canUseBooking: boolean;
   daysLeft: number;
   status: SubscriptionStatus;
+  message: string | null;
 };
 
 export const SUBSCRIPTION_REQUIRED_ERROR =
-  "Votre essai est termine. Choisissez une formule pour continuer.";
+  "Votre abonnement n'est plus actif. Vous pouvez consulter vos donnees, mais les actions sont desactivees.";
 
 function getDaysLeft(trialEndsAt: Date | null | undefined, now: Date) {
   if (!trialEndsAt) return 0;
@@ -29,6 +31,10 @@ export function getSubscriptionAccessFromTenant(
     subscriptionPlan: SubscriptionPlan;
     subscriptionStatus: SubscriptionStatus;
     trialEndsAt: Date | null;
+    Subscription?: {
+      currentPeriodEnd: Date | null;
+      cancelAtPeriodEnd: boolean;
+    } | null;
   } | null | undefined,
   now = new Date()
 ): SubscriptionAccess {
@@ -37,6 +43,7 @@ export function getSubscriptionAccessFromTenant(
       isTrialing: false,
       isTrialExpired: true,
       isActive: false,
+      isReadOnly: true,
       currentPlan: "FREE",
       canUseApp: false,
       canUseProFeatures: false,
@@ -45,13 +52,18 @@ export function getSubscriptionAccessFromTenant(
       canUseBooking: false,
       daysLeft: 0,
       status: "CANCELED",
+      message: SUBSCRIPTION_REQUIRED_ERROR,
     };
   }
 
   const daysLeft = getDaysLeft(tenant.trialEndsAt, now);
   const isTrialing = tenant.subscriptionStatus === "TRIALING" && daysLeft > 0;
   const isTrialExpired = tenant.subscriptionStatus === "TRIALING" && !isTrialing;
-  const isActive = tenant.subscriptionStatus === "ACTIVE";
+  const isInCancelGracePeriod =
+    Boolean(tenant.Subscription?.cancelAtPeriodEnd) &&
+    Boolean(tenant.Subscription?.currentPeriodEnd) &&
+    tenant.Subscription!.currentPeriodEnd!.getTime() > now.getTime();
+  const isActive = tenant.subscriptionStatus === "ACTIVE" || isTrialing || isInCancelGracePeriod;
   const canUseApp = isTrialing || isActive;
   const canUseProFeatures =
     isTrialing || (isActive && (tenant.subscriptionPlan === "PRO" || tenant.subscriptionPlan === "PREMIUM"));
@@ -60,6 +72,7 @@ export function getSubscriptionAccessFromTenant(
     isTrialing,
     isTrialExpired,
     isActive,
+    isReadOnly: !canUseApp,
     currentPlan: tenant.subscriptionPlan,
     canUseApp,
     canUseProFeatures,
@@ -68,6 +81,7 @@ export function getSubscriptionAccessFromTenant(
     canUseBooking: canUseProFeatures,
     daysLeft,
     status: tenant.subscriptionStatus,
+    message: canUseApp ? null : SUBSCRIPTION_REQUIRED_ERROR,
   };
 }
 
@@ -78,6 +92,12 @@ export async function getTenantSubscriptionAccess(tenantId: string): Promise<Sub
       subscriptionPlan: true,
       subscriptionStatus: true,
       trialEndsAt: true,
+      Subscription: {
+        select: {
+          currentPeriodEnd: true,
+          cancelAtPeriodEnd: true,
+        },
+      },
     },
   });
 

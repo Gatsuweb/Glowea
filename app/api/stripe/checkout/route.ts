@@ -4,6 +4,10 @@ import { stripe } from "@/lib/stripe";
 import { getCurrentUserRecord } from "@/lib/tenant";
 import prisma from "@/lib/prisma";
 import {
+  clearTenantStripeBillingReferences,
+  isMissingStripeCustomerError,
+} from "@/lib/stripeBillingRecovery";
+import {
   createCustomerPortalSession,
   findCurrentCustomerSubscriptions,
   getAppUrl,
@@ -32,6 +36,29 @@ function isCheckoutPlan(value: unknown): value is CheckoutPlan {
 
 function isCheckoutBilling(value: unknown): value is CheckoutBilling {
   return value === "monthly" || value === "yearly";
+}
+
+async function createStripeCustomer(params: {
+  userId: string;
+  tenantId: string;
+  email?: string | null;
+  name?: string | null;
+}) {
+  const customer = await stripe.customers.create({
+    email: params.email || undefined,
+    name: params.name || undefined,
+    metadata: {
+      userId: params.userId,
+      tenantId: params.tenantId,
+    },
+  });
+
+  await prisma.tenant.update({
+    where: { id: params.tenantId },
+    data: { stripeCustomerId: customer.id, updatedAt: new Date() },
+  });
+
+  return customer.id;
 }
 
 export async function POST(req: Request) {
@@ -72,23 +99,34 @@ export async function POST(req: Request) {
   let customerId = tenant.stripeCustomerId;
   if (!customerId) {
     const owner = tenant.User[0];
-    const customer = await stripe.customers.create({
+    customerId = await createStripeCustomer({
+      userId,
+      tenantId,
       email: owner?.email,
       name: owner?.fullName || tenant.name,
-      metadata: {
-        userId,
-        tenantId,
-      },
-    });
-
-    customerId = customer.id;
-    await prisma.tenant.update({
-      where: { id: tenantId },
-      data: { stripeCustomerId: customerId, updatedAt: new Date() },
     });
   }
 
-  const currentSubscriptions = await findCurrentCustomerSubscriptions(customerId);
+  let currentSubscriptions = [];
+  try {
+    currentSubscriptions = await findCurrentCustomerSubscriptions(customerId);
+  } catch (error) {
+    if (!isMissingStripeCustomerError(error)) {
+      throw error;
+    }
+
+    await clearTenantStripeBillingReferences(tenantId);
+
+    const owner = tenant.User[0];
+    customerId = await createStripeCustomer({
+      userId,
+      tenantId,
+      email: owner?.email,
+      name: owner?.fullName || tenant.name,
+    });
+    currentSubscriptions = [];
+  }
+
   if (currentSubscriptions.length > 0) {
     const portalSession = await createCustomerPortalSession({
       customerId,

@@ -3,6 +3,7 @@
 import prisma from "../../lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "../../lib/tenant";
+import { requireTenantMutationAccess } from "../../lib/subscription";
 
 export type ConsentSnapshot = {
   contactLenses: "Oui" | "Non";
@@ -87,6 +88,11 @@ export async function saveConsent(clientId: string, input: Partial<ConsentSnapsh
   if (!clientId) return { success: false as const, error: "Cliente introuvable" };
 
   const tenantId = await getTenantId();
+  const access = await requireTenantMutationAccess(tenantId);
+  if (!access.allowed) {
+    return { success: false as const, error: access.error };
+  }
+
   const snapshot = normalizeConsentSnapshot(input);
 
   if (!snapshot.careConsentAccepted) {

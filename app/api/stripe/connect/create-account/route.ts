@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import prisma from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
+import { requireTenantMutationAccess } from "@/lib/subscription";
 import { getCurrentUserRecord } from "@/lib/tenant";
 
 export const runtime = "nodejs";
@@ -17,6 +18,11 @@ export async function POST(req: Request) {
 
   const currentUserRecord = await getCurrentUserRecord();
   const tenantId = currentUserRecord.tenantId;
+  const access = await requireTenantMutationAccess(tenantId);
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.error }, { status: 403 });
+  }
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
   const clerkUser = await currentUser();
 

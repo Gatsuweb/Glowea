@@ -299,6 +299,8 @@ export type AgendaClientWrapperProps = {
   paymentSettings?: PaymentSettings;
   onlineBookingUnreadCount?: number;
   displayMode?: "page" | "panel";
+  isReadOnlyAccess?: boolean;
+  readOnlyMessage?: string;
 };
 
 export default function AgendaClientWrapper({ 
@@ -315,6 +317,8 @@ export default function AgendaClientWrapper({
     defaultDepositType: "fixed",
   },
   displayMode = "page",
+  isReadOnlyAccess = false,
+  readOnlyMessage = "Votre abonnement n'est plus actif. Vous pouvez consulter vos donnees, mais les actions sont desactivees.",
 }: AgendaClientWrapperProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -339,6 +343,12 @@ export default function AgendaClientWrapper({
   const [confirmedSelection, setConfirmedSelection] = useState<CalendarSelection | null>(null);
   const [managedItem, setManagedItem] = useState<ManagedCalendarItem | null>(null);
   const [isMounted, setIsMounted] = useState(false);
+
+  const blockReadOnlyAction = () => {
+    if (!isReadOnlyAccess) return false;
+    setActionError(readOnlyMessage);
+    return true;
+  };
   const touchSelectionRef = useRef<CalendarSelection | null>(null);
   const touchGestureRef = useRef<TouchCalendarGesture | null>(null);
   const isTouchSelectingRef = useRef(false);
@@ -849,6 +859,8 @@ export default function AgendaClientWrapper({
   };
 
   const handleStatusChange = async (appointmentId: string, nextStatus: AppointmentStatusValue) => {
+    if (blockReadOnlyAction()) return;
+
     setActionAppointmentId(appointmentId);
     setActionError(null);
     try {
@@ -877,6 +889,8 @@ export default function AgendaClientWrapper({
   }
 
   const handleDeleteAppointment = async (appointmentId: string) => {
+    if (blockReadOnlyAction()) return;
+
     if (!confirm('Voulez-vous vraiment supprimer ce rendez-vous ?')) return;
 
     setActionAppointmentId(appointmentId);
@@ -897,6 +911,8 @@ export default function AgendaClientWrapper({
   };
 
   const openCreateAppointmentAt = (day: Date, hour: number, minute: number, endAt?: Date | null) => {
+    if (blockReadOnlyAction()) return;
+
     const scheduledAt = new Date(day);
     scheduledAt.setHours(hour, minute, 0, 0);
     setAppointmentToEdit(null);
@@ -906,6 +922,8 @@ export default function AgendaClientWrapper({
   };
 
   const openEditAppointment = (appointment: AgendaAppointment) => {
+    if (blockReadOnlyAction()) return;
+
     setInitialAppointmentSlot(null);
     setInitialAppointmentEndSlot(null);
     setAppointmentToEdit(appointment);
@@ -950,6 +968,8 @@ export default function AgendaClientWrapper({
   };
 
   const saveSelectionException = async (type: AgendaAvailabilityException["type"], title: string) => {
+    if (blockReadOnlyAction()) return;
+
     if (!confirmedSelection) return;
 
     const bounds = getSelectionBounds(confirmedSelection);
@@ -982,6 +1002,8 @@ export default function AgendaClientWrapper({
   };
 
   const saveSelectionPause = async () => {
+    if (blockReadOnlyAction()) return;
+
     if (!confirmedSelection) return;
 
     const bounds = getSelectionBounds(confirmedSelection);
@@ -1038,6 +1060,8 @@ export default function AgendaClientWrapper({
   };
 
   const saveManagedException = async () => {
+    if (blockReadOnlyAction()) return;
+
     if (!managedItem || managedItem.kind !== "exception") return;
     setActionError(null);
 
@@ -1071,6 +1095,8 @@ export default function AgendaClientWrapper({
   };
 
   const deleteManagedException = async () => {
+    if (blockReadOnlyAction()) return;
+
     if (!managedItem || managedItem.kind !== "exception") return;
     setActionError(null);
 
@@ -1136,6 +1162,8 @@ export default function AgendaClientWrapper({
   };
 
   const saveManagedPause = async () => {
+    if (blockReadOnlyAction()) return;
+
     if (!managedItem || managedItem.kind !== "pause") return;
     setActionError(null);
 
@@ -1173,6 +1201,8 @@ export default function AgendaClientWrapper({
   };
 
   const deleteManagedPause = async () => {
+    if (blockReadOnlyAction()) return;
+
     if (!managedItem || managedItem.kind !== "pause") return;
     setActionError(null);
 
@@ -1339,10 +1369,12 @@ export default function AgendaClientWrapper({
             <button
               className={styles.btnPrimary}
               onClick={() => {
+                if (blockReadOnlyAction()) return;
                 setAppointmentToEdit(null);
                 setInitialAppointmentSlot(null);
                 setNewAppointmentModalOpen(true);
               }}
+              disabled={isReadOnlyAccess}
             >
               + Nouveau RDV
             </button>
@@ -1355,6 +1387,12 @@ export default function AgendaClientWrapper({
           </button>
         </div>
       </header>
+
+      {isReadOnlyAccess && (
+        <div className={styles.errorAlert} role="alert">
+          {readOnlyMessage}
+        </div>
+      )}
 
       {!isHistoryView && (
         <section className={styles.filterCard}>
@@ -1439,7 +1477,7 @@ export default function AgendaClientWrapper({
                       <select
                         className={styles.statusSelect}
                         value=""
-                        disabled={actionAppointmentId === app.id}
+                        disabled={isReadOnlyAccess || actionAppointmentId === app.id}
                         onChange={(e) => {
                           const nextStatus = e.target.value as AppointmentStatusValue;
                           if (!nextStatus) return;
@@ -1474,7 +1512,15 @@ export default function AgendaClientWrapper({
                 {/* Bloc Actions */}
                 <div className={styles.actionsBlock}>
                   <div className={styles.topActions}>
-                    <button className={styles.btnPlay} onClick={() => { setSelectedSessionAppointment(app); setSessionModalOpen(true); }}>
+                    <button
+                      className={styles.btnPlay}
+                      onClick={() => {
+                        if (blockReadOnlyAction()) return;
+                        setSelectedSessionAppointment(app);
+                        setSessionModalOpen(true);
+                      }}
+                      disabled={isReadOnlyAccess}
+                    >
                       <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <circle cx="20" cy="20" r="20" fill="#8B4B54"/>
                         <path d="M26 20L16 26V14L26 20Z" fill="white"/>
@@ -1492,10 +1538,12 @@ export default function AgendaClientWrapper({
                       className={styles.paymentButton}
                       type="button"
                       onClick={() => {
+                        if (blockReadOnlyAction()) return;
                         setActionError(null);
                         setPaymentAppointmentData(app);
                         setPaymentModalOpen(true);
                       }}
+                      disabled={isReadOnlyAccess}
                     >
                       Paiement
                     </button>
@@ -1532,6 +1580,7 @@ export default function AgendaClientWrapper({
                       className={styles.iconBtn} 
                       type="button"
                       onClick={() => openEditAppointment(app)}
+                      disabled={isReadOnlyAccess}
                       title="Modifier"
                       aria-label={`Modifier le rendez-vous de ${app.client.name}`}
                     >
@@ -1546,7 +1595,7 @@ export default function AgendaClientWrapper({
                       onClick={async () => {
                         await handleDeleteAppointment(app.id);
                       }}
-                      disabled={actionAppointmentId === app.id}
+                      disabled={isReadOnlyAccess || actionAppointmentId === app.id}
                       title="Supprimer"
                       aria-label={`Supprimer le rendez-vous de ${app.client.name}`}
                     >
@@ -1782,6 +1831,7 @@ export default function AgendaClientWrapper({
         clientId={selectedSessionAppointment?.client.id}
         serviceId={selectedSessionAppointment?.service.id}
         onPaymentRequest={() => {
+          if (blockReadOnlyAction()) return;
           setPaymentAppointmentData(selectedSessionAppointment);
           setSessionModalOpen(false);
           setSelectedSessionAppointment(null);

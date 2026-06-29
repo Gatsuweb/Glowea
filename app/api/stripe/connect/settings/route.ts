@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 import prisma from "@/lib/prisma";
+import { requireTenantMutationAccess } from "@/lib/subscription";
 import { getCurrentUserRecord } from "@/lib/tenant";
 
 export const runtime = "nodejs";
@@ -26,6 +27,11 @@ export async function PATCH(req: Request) {
 
   const currentUserRecord = await getCurrentUserRecord();
   const tenantId = currentUserRecord.tenantId;
+  const access = await requireTenantMutationAccess(tenantId);
+  if (!access.allowed) {
+    return NextResponse.json({ error: access.error }, { status: 403 });
+  }
+
   const body = await req.json();
   const defaultDepositType = normalizeDepositType(body.defaultDepositType);
   const defaultDepositAmount = normalizeDepositAmount(body.defaultDepositAmount);

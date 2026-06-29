@@ -51,11 +51,15 @@ type EditableStockProduct = Omit<StockProduct, "trackingType"> & {
 
 export default function StockClientWrapper({ 
   initialProducts = [],
-  categories = []
+  categories = [],
+  isReadOnlyAccess = false,
+  readOnlyMessage = "Votre abonnement n'est plus actif. Vous pouvez consulter vos donnees, mais les actions sont desactivees.",
 }: { 
   initialProducts?: StockProduct[],
   movements?: StockMovement[],
   categories?: StockCategory[]
+  isReadOnlyAccess?: boolean,
+  readOnlyMessage?: string
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
@@ -93,18 +97,21 @@ export default function StockClientWrapper({
     Number(selectedStatusFilter !== "all") + Number(selectedCategoryFilter !== "all");
 
   const handleIncrement = async (productId: string) => {
+    if (isReadOnlyAccess) return;
     setLoadingProductId(productId);
     await adjustStock(productId, 1);
     setLoadingProductId(null);
   };
 
   const handleDecrement = async (productId: string) => {
+    if (isReadOnlyAccess) return;
     setLoadingProductId(productId);
     await adjustStock(productId, -1);
     setLoadingProductId(null);
   };
 
   const handleDelete = async (productId: string) => {
+    if (isReadOnlyAccess) return;
     if (confirm("Voulez-vous vraiment supprimer ce produit ?")) {
       setLoadingProductId(productId);
       await deleteProduct(productId);
@@ -113,6 +120,7 @@ export default function StockClientWrapper({
   };
 
   const handleEdit = (product: StockProduct) => {
+    if (isReadOnlyAccess) return;
     setProductToEdit({
       ...product,
       trackingType: product.trackingType === "UNIDOSE" ? "UNIDOSE" : "MULTIDOSE",
@@ -146,13 +154,21 @@ export default function StockClientWrapper({
         <button 
           className={styles.btnPrimary}
           onClick={() => {
+            if (isReadOnlyAccess) return;
             setProductToEdit(null);
             setModalOpen(true);
           }}
+          disabled={isReadOnlyAccess}
         >
           + Ajouter un produit
         </button>
       </div>
+
+      {isReadOnlyAccess && (
+        <div className={styles.statCard} role="alert">
+          {readOnlyMessage}
+        </div>
+      )}
 
       {/* Search */}
       <section className={styles.searchSection}>
@@ -244,7 +260,7 @@ export default function StockClientWrapper({
                       type="button"
                       className={styles.ruptureRestockBtn}
                       onClick={() => handleIncrement(product.id)}
-                      disabled={loadingProductId === product.id}
+                      disabled={isReadOnlyAccess || loadingProductId === product.id}
                       title="Ajouter une unité"
                     >
                       {loadingProductId === product.id ? "..." : "+1"}
@@ -283,13 +299,13 @@ export default function StockClientWrapper({
                   <span>{product.categoryLabel || product.tags[0] || "Produit"}</span>
                 </div>
                 <div className={styles.rupturePanelActions}>
-                  <button type="button" onClick={() => handleEdit(product)}>
+                  <button type="button" onClick={() => handleEdit(product)} disabled={isReadOnlyAccess}>
                     Modifier
                   </button>
                   <button
                     type="button"
                     onClick={() => handleIncrement(product.id)}
-                    disabled={loadingProductId === product.id}
+                    disabled={isReadOnlyAccess || loadingProductId === product.id}
                   >
                     {loadingProductId === product.id ? "Ajout..." : "Ajouter 1"}
                   </button>
@@ -341,6 +357,7 @@ export default function StockClientWrapper({
                       onClick={() => handleEdit(prod)}
                       style={{ background: 'none', border: 'none', cursor: 'pointer' }}
                       title="Modifier"
+                      disabled={isReadOnlyAccess}
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -351,6 +368,7 @@ export default function StockClientWrapper({
                       onClick={() => handleDelete(prod.id)}
                       style={{ background: 'none', border: 'none', cursor: 'pointer' }}
                       title="Supprimer"
+                      disabled={isReadOnlyAccess}
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d32f2f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M3 6h18"></path>
@@ -375,7 +393,7 @@ export default function StockClientWrapper({
               <button 
                 className={styles.counterBtn} 
                 onClick={() => handleDecrement(prod.id)}
-                disabled={loadingProductId === prod.id || prod.count <= 0}
+                disabled={isReadOnlyAccess || loadingProductId === prod.id || prod.count <= 0}
               >
                 -
               </button>
@@ -385,7 +403,7 @@ export default function StockClientWrapper({
               <button 
                 className={styles.counterBtn} 
                 onClick={() => handleIncrement(prod.id)}
-                disabled={loadingProductId === prod.id}
+                disabled={isReadOnlyAccess || loadingProductId === prod.id}
               >
                 +
               </button>

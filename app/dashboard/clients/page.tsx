@@ -2,6 +2,7 @@ import React from "react";
 import prisma from "../../../lib/prisma";
 import ClientsClientWrapper from "../../components/ClientsClientWrapper";
 import { getTenantId } from "../../../lib/tenant";
+import { getTenantSubscriptionAccess } from "../../../lib/subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ function serializeValue<T>(value: T): T {
 export default async function ClientsPage() {
   const tenantId = await getTenantId();
 
-  const [clientsData, servicesData] = await Promise.all([
+  const [clientsData, servicesData, subscriptionAccess] = await Promise.all([
     prisma.client.findMany({
       where: { tenantId, archivedAt: null },
       include: {
@@ -90,10 +91,18 @@ export default async function ClientsPage() {
       where: { tenantId, isActive: true },
       orderBy: { name: "asc" },
     }),
+    getTenantSubscriptionAccess(tenantId),
   ]);
 
   const serializedClients = serializeValue(clientsData);
   const serializedServices = serializeValue(servicesData);
 
-  return <ClientsClientWrapper clients={serializedClients} services={serializedServices} />;
+  return (
+    <ClientsClientWrapper
+      clients={serializedClients}
+      services={serializedServices}
+      isReadOnlyAccess={subscriptionAccess.isReadOnly}
+      readOnlyMessage={subscriptionAccess.message || undefined}
+    />
+  );
 }

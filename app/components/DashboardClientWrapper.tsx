@@ -298,12 +298,15 @@ export default function DashboardClientWrapper({
         ? "Votre abonnement est annule."
         : "Votre essai est termine.";
   const limitedAccessText =
-    subscriptionAccess.status === "PAST_DUE"
-      ? "Vous pouvez consulter vos donnees, mais les actions importantes sont limitees jusqu'a regularisation."
-      : "Vous pouvez consulter vos donnees, mais les creations et modifications sont bloquees.";
+    subscriptionAccess.message ||
+    "Votre abonnement n'est plus actif. Vous pouvez consulter vos donnees, mais les actions sont desactivees.";
 
   const openPricing = () => {
     router.push("/pricing");
+  };
+
+  const openSubscriptionSettings = () => {
+    router.push("/dashboard/profil?tab=abonnements");
   };
 
   const guardMutation = (action: () => void) => {
@@ -425,7 +428,7 @@ export default function DashboardClientWrapper({
             <strong>{limitedAccessTitle}</strong>
             <span>{limitedAccessText}</span>
           </div>
-          <button type="button" onClick={openPricing}>Choisir une formule</button>
+          <button type="button" onClick={openSubscriptionSettings}>Gerer mon abonnement</button>
         </section>
       )}
 
