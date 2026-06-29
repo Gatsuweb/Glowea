@@ -60,7 +60,7 @@ export default function PaymentsSettingsClient({
 
   const status = useMemo(() => {
     if (settings.paymentsEnabled) return { label: "Paiements actifs", tone: styles.badgeGreen };
-    if (settings.stripeAccountId) return { label: "Configuration incomplete", tone: styles.badgeAmber };
+    if (settings.stripeAccountId) return { label: "Configuration incomplète", tone: styles.badgeAmber };
     return { label: "Non connecte", tone: styles.badgeNeutral };
   }, [settings.paymentsEnabled, settings.stripeAccountId]);
 
@@ -94,7 +94,7 @@ export default function PaymentsSettingsClient({
         data.message ||
           (data.user?.paymentsEnabled
             ? "Votre compte Stripe est déjà configuré."
-            : "Configuration Stripe encore incomplete.")
+            : "Configuration Stripe encore incomplète.")
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Une erreur inattendue est survenue.");
@@ -210,22 +210,22 @@ export default function PaymentsSettingsClient({
         <div>
           <h2>Stripe Connect Express</h2>
           <p>
-            Les paiements clients passent par Glowea puis sont transferes vers votre compte Stripe connecte.
+            Les paiements clients passent par Glowea puis sont transferés vers votre compte Stripe connecté.
           </p>
         </div>
 
         <div className={styles.statusGrid}>
           <div>
             <span>Compte Stripe</span>
-            <strong>{settings.stripeAccountId ? "Connecte" : "A creer"}</strong>
+            <strong>{settings.stripeAccountId ? "Connecté" : "A créer"}</strong>
           </div>
           <div>
             <span>Onboarding</span>
-            <strong>{settings.stripeOnboardingComplete ? "Complete" : "Incomplet"}</strong>
+            <strong>{settings.stripeOnboardingComplete ? "Complet" : "Incomplet"}</strong>
           </div>
           <div>
             <span>Paiements</span>
-            <strong>{settings.paymentsEnabled ? "Actifs" : "Bloques"}</strong>
+            <strong>{settings.paymentsEnabled ? "Actifs" : "Bloqués"}</strong>
           </div>
         </div>
 
@@ -246,7 +246,7 @@ export default function PaymentsSettingsClient({
       <section className={styles.panel}>
         <div>
           <h2>Arrhes par defaut</h2>
-          <p>Ces valeurs seront utilisees si aucun montant d&apos;arrhes specifique n&apos;est defini sur le rendez-vous.</p>
+          <p>Ces valeurs seront utilisées si aucun montant d&apos;arrhes specifique n&apos;est défini sur le rendez-vous.</p>
         </div>
 
         <div className={styles.formGrid}>

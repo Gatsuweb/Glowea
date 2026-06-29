@@ -27,13 +27,13 @@ const planDetails: Record<ProfileData["subscriptionPlan"], {
   ESSENTIAL: {
     name: "Essentiel",
     price: "39,90 EUR",
-    description: "La formule simple pour organiser votre activite, suivre vos clientes et garder un historique complet.",
-    features: ["Agenda et fiches clientes", "Sessions techniques", "Stock produits", "Comptabilite automatique", "Historique complet"],
+    description: "La formule simple pour organiser votre activité, suivre vos clientes et garder un historique complet.",
+    features: ["Agenda et fiches clientes", "Sessions techniques", "Stock produits", "Comptabilité automatique", "Historique complet"],
   },
   PRO: {
     name: "Pro",
     price: "59,90 EUR",
-    description: "La formule complete pour automatiser vos rappels, reduire les absences et developper votre image pro.",
+    description: "La formule complète pour automatiser vos rappels, réduire les absences et développer votre image pro.",
     features: ["Tout Essentiel", "Rappels SMS automatiques", "Emails automatiques", "Acomptes et anti no-show", "Mini-site professionnel", "Réservation en ligne"],
   },
   PREMIUM: {
