@@ -1,9 +1,14 @@
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
 
 import prisma from "@/lib/prisma";
 import { requireTenantMutationAccess } from "@/lib/subscription";
 import { getCurrentUserRecord } from "@/lib/tenant";
+import {
+  jsonError,
+  jsonSuccess,
+  logStripeConnectError,
+  logStripeConnectInfo,
+} from "../_shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,48 +24,66 @@ function normalizeDepositType(value: unknown) {
 }
 
 export async function PATCH(req: Request) {
-  const { userId } = await auth();
+  let tenantId: string | null = null;
+  let stripeAccountId: string | null = null;
 
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return jsonError(401, "Non autorise");
+    }
+
+    const currentUserRecord = await getCurrentUserRecord();
+    tenantId = currentUserRecord.tenantId;
+    const access = await requireTenantMutationAccess(tenantId);
+    if (!access.allowed) {
+      return jsonError(403, access.error);
+    }
+
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return jsonError(400, "Requete invalide");
+    }
+
+    const defaultDepositType = normalizeDepositType((body as { defaultDepositType?: unknown }).defaultDepositType);
+    const defaultDepositAmount = normalizeDepositAmount((body as { defaultDepositAmount?: unknown }).defaultDepositAmount);
+
+    if (defaultDepositType === "percent" && defaultDepositAmount > 100) {
+      return jsonError(400, "Le pourcentage d'arrhes doit etre compris entre 0 et 100.");
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { id: currentUserRecord.id, tenantId },
+      select: { id: true, stripeAccountId: true },
+    });
+
+    if (!user) {
+      return jsonError(404, "Utilisateur introuvable");
+    }
+
+    stripeAccountId = user.stripeAccountId;
+    logStripeConnectInfo("update-settings", { tenantId, stripeAccountId });
+
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        defaultDepositAmount,
+        defaultDepositType,
+        updatedAt: new Date(),
+      },
+      select: {
+        defaultDepositAmount: true,
+        defaultDepositType: true,
+      },
+    });
+
+    return jsonSuccess({
+      user: updatedUser,
+      message: "Arrhes par defaut enregistrees.",
+    });
+  } catch (error) {
+    logStripeConnectError("update-settings", { tenantId, stripeAccountId }, error);
+    return jsonError(500, "Impossible d'enregistrer les arrhes.");
   }
-
-  const currentUserRecord = await getCurrentUserRecord();
-  const tenantId = currentUserRecord.tenantId;
-  const access = await requireTenantMutationAccess(tenantId);
-  if (!access.allowed) {
-    return NextResponse.json({ error: access.error }, { status: 403 });
-  }
-
-  const body = await req.json();
-  const defaultDepositType = normalizeDepositType(body.defaultDepositType);
-  const defaultDepositAmount = normalizeDepositAmount(body.defaultDepositAmount);
-
-  if (defaultDepositType === "percent" && defaultDepositAmount > 100) {
-    return NextResponse.json({ error: "Le pourcentage d'arrhes doit être compris entre 0 et 100." }, { status: 400 });
-  }
-
-  const user = await prisma.user.findFirst({
-    where: { id: currentUserRecord.id, tenantId },
-    select: { id: true },
-  });
-
-  if (!user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
-  }
-
-  const updatedUser = await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      defaultDepositAmount,
-      defaultDepositType,
-      updatedAt: new Date(),
-    },
-    select: {
-      defaultDepositAmount: true,
-      defaultDepositType: true,
-    },
-  });
-
-  return NextResponse.json({ success: true, user: updatedUser });
 }

@@ -16,6 +16,28 @@ type PaymentSettings = {
   defaultDepositType: DepositType;
 };
 
+type PaymentsApiResponse = {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  url?: string;
+  alreadyConfigured?: boolean;
+  stripeReconnectRequired?: boolean;
+  code?: string;
+  user?: Partial<PaymentSettings>;
+};
+
+async function readApiResponse(response: Response): Promise<PaymentsApiResponse | null> {
+  const text = await response.text();
+  if (!text.trim()) return null;
+
+  try {
+    return JSON.parse(text) as PaymentsApiResponse;
+  } catch {
+    return null;
+  }
+}
+
 export default function PaymentsSettingsClient({
   initialSettings,
 }: {
@@ -42,6 +64,11 @@ export default function PaymentsSettingsClient({
     return { label: "Non connecte", tone: styles.badgeNeutral };
   }, [settings.paymentsEnabled, settings.stripeAccountId]);
 
+  function applyReturnedUser(data: PaymentsApiResponse | null) {
+    if (!data?.user) return;
+    setSettings((prev) => ({ ...prev, ...data.user }));
+  }
+
   async function refreshStatus() {
     if (!settings.stripeAccountId) return;
 
@@ -51,14 +78,24 @@ export default function PaymentsSettingsClient({
 
     try {
       const response = await fetch("/api/stripe/connect/refresh-status", { method: "POST" });
-      const data = await response.json();
+      const data = await readApiResponse(response);
+
+      if (!data) {
+        throw new Error("Reponse serveur invalide.");
+      }
 
       if (!response.ok || !data.success) {
+        applyReturnedUser(data);
         throw new Error(data.error || "Impossible de rafraichir le statut Stripe.");
       }
 
-      setSettings((prev) => ({ ...prev, ...data.user }));
-      setMessage(data.user.paymentsEnabled ? "Compte Stripe prêt à recevoir des paiements." : "Configuration Stripe encore incomplète.");
+      applyReturnedUser(data);
+      setMessage(
+        data.message ||
+          (data.user?.paymentsEnabled
+            ? "Votre compte Stripe est déjà configuré."
+            : "Configuration Stripe encore incomplete.")
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Une erreur inattendue est survenue.");
     } finally {
@@ -81,15 +118,27 @@ export default function PaymentsSettingsClient({
 
     try {
       const response = await fetch("/api/stripe/connect/create-account", { method: "POST" });
-      const data = await response.json();
+      const data = await readApiResponse(response);
 
-      if (!response.ok || !data.url) {
-        throw new Error(data.error || "Impossible de créer le lien Stripe.");
+      if (!data) {
+        throw new Error("Reponse serveur invalide.");
+      }
+
+      if (data.alreadyConfigured) {
+        applyReturnedUser(data);
+        setMessage(data.message || "Votre compte Stripe est déjà configuré.");
+        return;
+      }
+
+      if (!response.ok || !data.success || !data.url) {
+        applyReturnedUser(data);
+        throw new Error(data.error || "Impossible de creer le lien Stripe.");
       }
 
       window.location.href = data.url;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Une erreur inattendue est survenue.");
+    } finally {
       setIsConnecting(false);
     }
   }
@@ -118,14 +167,18 @@ export default function PaymentsSettingsClient({
           defaultDepositType: depositType,
         }),
       });
-      const data = await response.json();
+      const data = await readApiResponse(response);
+
+      if (!data) {
+        throw new Error("Reponse serveur invalide.");
+      }
 
       if (!response.ok || !data.success) {
         throw new Error(data.error || "Impossible d'enregistrer les arrhes.");
       }
 
-      setSettings((prev) => ({ ...prev, ...data.user }));
-      setMessage("Arrhes par defaut enregistrees.");
+      applyReturnedUser(data);
+      setMessage(data.message || "Arrhes par defaut enregistrees.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Une erreur inattendue est survenue.");
     } finally {
@@ -140,8 +193,8 @@ export default function PaymentsSettingsClient({
           <Link className={styles.backLink} href="/dashboard">
             Retour au dashboard
           </Link>
-          <h1>Paramètres paiements</h1>
-          <p>Connectéz votre compte Stripe Express pour recevoir les arrhes et paiements de vos clientes.</p>
+          <h1>Parametres paiements</h1>
+          <p>Connectez votre compte Stripe Express pour recevoir les arrhes et paiements de vos clientes.</p>
         </div>
         <span className={`${styles.badge} ${status.tone}`}>{status.label}</span>
       </div>
@@ -157,30 +210,34 @@ export default function PaymentsSettingsClient({
         <div>
           <h2>Stripe Connect Express</h2>
           <p>
-            Les paiements clients passent par Glowea puis sont transférés vers votre compte Stripe connecté.
+            Les paiements clients passent par Glowea puis sont transferes vers votre compte Stripe connecte.
           </p>
         </div>
 
         <div className={styles.statusGrid}>
           <div>
             <span>Compte Stripe</span>
-            <strong>{settings.stripeAccountId ? "Connecté" : "À créer"}</strong>
+            <strong>{settings.stripeAccountId ? "Connecte" : "A creer"}</strong>
           </div>
           <div>
             <span>Onboarding</span>
-            <strong>{settings.stripeOnboardingComplete ? "Complété" : "Incomplet"}</strong>
+            <strong>{settings.stripeOnboardingComplete ? "Complete" : "Incomplet"}</strong>
           </div>
           <div>
             <span>Paiements</span>
-            <strong>{settings.paymentsEnabled ? "Actives" : "Bloques"}</strong>
+            <strong>{settings.paymentsEnabled ? "Actifs" : "Bloques"}</strong>
           </div>
         </div>
 
         <div className={styles.actions}>
           <button className={styles.primaryButton} onClick={startOnboarding} disabled={isConnecting}>
-            {settings.stripeAccountId ? "Reprendre la configuration" : "Connectér mon compte Stripe"}
+            {settings.stripeAccountId ? "Reprendre la configuration" : "Connecter mon compte Stripe"}
           </button>
-          <button className={styles.secondaryButton} onClick={refreshStatus} disabled={!settings.stripeAccountId || isRefreshing}>
+          <button
+            className={styles.secondaryButton}
+            onClick={refreshStatus}
+            disabled={!settings.stripeAccountId || isRefreshing}
+          >
             {isRefreshing ? "Verification..." : "Rafraichir le statut"}
           </button>
         </div>
