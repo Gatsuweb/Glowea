@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Navbar from "../components/Navbar";
@@ -10,6 +11,13 @@ import { getTenantSubscriptionAccess } from "../../lib/subscription";
 import { getTenantId } from "../../lib/tenant";
 import { getTenantOnboardingState } from "../actions/onboardingActions";
 import styles from "./layout.module.css";
+
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default async function DashboardLayout({
   children,

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import HeroTabletShowcase from "./components/HeroTabletShowcase";
@@ -13,6 +14,17 @@ import {
 import ProblemOrbitSection from "./components/ProblemOrbitSection";
 import SolutionConvergenceSection from "./components/SolutionConvergenceSection";
 import styles from "./page.module.css";
+
+export const metadata: Metadata = {
+  title: {
+    absolute: "Glowea - Plateforme de reservation beaute",
+  },
+  description:
+    "Centralisez rendez-vous, clientes, rappels, paiements, stock et sessions techniques dans une plateforme pensee pour les professionnelles de la beaute.",
+  alternates: {
+    canonical: "/",
+  },
+};
 
 const metrics = [
   { value: "6", label: "RDV aujourd'hui", type: "appointments" },

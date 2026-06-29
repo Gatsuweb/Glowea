@@ -1,5 +1,7 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
+import { absoluteUrl } from "../../../lib/seo";
 import prisma from "../../../lib/prisma";
 import { syncAppointmentPaymentFromCheckoutSessionId } from "../../../lib/stripeAppointmentSync";
 import { getSubscriptionAccessFromTenant } from "../../../lib/subscription";
@@ -72,20 +74,18 @@ function getServiceCardImage(service: PublicService) {
   return "/card-1.png";
 }
 
-export default async function PublicProPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ slug: string }>;
-  searchParams?: Promise<{ booking?: string; appointmentId?: string; session_id?: string }>;
-}) {
-  const { slug } = await params;
-  const resolvedSearchParams = searchParams ? await searchParams : {};
-  const profile = await prisma.publicProfile.findUnique({
+async function getPublicProfile(slug: string) {
+  return prisma.publicProfile.findUnique({
     where: { slug },
     include: {
       Tenant: {
         include: {
+          Subscription: {
+            select: {
+              currentPeriodEnd: true,
+              cancelAtPeriodEnd: true,
+            },
+          },
           Service: {
             where: { isActive: true, isPublic: true },
             orderBy: [{ category: "asc" }, { name: "asc" }],
@@ -103,12 +103,80 @@ export default async function PublicProPage({
       },
     },
   });
+}
 
-  if (
-    !profile ||
-    !profile.isPublished ||
-    !getSubscriptionAccessFromTenant(profile.Tenant).canUsePublicPage
-  ) {
+type PublicProfileForSeo = NonNullable<Awaited<ReturnType<typeof getPublicProfile>>>;
+
+function isPublicProfileIndexable(profile: PublicProfileForSeo | null): profile is PublicProfileForSeo {
+  return Boolean(
+    profile &&
+      profile.isPublished &&
+      getSubscriptionAccessFromTenant(profile.Tenant).canUsePublicPage
+  );
+}
+
+function getPublicProfileTitle(profile: PublicProfileForSeo) {
+  const businessName = profile.businessName || profile.Tenant.name;
+  return profile.city
+    ? `${businessName} - Reservation beaute a ${profile.city}`
+    : `${businessName} - Reservation beaute`;
+}
+
+function getPublicProfileDescription(profile: PublicProfileForSeo) {
+  const businessName = profile.businessName || profile.Tenant.name;
+  const serviceNames = profile.Tenant.Service.slice(0, 3).map((service) => service.name).filter(Boolean);
+  const servicesText = serviceNames.length ? ` Prestations: ${serviceNames.join(", ")}.` : "";
+  const cityText = profile.city ? ` a ${profile.city}` : "";
+  const description =
+    profile.description ||
+    `${businessName} vous accueille${cityText} pour des prestations beaute avec reservation en ligne.`;
+
+  return `${description}${servicesText}`.replace(/\s+/g, " ").trim().slice(0, 160);
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const profile = await getPublicProfile(slug);
+
+  if (!isPublicProfileIndexable(profile)) {
+    return {
+      title: "Profil indisponible",
+      robots: {
+        index: false,
+        follow: false,
+      },
+    };
+  }
+
+  return {
+    title: getPublicProfileTitle(profile),
+    description: getPublicProfileDescription(profile),
+    alternates: {
+      canonical: absoluteUrl(`/pro/${profile.slug}`),
+    },
+    robots: {
+      index: true,
+      follow: true,
+    },
+  };
+}
+
+export default async function PublicProPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ booking?: string; appointmentId?: string; session_id?: string }>;
+}) {
+  const { slug } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const profile = await getPublicProfile(slug);
+
+  if (!isPublicProfileIndexable(profile)) {
     notFound();
   }
 
