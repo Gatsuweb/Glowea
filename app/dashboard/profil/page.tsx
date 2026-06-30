@@ -11,6 +11,7 @@ import {
   type ProfileData,
   type ProfileNotificationPreferences,
 } from "../../actions/profileActions";
+import { PRICING_PATH } from "../../../lib/pricing";
 
 const planDetails: Record<ProfileData["subscriptionPlan"], {
   name: string;
@@ -457,7 +458,7 @@ export default function ProfilPage() {
 
   const canEdit = !isLoadingProfile && !isSaving;
   const canToggleSmsReminders = (profileData.canUseAutomaticSmsReminders || profileData.smsRemindersEnabled) && !isLoadingProfile && !isSavingSmsReminders;
-  const openPricing = () => router.push("/pricing");
+  const openPricing = () => router.push(PRICING_PATH);
 
   const refreshProfileData = async () => {
     const res = await getProfileData();
@@ -761,7 +762,7 @@ export default function ProfilPage() {
       if (!response.ok || !data?.success || !data.url) {
         if (data?.code === "STRIPE_CUSTOMER_ENVIRONMENT_MISMATCH") {
           await refreshProfileData();
-          router.push("/pricing");
+          router.push(PRICING_PATH);
           return;
         }
         setError(data?.error || "Impossible d'ouvrir le changement de forfait Stripe.");
@@ -861,7 +862,7 @@ export default function ProfilPage() {
 
   const handleNavItemClick = (itemId: string) => {
     if (itemId === "page-publique") {
-      router.push(profileData.subscription.canUseProFeatures ? "/dashboard/page-publique" : "/pricing");
+      router.push(profileData.subscription.canUseProFeatures ? "/dashboard/page-publique" : PRICING_PATH);
       return;
     }
 
@@ -1216,7 +1217,7 @@ export default function ProfilPage() {
                         {isOpeningPlanChangePortal ? "Ouverture..." : "Changer de forfait"}
                       </button>
                     ) : (
-                      <a className={styles.btnEdit} href="/pricing">Changer de forfait</a>
+                      <a className={styles.btnEdit} href={PRICING_PATH}>Changer de forfait</a>
                     )}
                     <button
                       type="button"
@@ -1279,7 +1280,7 @@ export default function ProfilPage() {
                       {isOpeningPaymentMethodPortal ? "Ouverture..." : "Mettre a jour dans Stripe"}
                     </button>
                   ) : (
-                    <a className={styles.btnEdit} href="/pricing">Choisir une formule</a>
+                    <a className={styles.btnEdit} href={PRICING_PATH}>Choisir une formule</a>
                   )}
                 </div>
               </section>

@@ -15,6 +15,7 @@ import SendPromoModal from "./SendPromoModal";
 import WeeklyBriefModal from "./WeeklyBriefModal";
 import InstallAppModal from "./InstallAppModal";
 import type { SubscriptionAccess } from "../../lib/subscription";
+import { PRICING_PATH } from "../../lib/pricing";
 import {
   getAppointmentFinancialSummary,
   getAppointmentPaymentLabel,
@@ -302,7 +303,7 @@ export default function DashboardClientWrapper({
     "Votre abonnement n'est plus actif. Vous pouvez consulter vos donnees, mais les actions sont desactivees.";
 
   const openPricing = () => {
-    router.push("/pricing");
+    router.push(PRICING_PATH);
   };
 
   const openSubscriptionSettings = () => {
@@ -630,7 +631,7 @@ export default function DashboardClientWrapper({
                               className={styles.actionIcon}
                               onClick={() => {
                                 if (subscriptionAccess.currentPlan === "ESSENTIAL" && !canUseStripePayments) {
-                                  router.push("/pricing");
+                                  router.push(PRICING_PATH);
                                   return;
                                 }
                                 setPaymentAppointmentData(app);

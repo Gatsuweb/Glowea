@@ -14,6 +14,7 @@ import {
   updatePublicProfile,
   type getPublicPageConfig,
 } from "../../actions/publicPageActions";
+import { PRICING_PATH } from "../../../lib/pricing";
 import styles from "./pagePublique.module.css";
 
 type ConfigData = Awaited<ReturnType<typeof getPublicPageConfig>>;
@@ -611,7 +612,7 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
           <span className={styles.kicker}>Glowea Pro</span>
           <h1>La page publique est disponible avec Glowea Pro</h1>
           <p>Activez votre mini-site beauté pour présenter vos prestations, votre galerie et recevoir des demandes de rendez-vous.</p>
-          <Link className={styles.primaryButton} href="/pricing">Passer au Pro</Link>
+          <Link className={styles.primaryButton} href={PRICING_PATH}>Passer au Pro</Link>
         </section>
       </main>
     );

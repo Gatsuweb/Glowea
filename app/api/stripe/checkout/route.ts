@@ -12,6 +12,7 @@ import {
   findCurrentCustomerSubscriptions,
   getAppUrl,
 } from "@/lib/stripeCustomerPortal";
+import { PRICING_CANCELED_PATH } from "@/lib/pricing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -177,7 +178,7 @@ export async function POST(req: Request) {
       metadata,
     },
     success_url: `${appUrl}/dashboard?success=true&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${appUrl}/pricing?${checkoutOffer === "founder" ? "offer=founder&" : ""}canceled=true`,
+    cancel_url: `${appUrl}${PRICING_CANCELED_PATH}`,
   });
 
   return NextResponse.json({ url: checkoutSession.url });
