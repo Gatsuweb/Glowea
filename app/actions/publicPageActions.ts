@@ -14,7 +14,7 @@ import { sendTransactionalEmail } from "../../lib/resend";
 import { stripe } from "../../lib/stripe";
 import { getStoragePathFromPublicUrl, getSupabaseAdminClient, publicStorageBucket } from "../../lib/supabaseAdmin";
 import { getSubscriptionAccessFromTenant, getTenantSubscriptionAccess } from "../../lib/subscription";
-import { getTenantId } from "../../lib/tenant";
+import { getExistingTenantId, getTenantId } from "../../lib/tenant";
 
 export type PublicProfileInput = {
   isPublished: boolean;
@@ -507,7 +507,18 @@ export async function getPublicPageConfig() {
 }
 
 export async function updatePublicProfile(input: PublicProfileInput) {
-  const tenantId = await getTenantId();
+  let tenantId: string;
+
+  try {
+    tenantId = await getExistingTenantId("updatePublicProfile");
+  } catch (error) {
+    console.error("[public-profile:update] tenant not found without creation", error);
+    return {
+      success: false as const,
+      error: "Espace introuvable. Reconnectez-vous puis réessayez.",
+    };
+  }
+
   const access = await getTenantSubscriptionAccess(tenantId);
 
   if (!access.canUsePublicPage) {

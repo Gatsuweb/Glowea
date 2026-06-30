@@ -6,7 +6,7 @@ import { Prisma, type BillingProvider, type SubscriptionStatus } from "@prisma/c
 import prisma from "../../lib/prisma";
 import { type SubscriptionPlanValue } from "../../lib/features";
 import { getSubscriptionAccessFromTenant } from "../../lib/subscription";
-import { getTenantId } from "../../lib/tenant";
+import { getTenantId, logTenantLifecycle } from "../../lib/tenant";
 
 export type ProfileSubscriptionData = {
   plan: SubscriptionPlanValue;
@@ -168,6 +168,29 @@ export async function updateProfileData(input: Partial<ProfileData>) {
   if (!email || !email.includes("@")) return { success: false as const, error: "Email invalide" };
 
   try {
+    const ownerUser = await prisma.user.findFirst({
+      where: { clerkUserId: userId, tenantId },
+      select: { id: true, tenantId: true },
+    });
+
+    if (!ownerUser) {
+      console.error("[profile:update] owner user not found for tenant scope", { userId, tenantId });
+      return {
+        success: false as const,
+        error: "Profil introuvable pour cet espace. Reconnectez-vous puis réessayez.",
+      };
+    }
+
+    logTenantLifecycle("tenant_found", {
+      source: "updateProfileData",
+      reason: "profile_scope_resolved",
+      clerkUserId: userId,
+      databaseUserId: ownerUser.id,
+      tenantId: ownerUser.tenantId,
+    });
+
+    let tenantNameUpdated = false;
+
     await prisma.$transaction(async (tx) => {
       const userData = {
         firstName,
@@ -178,28 +201,17 @@ export async function updateProfileData(input: Partial<ProfileData>) {
         updatedAt: new Date(),
       };
 
-      const updatedUser = await tx.user.updateMany({
-        where: { clerkUserId: userId, tenantId },
+      await tx.user.update({
+        where: { id: ownerUser.id },
         data: userData,
       });
-
-      if (updatedUser.count === 0) {
-        await tx.user.create({
-          data: {
-            id: userId,
-            clerkUserId: userId,
-            ...userData,
-            role: "OWNER",
-            tenantId,
-          },
-        });
-      }
 
       if (salonName) {
         await tx.tenant.update({
           where: { id: tenantId },
           data: { name: salonName, updatedAt: new Date() },
         });
+        tenantNameUpdated = true;
       }
 
       await tx.businessSettings.upsert({
@@ -230,6 +242,14 @@ export async function updateProfileData(input: Partial<ProfileData>) {
           updatedAt: new Date(),
         },
       });
+    });
+
+    logTenantLifecycle("tenant_updated", {
+      source: "updateProfileData",
+      reason: tenantNameUpdated ? "tenant_name_updated" : "tenant_profile_data_updated",
+      clerkUserId: userId,
+      databaseUserId: ownerUser.id,
+      tenantId,
     });
 
     revalidatePath("/dashboard/profil");

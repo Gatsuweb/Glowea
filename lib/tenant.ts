@@ -1,5 +1,13 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
+import { Prisma } from "@prisma/client";
 import prisma from "./prisma";
+
+type TenantUserRecord = {
+  id: string;
+  clerkUserId: string;
+  email: string;
+  tenantId: string;
+};
 
 function normalizeEmail(email: string | null | undefined) {
   return email?.trim().toLowerCase() || "";
@@ -42,6 +50,49 @@ async function findUserByClerkUserId(userId: string) {
   });
 }
 
+async function findUserById(userId: string) {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      clerkUserId: true,
+      email: true,
+      tenantId: true,
+    },
+  });
+}
+
+function isUniqueConstraintError(error: unknown): error is Prisma.PrismaClientKnownRequestError {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function getUniqueConstraintTarget(error: unknown) {
+  if (!isUniqueConstraintError(error)) return "";
+  const target = error.meta?.target;
+  return Array.isArray(target) ? target.join(",") : String(target || "");
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function findUserAfterCreateConflict(userId: string, email: string) {
+  for (const delay of [0, 25, 75]) {
+    if (delay > 0) await wait(delay);
+
+    const userByClerkUserId = await findUserByClerkUserId(userId);
+    if (userByClerkUserId) return userByClerkUserId;
+
+    const userById = await findUserById(userId);
+    if (userById && userById.clerkUserId === userId) return userById;
+
+    const userByEmail = await findUserByEmail(email);
+    if (userByEmail) return userByEmail;
+  }
+
+  return null;
+}
+
 function logTenantResolution(
   step: string,
   payload: Record<string, string | boolean | null | undefined>
@@ -49,34 +100,19 @@ function logTenantResolution(
   console.log("[auth:tenant]", step, payload);
 }
 
+export function logTenantLifecycle(
+  event: "tenant_created" | "tenant_found" | "tenant_updated",
+  payload: Record<string, string | boolean | null | undefined>
+) {
+  console.log("[tenant:lifecycle]", event, payload);
+}
+
 function createTenantId() {
   return `tenant_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
 }
 
-async function ensureTenant(fullName: string) {
-  const tenantId = createTenantId();
-
-  return prisma.tenant.upsert({
-    where: { id: tenantId },
-    update: {},
-    create: {
-      id: tenantId,
-      name: `Espace de ${fullName}`,
-      subscriptionPlan: "PRO",
-      subscriptionStatus: "TRIALING",
-      trialEndsAt: getTrialEndsAt(),
-      updatedAt: new Date(),
-      BusinessSettings: {
-        create: {
-          id: `biz_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
-          smsRemindersEnabled: false,
-          smsReminderDelayHours: 24,
-          updatedAt: new Date(),
-        },
-      },
-    },
-    select: { id: true },
-  });
+function createBusinessSettingsId() {
+  return `biz_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
 }
 
 export async function getCurrentUserRecord() {
@@ -95,6 +131,13 @@ export async function getCurrentUserRecord() {
       databaseUserId: existingUser.id,
       databaseClerkUserId: existingUser.clerkUserId,
       email: existingUser.email,
+      tenantId: existingUser.tenantId,
+    });
+    logTenantLifecycle("tenant_found", {
+      source: "getCurrentUserRecord",
+      reason: "user_found_by_clerk_user_id",
+      clerkUserId: userId,
+      databaseUserId: existingUser.id,
       tenantId: existingUser.tenantId,
     });
     return existingUser;
@@ -121,6 +164,13 @@ export async function getCurrentUserRecord() {
       email: userWithSameEmail.email,
       tenantId: userWithSameEmail.tenantId,
       willUpdateClerkUserId: userWithSameEmail.clerkUserId !== userId,
+    });
+    logTenantLifecycle("tenant_found", {
+      source: "getCurrentUserRecord",
+      reason: "user_found_by_email",
+      clerkUserId: userId,
+      databaseUserId: userWithSameEmail.id,
+      tenantId: userWithSameEmail.tenantId,
     });
 
     if (userWithSameEmail.clerkUserId !== userId) {
@@ -154,42 +204,81 @@ export async function getCurrentUserRecord() {
     return userWithSameEmail;
   }
 
-  const tenant = await ensureTenant(fullName);
+  const tenantId = createTenantId();
+  const now = new Date();
 
-  const createdUser = await prisma.user.upsert({
-    where: { clerkUserId: userId },
-    update: {
-      email,
-      firstName: firstName || null,
-      lastName: lastName || null,
-      fullName,
-      tenantId: tenant.id,
-      updatedAt: new Date(),
-    },
-    create: {
-      id: userId,
+  let createdUser: TenantUserRecord;
+
+  try {
+    createdUser = await prisma.user.create({
+      data: {
+        id: userId,
+        clerkUserId: userId,
+        email,
+        firstName: firstName || null,
+        lastName: lastName || null,
+        fullName,
+        role: "OWNER",
+        updatedAt: now,
+        Tenant: {
+          create: {
+            id: tenantId,
+            name: `Espace de ${fullName}`,
+            subscriptionPlan: "PRO",
+            subscriptionStatus: "TRIALING",
+            trialEndsAt: getTrialEndsAt(),
+            updatedAt: now,
+            BusinessSettings: {
+              create: {
+                id: createBusinessSettingsId(),
+                smsRemindersEnabled: false,
+                smsReminderDelayHours: 24,
+                updatedAt: now,
+              },
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        clerkUserId: true,
+        email: true,
+        tenantId: true,
+      },
+    });
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) throw error;
+
+    const resolvedUser = await findUserAfterCreateConflict(userId, email);
+    if (!resolvedUser) throw error;
+
+    logTenantLifecycle("tenant_found", {
+      source: "getCurrentUserRecord",
+      reason: "user_create_unique_conflict_resolved",
+      conflictTarget: getUniqueConstraintTarget(error),
       clerkUserId: userId,
-      email,
-      firstName: firstName || null,
-      lastName: lastName || null,
-      fullName,
-      role: "OWNER",
-      tenantId: tenant.id,
-      updatedAt: new Date(),
-    },
-    select: {
-      id: true,
-      clerkUserId: true,
-      email: true,
-      tenantId: true,
-    },
-  });
+      databaseUserId: resolvedUser.id,
+      email: resolvedUser.email,
+      tenantId: resolvedUser.tenantId,
+    });
 
-  logTenantResolution("new_user_and_tenant_created", {
+    return resolvedUser;
+  }
+
+  logTenantLifecycle("tenant_created", {
+    source: "getCurrentUserRecord",
+    reason: "new_owner_user",
     clerkUserId: userId,
     databaseUserId: createdUser.id,
     email: createdUser.email,
-    tenantId: tenant.id,
+    tenantId,
+  });
+
+  logTenantResolution("new_user_resolved", {
+    clerkUserId: userId,
+    databaseUserId: createdUser.id,
+    email: createdUser.email,
+    tenantId: createdUser.tenantId,
   });
 
   return createdUser;
@@ -204,6 +293,79 @@ export async function getTenantId() {
     tenantId: user.tenantId,
   });
   return user.tenantId;
+}
+
+export async function getExistingTenantId(source = "getExistingTenantId") {
+  const { userId } = await auth();
+
+  if (!userId) {
+    throw new Error("Unauthorized");
+  }
+
+  const existingUser = await findUserByClerkUserId(userId);
+  if (existingUser) {
+    logTenantLifecycle("tenant_found", {
+      source,
+      reason: "user_found_by_clerk_user_id",
+      clerkUserId: userId,
+      databaseUserId: existingUser.id,
+      tenantId: existingUser.tenantId,
+    });
+    return existingUser.tenantId;
+  }
+
+  const user = await currentUser();
+  const email = normalizeEmail(user?.emailAddresses[0]?.emailAddress);
+  const firstName = user?.firstName || "";
+  const lastName = user?.lastName || "";
+  const fullName = `${firstName} ${lastName}`.trim() || "Utilisateur";
+  const userWithSameEmail = await findUserByEmail(email);
+
+  if (userWithSameEmail) {
+    if (userWithSameEmail.clerkUserId !== userId) {
+      const updatedUser = await prisma.user.update({
+        where: { id: userWithSameEmail.id },
+        data: {
+          clerkUserId: userId,
+          firstName: firstName || null,
+          lastName: lastName || null,
+          fullName,
+          updatedAt: new Date(),
+        },
+        select: {
+          id: true,
+          tenantId: true,
+        },
+      });
+
+      logTenantLifecycle("tenant_found", {
+        source,
+        reason: "user_clerk_user_id_updated_from_email_match",
+        clerkUserId: userId,
+        databaseUserId: updatedUser.id,
+        tenantId: updatedUser.tenantId,
+      });
+
+      return updatedUser.tenantId;
+    }
+
+    logTenantLifecycle("tenant_found", {
+      source,
+      reason: "user_found_by_email",
+      clerkUserId: userId,
+      databaseUserId: userWithSameEmail.id,
+      tenantId: userWithSameEmail.tenantId,
+    });
+    return userWithSameEmail.tenantId;
+  }
+
+  logTenantResolution("tenant_missing_without_creation", {
+    source,
+    clerkUserId: userId,
+    email,
+  });
+
+  throw new Error("Tenant not found for current user");
 }
 
 export async function createDevResetUserByEmail(email: string, currentClerkUserId?: string | null) {
