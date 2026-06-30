@@ -145,6 +145,10 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
 
   const visibleServices = services.filter((service) => service.isPublic && service.name);
   const visibleReviews = reviews.filter((review) => review.isVisible && review.authorName && review.comment);
+  const canUseStripePayments =
+    initialData.paymentSettings.stripeConnected &&
+    initialData.paymentSettings.stripeOnboardingComplete &&
+    initialData.paymentSettings.paymentsEnabled;
   const averageRating = visibleReviews.length
     ? visibleReviews.reduce((sum, review) => sum + review.rating, 0) / visibleReviews.length
     : 0;
@@ -1055,6 +1059,16 @@ export default function PagePubliqueClient({ initialData }: { initialData: Confi
                 </div>
 
                 <div className={styles.depositBox}>
+                  {!canUseStripePayments && (
+                    <div className={styles.paymentWarningBox}>
+                      <div>
+                        <strong>Stripe Connect n&apos;est pas encore actif.</strong>
+                        <span>Configurez Stripe et les arrhes avant d&apos;envoyer des liens de paiement.</span>
+                      </div>
+                      <Link href="/settings/payments">Configurer Stripe</Link>
+                    </div>
+                  )}
+
                   <label className={styles.serviceToggleControl}>
                     <input
                       className={styles.serviceToggleInput}

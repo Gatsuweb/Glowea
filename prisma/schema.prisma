@@ -250,7 +250,9 @@ model Client {
   lastName               String?
   fullName               String?
   email                  String?
+  normalizedEmail        String?
   phone                  String?
+  normalizedPhone        String?
   instagram              String?
   birthDate              DateTime?
   referredBy             String?
@@ -282,6 +284,8 @@ model Client {
   @@index([tenantId])
   @@index([tenantId, lastName])
   @@index([tenantId, riskLevel])
+  @@unique([tenantId, normalizedEmail])
+  @@unique([tenantId, normalizedPhone])
 }
 
 model ClientFlag {

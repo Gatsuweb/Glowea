@@ -336,7 +336,13 @@ export default function PaymentModal({
 
           {!canUseStripe && (
             <div className={styles.warningBox}>
-              Stripe Connect n&apos;est pas encore actif. Les actions Stripe redirigeront vers les paramètres paiements.
+              <div>
+                <strong>Stripe Connect n&apos;est pas encore actif.</strong>
+                <span>Configurez Stripe et les arrhes avant d&apos;envoyer des liens de paiement.</span>
+              </div>
+              <button type="button" onClick={() => router.push("/settings/payments")}>
+                Configurer Stripe
+              </button>
             </div>
           )}
 

@@ -247,6 +247,40 @@
   background: #fff7ea;
   border: 1px solid #f0d7a8;
   color: #805b10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.warningBox div {
+  display: grid;
+  gap: 3px;
+}
+
+.warningBox strong {
+  color: #6f4a08;
+  font-size: 0.9rem;
+}
+
+.warningBox span {
+  line-height: 1.45;
+}
+
+.warningBox button {
+  border: none;
+  border-radius: 8px;
+  background: #8b4b54;
+  color: #ffffff;
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-weight: 700;
+  padding: 10px 12px;
+  white-space: nowrap;
+}
+
+.warningBox button:hover {
+  background: #6c3a41;
 }
 
 .formGroup {
@@ -449,6 +483,15 @@
   .statusRow {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .warningBox {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .warningBox button {
+    width: 100%;
   }
 
   .methodsGrid {

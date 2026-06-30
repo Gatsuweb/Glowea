@@ -15,6 +15,8 @@ import { stripe } from "../../lib/stripe";
 import { getStoragePathFromPublicUrl, getSupabaseAdminClient, publicStorageBucket } from "../../lib/supabaseAdmin";
 import { getSubscriptionAccessFromTenant, getTenantSubscriptionAccess } from "../../lib/subscription";
 import { getExistingTenantId, getTenantId } from "../../lib/tenant";
+import { getClientIdentityValues } from "../../lib/clientIdentity";
+import { getAvailablePublicSlug, isUniqueConstraintError, slugifyPublicProfile } from "../../lib/publicSlug";
 
 export type PublicProfileInput = {
   isPublished: boolean;
@@ -115,18 +117,6 @@ function safeUrl(value: unknown) {
   if (!raw) return "";
   if (raw.startsWith("http://") || raw.startsWith("https://") || raw.startsWith("/")) return raw;
   return `https://${raw}`;
-}
-
-function slugify(value: string) {
-  const slug = value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
-
-  return slug || `pro-${crypto.randomUUID().replace(/-/g, "").slice(0, 8)}`;
 }
 
 function getPublicBusinessName(profile: {
@@ -339,22 +329,6 @@ function serviceToDto(service: {
   };
 }
 
-async function getUniqueSlug(base: string, tenantId: string) {
-  let candidate = slugify(base);
-  let suffix = 2;
-
-  while (true) {
-    const existing = await prisma.publicProfile.findUnique({
-      where: { slug: candidate },
-      select: { tenantId: true },
-    });
-
-    if (!existing || existing.tenantId === tenantId) return candidate;
-    candidate = `${slugify(base)}-${suffix}`;
-    suffix += 1;
-  }
-}
-
 async function ensurePublicProfile(tenantId: string) {
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
@@ -378,7 +352,10 @@ async function ensurePublicProfile(tenantId: string) {
 
   const owner = tenant.User[0];
   const businessName = tenant.BusinessSettings?.displayName || tenant.name;
-  const slug = await getUniqueSlug(businessName, tenantId);
+  const slug = await getAvailablePublicSlug(prisma.publicProfile, {
+    base: businessName || "espace-utilisateur",
+    tenantId,
+  });
 
   if (!getSubscriptionAccessFromTenant(tenant).canUsePublicPage) {
     return {
@@ -406,23 +383,42 @@ async function ensurePublicProfile(tenantId: string) {
     };
   }
 
-  const profile = await prisma.publicProfile.create({
-    data: {
-      id: `pub_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
-      tenantId,
-      slug,
-      isPublished: false,
-      businessName,
-      ownerName: owner?.fullName || null,
-      description: "Un espace beauté pensé pour des prestations soignées et un suivi client professionnel.",
-      address: tenant.BillingProfile?.addressLine1 || null,
-      city: tenant.BillingProfile?.city || null,
-      phone: owner?.phone || null,
-      email: owner?.email || null,
-      openingHours: "Lun - Sam, sur rendez-vous",
-      updatedAt: new Date(),
-    },
-  });
+  let profile = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const nextSlug = attempt === 0
+      ? slug
+      : await getAvailablePublicSlug(prisma.publicProfile, {
+          base: `${businessName || "espace-utilisateur"}-${attempt + 1}`,
+          tenantId,
+        });
+
+    try {
+      profile = await prisma.publicProfile.create({
+        data: {
+          id: `pub_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+          tenantId,
+          slug: nextSlug,
+          isPublished: false,
+          businessName,
+          ownerName: owner?.fullName || null,
+          description: "Un espace beauté pensé pour des prestations soignées et un suivi client professionnel.",
+          address: tenant.BillingProfile?.addressLine1 || null,
+          city: tenant.BillingProfile?.city || null,
+          phone: owner?.phone || null,
+          email: owner?.email || null,
+          openingHours: "Lun - Sam, sur rendez-vous",
+          updatedAt: new Date(),
+        },
+      });
+      break;
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error;
+    }
+  }
+
+  if (!profile) {
+    throw new Error("Unable to create a unique public profile slug");
+  }
 
   return { tenant, profile };
 }
@@ -431,7 +427,7 @@ export async function getPublicPageConfig() {
   const tenantId = await getTenantId();
   const { tenant, profile } = await ensurePublicProfile(tenantId);
   const access = getSubscriptionAccessFromTenant(tenant);
-  const [services, gallery, reviews, agendaSettings, availabilityExceptions] = await Promise.all([
+  const [services, gallery, reviews, agendaSettings, availabilityExceptions, paymentSettings] = await Promise.all([
     prisma.service.findMany({
       where: { tenantId, isActive: true },
       orderBy: { name: "asc" },
@@ -451,6 +447,14 @@ export async function getPublicPageConfig() {
       where: { tenantId },
       orderBy: { startAt: "asc" },
       take: 100,
+    }),
+    prisma.user.findFirst({
+      where: { tenantId, role: "OWNER" },
+      select: {
+        stripeAccountId: true,
+        stripeOnboardingComplete: true,
+        paymentsEnabled: true,
+      },
     }),
   ]);
 
@@ -494,6 +498,11 @@ export async function getPublicPageConfig() {
       createdAt: review.createdAt.toISOString(),
     })),
     bookingSettings: agendaSettingsToDto(agendaSettings),
+    paymentSettings: {
+      stripeConnected: Boolean(paymentSettings?.stripeAccountId),
+      stripeOnboardingComplete: Boolean(paymentSettings?.stripeOnboardingComplete),
+      paymentsEnabled: Boolean(paymentSettings?.paymentsEnabled),
+    },
     availabilityExceptions: availabilityExceptions.map((item) => ({
       id: item.id,
       type: item.type,
@@ -527,47 +536,70 @@ export async function updatePublicProfile(input: PublicProfileInput) {
 
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
   const existing = await prisma.publicProfile.findUnique({ where: { tenantId } });
-  const nextSlug = await getUniqueSlug(input.slug || input.businessName || "pro", tenantId);
-
-  const profile = await prisma.publicProfile.upsert({
-    where: { tenantId },
-    create: {
-      id: `pub_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
-      tenantId,
-      slug: nextSlug,
-      isPublished: Boolean(input.isPublished),
-      businessName: safeString(input.businessName, 120) || tenant?.name || null,
-      ownerName: safeString(input.ownerName, 120) || null,
-      description: safeString(input.description, 900) || null,
-      address: safeString(input.address, 240) || null,
-      city: safeString(input.city, 120) || null,
-      phone: safeString(input.phone, 60) || null,
-      email: safeString(input.email, 180) || null,
-      instagramUrl: safeUrl(input.instagramUrl) || null,
-      websiteUrl: safeUrl(input.websiteUrl) || null,
-      openingHours: safeString(input.openingHours, 500) || null,
-      coverImageUrl: safeUrl(input.coverImageUrl) || null,
-      avatarUrl: safeUrl(input.avatarUrl) || null,
-      updatedAt: new Date(),
-    },
-    update: {
-      slug: nextSlug,
-      isPublished: Boolean(input.isPublished),
-      businessName: safeString(input.businessName, 120) || null,
-      ownerName: safeString(input.ownerName, 120) || null,
-      description: safeString(input.description, 900) || null,
-      address: safeString(input.address, 240) || null,
-      city: safeString(input.city, 120) || null,
-      phone: safeString(input.phone, 60) || null,
-      email: safeString(input.email, 180) || null,
-      instagramUrl: safeUrl(input.instagramUrl) || null,
-      websiteUrl: safeUrl(input.websiteUrl) || null,
-      openingHours: safeString(input.openingHours, 500) || null,
-      coverImageUrl: safeUrl(input.coverImageUrl) || null,
-      avatarUrl: safeUrl(input.avatarUrl) || null,
-      updatedAt: new Date(),
-    },
+  const requestedSlug = slugifyPublicProfile(input.slug || input.businessName || existing?.slug || "espace-utilisateur");
+  const slugOwner = await prisma.publicProfile.findUnique({
+    where: { slug: requestedSlug },
+    select: { tenantId: true },
   });
+
+  if (slugOwner && slugOwner.tenantId !== tenantId) {
+    return {
+      success: false as const,
+      error: "Ce slug est deja utilise par une autre page publique. Choisissez un autre lien.",
+    };
+  }
+
+  let profile;
+  try {
+    profile = await prisma.publicProfile.upsert({
+      where: { tenantId },
+      create: {
+        id: `pub_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+        tenantId,
+        slug: requestedSlug,
+        isPublished: Boolean(input.isPublished),
+        businessName: safeString(input.businessName, 120) || tenant?.name || null,
+        ownerName: safeString(input.ownerName, 120) || null,
+        description: safeString(input.description, 900) || null,
+        address: safeString(input.address, 240) || null,
+        city: safeString(input.city, 120) || null,
+        phone: safeString(input.phone, 60) || null,
+        email: safeString(input.email, 180) || null,
+        instagramUrl: safeUrl(input.instagramUrl) || null,
+        websiteUrl: safeUrl(input.websiteUrl) || null,
+        openingHours: safeString(input.openingHours, 500) || null,
+        coverImageUrl: safeUrl(input.coverImageUrl) || null,
+        avatarUrl: safeUrl(input.avatarUrl) || null,
+        updatedAt: new Date(),
+      },
+      update: {
+        slug: requestedSlug,
+        isPublished: Boolean(input.isPublished),
+        businessName: safeString(input.businessName, 120) || null,
+        ownerName: safeString(input.ownerName, 120) || null,
+        description: safeString(input.description, 900) || null,
+        address: safeString(input.address, 240) || null,
+        city: safeString(input.city, 120) || null,
+        phone: safeString(input.phone, 60) || null,
+        email: safeString(input.email, 180) || null,
+        instagramUrl: safeUrl(input.instagramUrl) || null,
+        websiteUrl: safeUrl(input.websiteUrl) || null,
+        openingHours: safeString(input.openingHours, 500) || null,
+        coverImageUrl: safeUrl(input.coverImageUrl) || null,
+        avatarUrl: safeUrl(input.avatarUrl) || null,
+        updatedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return {
+        success: false as const,
+        error: "Ce slug est deja utilise par une autre page publique. Choisissez un autre lien.",
+      };
+    }
+
+    throw error;
+  }
 
   if (existing?.coverImageUrl && existing.coverImageUrl !== profile.coverImageUrl) {
     await removeStoredPublicFile(existing.coverImageUrl);
@@ -925,13 +957,14 @@ export async function deleteReview(id: string) {
 }
 
 export async function createPublicBooking(input: PublicBookingInput) {
-  const slug = slugify(input.slug);
+  const slug = slugifyPublicProfile(input.slug);
   const firstName = safeString(input.firstName, 80);
   const lastName = safeString(input.lastName, 80);
   const phone = safeString(input.phone, 60);
   const email = safeString(input.email, 180).toLowerCase();
   const instagram = safeString(input.instagram, 80);
   const message = safeString(input.message, 1000);
+  const { normalizedEmail, normalizedPhone } = getClientIdentityValues({ email, phone });
 
   if (!firstName || !phone) {
     return { success: false as const, error: "Le prénom et le téléphone sont obligatoires." };
@@ -1029,9 +1062,9 @@ export async function createPublicBooking(input: PublicBookingInput) {
           tenantId: profile.tenantId,
           archivedAt: null,
           OR: [
-            email ? { email } : undefined,
-            phone ? { phone } : undefined,
-          ].filter(Boolean) as Array<{ email: string } | { phone: string }>,
+            normalizedEmail ? { normalizedEmail } : undefined,
+            normalizedPhone ? { normalizedPhone } : undefined,
+          ].filter(Boolean) as Array<{ normalizedEmail: string } | { normalizedPhone: string }>,
         },
         select: {
           id: true,
@@ -1056,7 +1089,9 @@ export async function createPublicBooking(input: PublicBookingInput) {
               lastName: lastName || null,
               fullName: `${firstName} ${lastName}`.trim(),
               email: email || null,
+              normalizedEmail,
               phone,
+              normalizedPhone,
               instagram: instagram || null,
               updatedAt: new Date(),
             },
@@ -1069,7 +1104,9 @@ export async function createPublicBooking(input: PublicBookingInput) {
               lastName: lastName || null,
               fullName: `${firstName} ${lastName}`.trim(),
               email: email || null,
+              normalizedEmail,
               phone,
+              normalizedPhone,
               instagram: instagram || null,
               updatedAt: new Date(),
             },

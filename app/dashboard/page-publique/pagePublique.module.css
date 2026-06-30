@@ -709,6 +709,48 @@
   padding-top: 16px;
 }
 
+.paymentWarningBox {
+  align-items: center;
+  background: #fff7ea;
+  border: 1px solid #f0d7a8;
+  border-radius: 8px;
+  color: #805b10;
+  display: flex;
+  font-size: 0.9rem;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.paymentWarningBox div {
+  display: grid;
+  gap: 3px;
+}
+
+.paymentWarningBox strong {
+  color: #6f4a08;
+  font-size: 0.9rem;
+}
+
+.paymentWarningBox span {
+  line-height: 1.45;
+}
+
+.paymentWarningBox a {
+  background: #8b4b54;
+  border-radius: 8px;
+  color: #ffffff;
+  flex: 0 0 auto;
+  font-weight: 700;
+  padding: 10px 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.paymentWarningBox a:hover {
+  background: #6c3a41;
+}
+
 .exceptionList {
   display: grid;
   gap: 10px;
@@ -1147,6 +1189,15 @@
   .exceptionActions,
   .exceptionActions button {
     width: 100%;
+  }
+
+  .paymentWarningBox {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .paymentWarningBox a {
+    text-align: center;
   }
 
   .serviceCard {

@@ -2,10 +2,15 @@
 
 import prisma from "../../lib/prisma";
 import { revalidatePath } from "next/cache";
-import type { ClientFlagType, ClientRiskLevel } from "@prisma/client";
+import { Prisma, type ClientFlagType, type ClientRiskLevel } from "@prisma/client";
 import { getTenantId } from "../../lib/tenant";
 import { requireTenantMutationAccess } from "../../lib/subscription";
 import { getRiskLevelFromNoShowCount } from "../../lib/clientVigilance";
+import {
+  findClientByIdentity,
+  getClientDuplicateMessage,
+  getClientIdentityValues,
+} from "../../lib/clientIdentity";
 
 const DIRECT_GALLERY_PROJECT_LABEL_PREFIX = "GLOWEA_GALLERY_PROJECT";
 const DIRECT_GALLERY_ROLES = new Set(["before", "after", "other"]);
@@ -14,6 +19,10 @@ type DirectGalleryRole = "before" | "after" | "other";
 
 const CLIENT_FLAG_TYPES = new Set<ClientFlagType>(["NO_SHOW", "LATE_CANCEL", "UNPAID", "BEHAVIOR", "OTHER"]);
 const CLIENT_RISK_LEVELS = new Set<ClientRiskLevel>(["LOW", "MEDIUM", "HIGH"]);
+
+function isUniqueConstraintError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
 
 function isClientFlagType(value: unknown): value is ClientFlagType {
   return typeof value === "string" && CLIENT_FLAG_TYPES.has(value as ClientFlagType);
@@ -96,20 +105,48 @@ export async function createClient(data: {
   }
 
   try {
+    const firstName = data.firstName.trim();
+    const lastName = data.lastName?.trim() || null;
+    const phone = data.phone?.trim() || null;
+    const email = data.email?.trim() || null;
+    const instagram = data.instagram?.trim().replace(/^@/, "") || null;
+    const referredBy = data.referredBy?.trim() || null;
+    const { normalizedEmail, normalizedPhone } = getClientIdentityValues({ email, phone });
+
+    if (!firstName) {
+      return { success: false, error: "Le prenom est obligatoire" };
+    }
+
+    const duplicate = await findClientByIdentity(prisma.client, {
+      tenantId: TENANT_ID,
+      normalizedEmail,
+      normalizedPhone,
+    });
+
+    if (duplicate) {
+      return {
+        success: false,
+        error: getClientDuplicateMessage(duplicate),
+        existingClientId: duplicate.id,
+      };
+    }
+
     const id = `cli_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
 
     const client = await prisma.client.create({
       data: {
         id,
         tenantId: TENANT_ID,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        fullName: `${data.firstName} ${data.lastName || ''}`.trim(),
-        phone: data.phone,
-        email: data.email,
-        instagram: data.instagram,
+        firstName,
+        lastName,
+        fullName: `${firstName} ${lastName || ''}`.trim(),
+        phone,
+        normalizedPhone,
+        email,
+        normalizedEmail,
+        instagram,
         birthDate: data.birthDate,
-        referredBy: data.referredBy,
+        referredBy,
         updatedAt: new Date(),
       }
     });
@@ -120,6 +157,24 @@ export async function createClient(data: {
 
     return { success: true, client };
   } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      const { normalizedEmail, normalizedPhone } = getClientIdentityValues({
+        email: data.email,
+        phone: data.phone,
+      });
+      const duplicate = await findClientByIdentity(prisma.client, {
+        tenantId: TENANT_ID,
+        normalizedEmail,
+        normalizedPhone,
+      });
+
+      return {
+        success: false,
+        error: getClientDuplicateMessage(duplicate),
+        existingClientId: duplicate?.id,
+      };
+    }
+
     console.error("Error creating client:", error);
     return { success: false, error: "Erreur lors de la création du client" };
   }
@@ -163,6 +218,7 @@ export async function updateClientProfile(data: {
     const phone = data.phone?.trim() || null;
     const instagram = data.instagram?.trim().replace(/^@/, "") || null;
     const referredBy = data.referredBy?.trim() || null;
+    const { normalizedEmail, normalizedPhone } = getClientIdentityValues({ email, phone });
     const note = data.note?.trim() || "";
     const allergies = (data.allergies || [])
       .map((allergy) => ({
@@ -180,6 +236,21 @@ export async function updateClientProfile(data: {
       return { success: false, error: "La date de naissance est invalide" };
     }
 
+    const duplicate = await findClientByIdentity(prisma.client, {
+      tenantId: TENANT_ID,
+      normalizedEmail,
+      normalizedPhone,
+      excludeClientId: data.clientId,
+    });
+
+    if (duplicate) {
+      return {
+        success: false,
+        error: getClientDuplicateMessage(duplicate),
+        existingClientId: duplicate.id,
+      };
+    }
+
     const updatedClient = await prisma.$transaction(async (tx) => {
       await tx.client.update({
         where: { id: data.clientId },
@@ -188,7 +259,9 @@ export async function updateClientProfile(data: {
           lastName,
           fullName: `${firstName} ${lastName || ""}`.trim(),
           phone,
+          normalizedPhone,
           email,
+          normalizedEmail,
           instagram,
           birthDate,
           referredBy,
@@ -279,6 +352,13 @@ export async function updateClientProfile(data: {
 
     return { success: true, client: updatedClient };
   } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return {
+        success: false,
+        error: "Un client avec cet email ou ce téléphone existe déjà.",
+      };
+    }
+
     console.error("Error updating client:", error);
     return { success: false, error: "Erreur lors de la mise a jour du client" };
   }

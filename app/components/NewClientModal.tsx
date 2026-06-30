@@ -31,6 +31,7 @@ export default function NewClientModal({ isOpen, onClose, onSave }: NewClientMod
   const [recommendedBy, setRecommendedBy] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [existingClientId, setExistingClientId] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -42,6 +43,7 @@ export default function NewClientModal({ isOpen, onClose, onSave }: NewClientMod
 
     setIsLoading(true);
     setError(null);
+    setExistingClientId(null);
 
     try {
       // Parse birthdate if provided (ex: 25/03/1995 -> Date)
@@ -76,11 +78,13 @@ export default function NewClientModal({ isOpen, onClose, onSave }: NewClientMod
         setInstagram('');
         setBirthdate('');
         setRecommendedBy('');
+        setExistingClientId(null);
         
         router.refresh();
         onClose();
       } else {
         setError(response.error || 'Erreur lors de la création du client');
+        setExistingClientId(response.existingClientId || null);
       }
     } catch {
       setError('Une erreur inattendue est survenue');
@@ -173,7 +177,24 @@ export default function NewClientModal({ isOpen, onClose, onSave }: NewClientMod
         </div>
 
         {/* VALIDATION */}
-        {error && <div style={{ color: 'red', textAlign: 'center', marginBottom: '10px' }}>{error}</div>}
+        {error && (
+          <div style={{ color: 'red', textAlign: 'center', marginBottom: '10px' }}>
+            <div>{error}</div>
+            {existingClientId && (
+              <button
+                type="button"
+                className={styles.submitBtn}
+                style={{ marginTop: 10 }}
+                onClick={() => {
+                  router.push(`/dashboard/clients?clientId=${existingClientId}`);
+                  onClose();
+                }}
+              >
+                Ouvrir la fiche existante
+              </button>
+            )}
+          </div>
+        )}
         <button className={styles.submitBtn} onClick={handleSave} disabled={isLoading}>
           {isLoading ? 'Création en cours...' : 'Enregistrer le client'}
         </button>
