@@ -439,6 +439,19 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.galleryEmptyState {
+  align-items: center;
+  background: rgba(255, 250, 247, 0.72);
+  border: 1px solid rgba(89, 64, 58, 0.12);
+  color: #6b5751;
+  display: flex;
+  font-size: 0.98rem;
+  justify-content: center;
+  min-height: 150px;
+  padding: 24px;
+  text-align: center;
+}
+
 .galleryItem {
   background: none;
   border: none;

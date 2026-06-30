@@ -301,13 +301,12 @@ export default function SendPromoModal({
 
         <div className={styles.sectionWhite}>
           <div className={styles.sectionTitle}>1. Selectionner la cible</div>
-          <div className={styles.categoryTabs}>
+          <div className={`${styles.categoryTabs} ${styles.sendPromoTabs}`}>
             {SEGMENTS.map((segment) => (
               <button
                 key={segment.value}
-                className={`${styles.categoryBtn} ${targetSegment === segment.value ? styles.active : ""}`}
+                className={`${styles.categoryBtn} ${styles.sendPromoTabButton} ${targetSegment === segment.value ? styles.active : ""}`}
                 onClick={() => setTargetSegment(segment.value)}
-                style={{ padding: "10px 12px", flex: 1 }}
                 type="button"
                 title={segment.help}
               >
@@ -372,7 +371,7 @@ export default function SendPromoModal({
 
         <div className={styles.sectionWhite}>
           <div className={styles.sectionTitle}>2. Canal</div>
-          <div className={styles.categoryTabs}>
+          <div className={`${styles.categoryTabs} ${styles.sendPromoTabs}`}>
             {CHANNELS.map((item) => (
               (() => {
                 const isSmsLocked = item.value === "SMS" && !canUseSmsCampaigns;
@@ -380,15 +379,13 @@ export default function SendPromoModal({
                 return (
                   <button
                     key={item.value}
-                    className={`${styles.categoryBtn} ${channel === item.value ? styles.active : ""}`}
+                    className={`${styles.categoryBtn} ${styles.sendPromoTabButton} ${channel === item.value ? styles.active : ""}`}
                     disabled={isSmsLocked}
                     onClick={() => {
                       if (isSmsLocked) return;
                       setChannel(item.value);
                     }}
                     style={{
-                      padding: "10px 12px",
-                      flex: 1,
                       opacity: isSmsLocked ? 0.45 : 1,
                       cursor: isSmsLocked ? "not-allowed" : "pointer",
                     }}

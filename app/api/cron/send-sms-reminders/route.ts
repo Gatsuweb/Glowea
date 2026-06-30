@@ -59,16 +59,70 @@ function formatSmsMessage(params: {
   firstName?: string | null;
   scheduledAt: Date;
   serviceName?: string | null;
+  businessName?: string | null;
+  businessAddress?: string | null;
+  businessPhone?: string | null;
 }) {
   const firstName = params.firstName?.trim() || "Madame";
   const serviceName = params.serviceName?.trim() || "votre prestation";
+  const businessName = params.businessName?.trim() || "votre prestataire";
+  const businessAddress = params.businessAddress?.trim();
+  const businessPhone = params.businessPhone?.trim();
   const time = params.scheduledAt.toLocaleTimeString("fr-FR", {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Europe/Paris",
   });
 
-  return `Bonjour ${firstName}, petit rappel pour votre rendez-vous demain à ${time} pour ${serviceName}. À bientôt`;
+  const messageLines = [
+    `Bonjour ${firstName}`,
+    `Rappel : votre rendez-vous ${serviceName} est prévu demain à ${time} chez ${businessName}.`,
+    businessAddress ? `📍 ${businessAddress}` : "",
+    "Besoin d'annuler ou déplacer votre rendez-vous ?",
+    businessPhone ? `📞 ${businessPhone}` : "",
+    "À bientôt 💖",
+    businessName,
+  ].filter(Boolean);
+
+  return messageLines.join("\n\n");
+}
+
+function getBusinessName(params: {
+  publicBusinessName?: string | null;
+  settingsDisplayName?: string | null;
+  tenantName?: string | null;
+}) {
+  return (
+    params.publicBusinessName?.trim() ||
+    params.settingsDisplayName?.trim() ||
+    params.tenantName?.trim() ||
+    "votre prestataire"
+  );
+}
+
+function getBusinessAddress(profile: {
+  address?: string | null;
+  city?: string | null;
+} | null | undefined) {
+  const parts = [profile?.address, profile?.city]
+    .map((part) => part?.trim())
+    .filter(Boolean);
+
+  return parts.join(", ");
+}
+
+function getAppointmentServiceName(appointment: {
+  Service?: { name: string | null } | null;
+  AppointmentService?: Array<{ nameSnapshot: string; position: number }>;
+}) {
+  const snapshots = appointment.AppointmentService
+    ?.slice()
+    .sort((a, b) => a.position - b.position)
+    .map((service) => service.nameSnapshot.trim())
+    .filter(Boolean);
+
+  if (snapshots?.length) return snapshots.join(" + ");
+  return appointment.Service?.name || null;
 }
 
 async function claimReminder(params: {
@@ -202,9 +256,16 @@ export async function GET(request: Request) {
       include: {
         Client: true,
         Service: true,
+        AppointmentService: {
+          select: {
+            nameSnapshot: true,
+            position: true,
+          },
+        },
         Tenant: {
           include: {
             BusinessSettings: true,
+            PublicProfile: true,
           },
         },
         AppointmentReminderLog: {
@@ -368,7 +429,14 @@ export async function GET(request: Request) {
           body: formatSmsMessage({
             firstName: appointment.Client?.firstName,
             scheduledAt: appointment.scheduledAt,
-            serviceName: appointment.Service?.name,
+            serviceName: getAppointmentServiceName(appointment),
+            businessName: getBusinessName({
+              publicBusinessName: tenant.PublicProfile?.businessName,
+              settingsDisplayName: settings?.displayName,
+              tenantName: tenant.name,
+            }),
+            businessAddress: getBusinessAddress(tenant.PublicProfile),
+            businessPhone: tenant.PublicProfile?.phone,
           }),
         });
 

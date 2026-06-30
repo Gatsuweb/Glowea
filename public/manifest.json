@@ -1,17 +1,24 @@
 {
-  "name": "Glowéa",
-  "short_name": "Glowéa",
-  "description": "Dashboard pour techniciennes de cils et ongles",
+  "name": "Glowea",
+  "short_name": "Glowea",
+  "description": "Plateforme de reservation et de gestion pour professionnelles de la beaute",
   "start_url": "/dashboard",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#8B4B54",
   "icons": [
     {
       "src": "/logo-mini.png",
-      "sizes": "192x192 512x512",
+      "sizes": "500x500",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/logo-mini.png",
+      "sizes": "500x500",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

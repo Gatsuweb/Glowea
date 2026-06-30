@@ -20,6 +20,14 @@ export default function PublicGallery({ images }: { images: GalleryImage[] }) {
     setActiveIndex((activeIndex + delta + images.length) % images.length);
   }
 
+  if (images.length === 0) {
+    return (
+      <div className={styles.galleryEmptyState}>
+        Aucune image n&apos;est disponible actuellement.
+      </div>
+    );
+  }
+
   return (
     <>
       <div className={styles.galleryGrid}>

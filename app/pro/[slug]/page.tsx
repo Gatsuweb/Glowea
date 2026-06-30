@@ -18,13 +18,6 @@ type PublicService = {
   imageUrl: string;
 };
 
-const fallbackGallery = [
-  { imageUrl: "/cils.png", alt: "Pose de cils" },
-  { imageUrl: "/ongles.png", alt: "Prestation ongles" },
-  { imageUrl: "/sourcils.png", alt: "Sourcils" },
-  { imageUrl: "/cils.png", alt: "Volume russe" },
-];
-
 const iconPaths = {
   location: "M21 10c0 7-9 12-9 12S3 17 3 10a9 9 0 1 1 18 0Z M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z",
   phone: "M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.32 1.77.59 2.61a2 2 0 0 1-.45 2.11L8 9.69a16 16 0 0 0 6.31 6.31l1.25-1.25a2 2 0 0 1 2.11-.45c.84.27 1.71.47 2.61.59A2 2 0 0 1 22 16.92Z",
@@ -56,21 +49,6 @@ function normalizeInstagram(value: string | null) {
   if (!value) return null;
   if (value.includes("instagram.com")) return value;
   return `https://instagram.com/${value.replace(/^@/, "")}`;
-}
-
-function getServiceCardImage(service: PublicService) {
-  if (service.imageUrl) return service.imageUrl;
-
-  const text = `${service.name} ${service.category} ${service.description}`.toLowerCase();
-
-  if (text.includes("volume russe")) return "/volume-russe.png";
-  if (text.includes("mega")) return "/mega-volume.png";
-  if (text.includes("mixte")) return "/mixte.png";
-  if (text.includes("cil") || text.includes("lash")) return "/cils.png";
-  if (text.includes("ongle") || text.includes("manuc") || text.includes("gel") || text.includes("semi")) return "/ongles.png";
-  if (text.includes("sourcil") || text.includes("brow")) return "/sourcils.png";
-
-  return "/card-1.png";
 }
 
 async function getPublicProfile(slug: string) {
@@ -325,8 +303,7 @@ export default async function PublicProPage({
   }));
 
   const title = getBusinessName(profile);
-  const gallery = profile.Tenant.GalleryImage.length > 0 ? profile.Tenant.GalleryImage : fallbackGallery;
-  const galleryImages = gallery.map((image) => ({
+  const galleryImages = profile.Tenant.GalleryImage.map((image) => ({
     imageUrl: image.imageUrl,
     alt: image.alt || `Galerie beaute de ${title}`,
   }));
@@ -428,12 +405,16 @@ export default async function PublicProPage({
                   triggerLabel={`Reserver ${service.name}`}
                   triggerContent={(
                     <>
-                      {/* eslint-disable-next-line @next/next/no-img-element -- Public service URLs are user-configured and not constrained to Next image domains. */}
-                      <img
-                        src={getServiceCardImage(service)}
-                        alt={`Prestation ${service.name} chez ${title}`}
-                        className={styles.serviceCardImage}
-                      />
+                      {service.imageUrl && (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element -- Public service URLs are user-configured and not constrained to Next image domains. */}
+                          <img
+                            src={service.imageUrl}
+                            alt={`Prestation ${service.name} chez ${title}`}
+                            className={styles.serviceCardImage}
+                          />
+                        </>
+                      )}
                       <div className={styles.serviceCardTop}>
                         <span className={styles.serviceCategory}>{service.category}</span>
                         <div className={styles.serviceCardCopy}>

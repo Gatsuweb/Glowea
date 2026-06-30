@@ -684,6 +684,15 @@
   color: white;
 }
 
+.sendPromoTabs {
+  width: 100%;
+}
+
+.sendPromoTabButton {
+  flex: 1;
+  padding: 10px 12px;
+}
+
 /* Prestation */
 .addServiceBtn {
   padding: 5px 12px;
@@ -934,5 +943,26 @@
 
   .detailsGrid {
     grid-template-columns: 1fr;
+  }
+
+  .sendPromoTabs {
+    gap: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 4px;
+    scroll-behavior: smooth;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sendPromoTabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sendPromoTabButton {
+    flex: 0 0 auto;
+    min-width: 112px;
+    white-space: nowrap;
   }
 }

@@ -28,6 +28,28 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
+  openGraph: {
+    title: homeTitle,
+    description: homeDescription,
+    url: "/",
+    siteName: "Glowea",
+    images: [
+      {
+        url: "/logo-mini.png",
+        width: 500,
+        height: 500,
+        alt: "Glowea",
+      },
+    ],
+    locale: "fr_FR",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: homeTitle,
+    description: homeDescription,
+    images: ["/logo-mini.png"],
+  },
 };
 
 const homeJsonLd = [

@@ -10,6 +10,7 @@ import {
 } from "../../lib/appointmentServices";
 import prisma from "../../lib/prisma";
 import { sendPushToTenant } from "../../lib/push";
+import { sendTransactionalEmail } from "../../lib/resend";
 import { stripe } from "../../lib/stripe";
 import { getStoragePathFromPublicUrl, getSupabaseAdminClient, publicStorageBucket } from "../../lib/supabaseAdmin";
 import { getSubscriptionAccessFromTenant, getTenantSubscriptionAccess } from "../../lib/subscription";
@@ -126,6 +127,78 @@ function slugify(value: string) {
     .slice(0, 60);
 
   return slug || `pro-${crypto.randomUUID().replace(/-/g, "").slice(0, 8)}`;
+}
+
+function getPublicBusinessName(profile: {
+  businessName?: string | null;
+  Tenant?: { name?: string | null } | null;
+}) {
+  return profile.businessName?.trim() || profile.Tenant?.name?.trim() || "votre prestataire";
+}
+
+function getInstagramContact(instagramUrl: string | null | undefined) {
+  const raw = instagramUrl?.trim();
+  if (!raw) return "";
+
+  if (raw.startsWith("@")) return raw;
+
+  try {
+    const url = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
+    const handle = url.pathname.split("/").filter(Boolean)[0];
+    return handle ? `@${handle}` : raw;
+  } catch {
+    return raw;
+  }
+}
+
+function getPublicBookingChangeSection(profile: {
+  businessName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  instagramUrl?: string | null;
+  Tenant?: { name?: string | null } | null;
+}) {
+  const businessName = getPublicBusinessName(profile);
+  const instagramContact = getInstagramContact(profile.instagramUrl);
+  const contactLines = [
+    profile.phone?.trim() ? `Telephone : ${profile.phone.trim()}` : "",
+    profile.email?.trim() ? `Email : ${profile.email.trim()}` : "",
+    instagramContact ? `Instagram : ${instagramContact}` : "",
+  ].filter(Boolean);
+
+  return [
+    "Besoin d'annuler ou de déplacer votre rendez-vous ?",
+    `Merci de contacter directement ${businessName}.`,
+    contactLines.length ? ["", ...contactLines].join("\n") : "",
+  ].filter(Boolean).join("\n");
+}
+
+function getPublicBookingConfirmationBody(params: {
+  firstName: string;
+  businessName: string;
+  serviceLabel: string;
+  dateLabel: string;
+  timeLabel: string;
+  requiresDeposit: boolean;
+  changeSection: string;
+}) {
+  const statusText = params.requiresDeposit
+    ? "Votre demande de réservation est en attente du paiement des arrhes."
+    : "Votre rendez-vous est bien confirmé. ✨";
+
+  return [
+    `Bonjour ${params.firstName},`,
+    "",
+    statusText,
+    "",
+    `Prestation : ${params.serviceLabel}`,
+    `Date : ${params.dateLabel} a ${params.timeLabel}`,
+    "",
+    params.changeSection,
+    "",
+    "A bientot,",
+    params.businessName,
+  ].join("\n");
 }
 
 function toMoney(value: unknown) {
@@ -915,6 +988,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
   const dateLabel = scheduledAt.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" });
   const priceCents = serviceSelection.totalPriceCents;
   const serviceLabel = serviceSelection.label;
+  const businessName = getPublicBusinessName(profile);
 
   try {
     const reservation = await prisma.$transaction(async (tx) => {
@@ -1139,6 +1213,54 @@ export async function createPublicBooking(input: PublicBookingInput) {
     }, { preferenceKey: "onlineBookingEnabled" });
   } catch (pushError) {
     console.error("[push] public booking notification failed:", pushError);
+  }
+
+  if (email) {
+    try {
+      const subject = `Confirmation de votre rendez-vous chez ${businessName}`;
+      const body = getPublicBookingConfirmationBody({
+        firstName,
+        businessName,
+        serviceLabel,
+        dateLabel,
+        timeLabel,
+        requiresDeposit: reservation.requiresDeposit,
+        changeSection: getPublicBookingChangeSection(profile),
+      });
+      const messageLog = await prisma.messageLog.create({
+        data: {
+          id: `msg_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+          tenantId: profile.tenantId,
+          clientId: reservation.client.id,
+          channel: "EMAIL",
+          subject,
+          body,
+          updatedAt: new Date(),
+        },
+      });
+
+      const emailResult = await sendTransactionalEmail({
+        to: email,
+        subject,
+        text: body,
+        replyTo: profile.email,
+      });
+
+      await prisma.messageLog.update({
+        where: { id: messageLog.id },
+        data: {
+          status: emailResult.success ? "SENT" : "FAILED",
+          sentAt: emailResult.success ? new Date() : null,
+          updatedAt: new Date(),
+        },
+      });
+
+      if (!emailResult.success) {
+        console.error("[email] public booking confirmation failed:", emailResult.error);
+      }
+    } catch (emailError) {
+      console.error("[email] public booking confirmation failed:", emailError);
+    }
   }
 
   return {
