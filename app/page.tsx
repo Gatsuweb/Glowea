@@ -611,6 +611,9 @@ export default function Home() {
           <Link href="#fonctionnalites">Fonctionnalités</Link>
           <Link href="#specialites">Spécialités</Link>
           <Link href="#prix">Tarifs</Link>
+          <Link href="/politique-de-confidentialite">Politique de confidentialité</Link>
+          <Link href="/conditions-utilisation">Conditions d&apos;utilisation</Link>
+          <Link href="/suppression-donnees">Suppression des données</Link>
           <Link href="/sign-in">Connexion</Link>
         </nav>
       </footer>

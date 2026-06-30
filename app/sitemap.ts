@@ -39,6 +39,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "weekly",
       priority: 1,
     },
+    {
+      url: absoluteUrl("/politique-de-confidentialite"),
+      lastModified: new Date("2026-06-30"),
+      changeFrequency: "yearly",
+      priority: 0.5,
+    },
+    {
+      url: absoluteUrl("/conditions-utilisation"),
+      lastModified: new Date("2026-06-30"),
+      changeFrequency: "yearly",
+      priority: 0.5,
+    },
+    {
+      url: absoluteUrl("/suppression-donnees"),
+      lastModified: new Date("2026-06-30"),
+      changeFrequency: "yearly",
+      priority: 0.5,
+    },
   ];
 
   for (const profile of profiles) {

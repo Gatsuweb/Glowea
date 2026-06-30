@@ -1,4 +1,4 @@
-const FALLBACK_SITE_URL = "https://glowea.fr";
+const FALLBACK_SITE_URL = "https://glowea.app";
 
 function normalizeSiteUrl(value: string | undefined) {
   const raw = value?.trim();
