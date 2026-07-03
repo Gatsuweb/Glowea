@@ -214,6 +214,24 @@
   text-decoration: none;
 }
 
+.directoryLinks {
+  border-top: 1px solid rgba(109, 60, 66, 0.1);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 14px;
+}
+
+.directoryLinks a {
+  background: #f8eee8;
+  color: #7a2637;
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 8px 10px;
+  text-decoration: none;
+}
+
 .content {
   display: grid;
   gap: 28px;
@@ -585,6 +603,103 @@
   display: none;
 }
 
+.bookingConfirmationPanel {
+  align-items: flex-start;
+  background: rgba(255, 253, 250, 0.98);
+  border: 1px solid rgba(89, 64, 58, 0.12);
+  box-shadow: 0 24px 70px rgba(72, 37, 35, 0.18);
+  color: #3a2827;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 52px minmax(0, 1fr);
+  left: 50%;
+  max-width: min(940px, calc(100vw - 32px));
+  padding: 22px 56px 22px 22px;
+  position: fixed;
+  top: 22px;
+  transform: translateX(-50%);
+  width: 100%;
+  z-index: 2200;
+}
+
+.bookingConfirmationIcon {
+  align-items: center;
+  background: #e8f3eb;
+  color: #3b8251;
+  display: flex;
+  font-size: 1.5rem;
+  font-weight: 900;
+  height: 52px;
+  justify-content: center;
+  width: 52px;
+}
+
+.bookingConfirmationContent {
+  display: grid;
+  gap: 12px;
+}
+
+.bookingConfirmationContent h2 {
+  color: var(--tertiary);
+  font-family: var(--font-title);
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: 100;
+  line-height: 0.95;
+  margin: 0;
+}
+
+.bookingConfirmationContent p {
+  color: #5b4741;
+  font-weight: 700;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.bookingConfirmationClose {
+  background: #f3e6df;
+  border: none;
+  color: #7a2637;
+  cursor: pointer;
+  font-size: 1.3rem;
+  font-weight: 900;
+  height: 36px;
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  width: 36px;
+}
+
+.bookingConfirmationGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+}
+
+.bookingConfirmationGrid div {
+  background: #fffaf6;
+  border: 1px solid #ead8cf;
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+}
+
+.bookingConfirmationGrid dt {
+  color: #9b5363;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.bookingConfirmationGrid dd {
+  color: #3a2827;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.35;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .stickyCtaButton {
   background: #7a2637;
   border: none;
@@ -826,6 +941,26 @@
   .page {
     padding: 12px;
     padding-bottom: 92px;
+  }
+
+  .bookingConfirmationPanel {
+    grid-template-columns: 42px minmax(0, 1fr);
+    max-height: calc(100vh - 24px);
+    max-width: calc(100vw - 24px);
+    overflow: auto;
+    padding: 18px 48px 18px 18px;
+    top: 12px;
+  }
+
+  .bookingConfirmationIcon {
+    font-size: 1.2rem;
+    height: 42px;
+    width: 42px;
+  }
+
+  .bookingConfirmationGrid {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr;
   }
 
   .profileCard,

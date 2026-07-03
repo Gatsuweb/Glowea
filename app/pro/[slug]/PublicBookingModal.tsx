@@ -25,6 +25,31 @@ type BookingSettings = {
   depositsRequired: boolean;
 };
 
+type BookingConfirmation = {
+  appointmentId: string;
+  clientName: string;
+  businessName: string;
+  services: string[];
+  serviceName: string;
+  scheduledAt: string;
+  endAt: string;
+  dateLabel: string;
+  startTimeLabel: string;
+  endTimeLabel: string;
+  durationMin: number;
+  priceCents: number;
+  depositAmount: number;
+  paidDepositAmount: number;
+  remainingAmount: number;
+  address: string;
+  status: string;
+  paymentStatus: string;
+  requiresPayment: boolean;
+  emailConfirmationSent: boolean;
+};
+
+const confirmationStorageKey = "glowea-public-booking-confirmation";
+
 function getToday() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -65,6 +90,7 @@ export default function PublicBookingModal({
   const [instagram, setInstagram] = useState("");
   const [message, setMessage] = useState("");
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [confirmation, setConfirmation] = useState<BookingConfirmation | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
   const selectedServices = useMemo(
@@ -74,12 +100,35 @@ export default function PublicBookingModal({
   const selectedDurationMin = selectedServices.reduce((sum, service) => sum + service.durationMin, 0);
   const selectedPriceCents = selectedServices.reduce((sum, service) => sum + Math.round(service.price * 100), 0);
   const selectedServiceLabel = selectedServices.map((service) => service.name).join(" + ");
-
   const remainingAmount = Math.max(selectedPriceCents - depositAmount, 0);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!isMounted || typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("booking") !== "success") return;
+
+    const stored = window.sessionStorage.getItem(confirmationStorageKey);
+    if (!stored) return;
+
+    try {
+      const parsed = JSON.parse(stored) as BookingConfirmation;
+      if (parsed.appointmentId && parsed.appointmentId === params.get("appointmentId")) {
+        setConfirmation({
+          ...parsed,
+          status: "CONFIRMED",
+          paymentStatus: parsed.paymentStatus === "deposit_pending" ? "deposit_paid" : parsed.paymentStatus,
+        });
+        window.sessionStorage.removeItem(confirmationStorageKey);
+      }
+    } catch {
+      window.sessionStorage.removeItem(confirmationStorageKey);
+    }
+  }, [isMounted]);
 
   function formatMoneyFromCents(amount: number) {
     return new Intl.NumberFormat("fr-FR", {
@@ -142,6 +191,24 @@ export default function PublicBookingModal({
     });
   }
 
+  function getConfirmationTitle() {
+    if (!confirmation) return "";
+    if (confirmation.requiresPayment && confirmation.paymentStatus === "deposit_pending") {
+      return "Votre rendez-vous est en attente de paiement";
+    }
+
+    return "Votre rendez-vous est confirmé";
+  }
+
+  function getConfirmationMessage() {
+    if (!confirmation) return "";
+    if (confirmation.emailConfirmationSent) {
+      return "Un email de confirmation vient de vous être envoyé.";
+    }
+
+    return "Votre réservation a bien été transmise au salon.";
+  }
+
   function submitBooking(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFeedback(null);
@@ -193,10 +260,7 @@ export default function PublicBookingModal({
         return;
       }
 
-      setFeedback({
-        type: "success",
-        message: "Votre demande de rendez-vous a bien été envoyée.",
-      });
+      setFeedback(null);
       setFirstName("");
       setLastName("");
       setPhone("");
@@ -205,8 +269,13 @@ export default function PublicBookingModal({
       setMessage("");
 
       if (result.checkoutUrl) {
+        window.sessionStorage.setItem(confirmationStorageKey, JSON.stringify(result.confirmation));
         window.location.href = result.checkoutUrl;
+        return;
       }
+
+      setConfirmation(result.confirmation);
+      setIsOpen(false);
     });
   }
 
@@ -221,6 +290,64 @@ export default function PublicBookingModal({
       >
         {triggerContent || triggerLabel}
       </button>
+
+      {confirmation && isMounted && createPortal(
+        <aside className={styles.bookingConfirmationPanel} role="status" aria-live="polite">
+          <button
+            className={styles.bookingConfirmationClose}
+            type="button"
+            onClick={() => setConfirmation(null)}
+            aria-label="Fermer la confirmation"
+          >
+            ×
+          </button>
+          <div className={styles.bookingConfirmationIcon} aria-hidden="true">✓</div>
+          <div className={styles.bookingConfirmationContent}>
+            <span className={styles.kicker}>Réservation Glowea</span>
+            <h2>{getConfirmationTitle()}</h2>
+            <p>{getConfirmationMessage()}</p>
+            <dl className={styles.bookingConfirmationGrid}>
+              <div>
+                <dt>Cliente</dt>
+                <dd>{confirmation.clientName}</dd>
+              </div>
+              <div>
+                <dt>Prestation</dt>
+                <dd>{confirmation.services.length ? confirmation.services.join(" + ") : confirmation.serviceName}</dd>
+              </div>
+              <div>
+                <dt>Date</dt>
+                <dd>{confirmation.dateLabel}</dd>
+              </div>
+              <div>
+                <dt>Horaire</dt>
+                <dd>{confirmation.startTimeLabel} - {confirmation.endTimeLabel}</dd>
+              </div>
+              <div>
+                <dt>Durée</dt>
+                <dd>{confirmation.durationMin} min</dd>
+              </div>
+              <div>
+                <dt>Prix total</dt>
+                <dd>{confirmation.priceCents ? formatMoneyFromCents(confirmation.priceCents) : "Sur devis"}</dd>
+              </div>
+              {confirmation.depositAmount > 0 && (
+                <div>
+                  <dt>Arrhes</dt>
+                  <dd>{formatMoneyFromCents(confirmation.depositAmount)}</dd>
+                </div>
+              )}
+              {confirmation.address && (
+                <div>
+                  <dt>Adresse</dt>
+                  <dd>{confirmation.address}</dd>
+                </div>
+              )}
+            </dl>
+          </div>
+        </aside>,
+        document.body
+      )}
 
       {isOpen && isMounted && createPortal(
         <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-label="Reservation">
@@ -281,7 +408,7 @@ export default function PublicBookingModal({
                 </label>
               </div>
 
-              {isLoadingSlots && <div className={styles.modalInfo}>Chargement des creneaux disponibles...</div>}
+              {isLoadingSlots && <div className={styles.modalInfo}>Chargement des créneaux disponibles...</div>}
               {!isLoadingSlots && slotError && <div className={styles.modalError}>{slotError}</div>}
               {!isLoadingSlots && !slotError && slots.length === 0 && (
                 <div className={styles.modalInfo}>Aucun créneau disponible pour cette date.</div>
@@ -289,7 +416,7 @@ export default function PublicBookingModal({
 
               <div className={styles.formSplit}>
                 <label>
-                  Prenom
+                  Prénom
                   <input value={firstName} onChange={(event) => setFirstName(event.target.value)} required />
                 </label>
                 <label>
@@ -300,7 +427,7 @@ export default function PublicBookingModal({
 
               <div className={styles.formSplit}>
                 <label>
-                  Telephone
+                  Téléphone
                   <input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} required />
                 </label>
                 <label>
@@ -323,7 +450,7 @@ export default function PublicBookingModal({
                 <div className={styles.paymentSummary}>
                   <span>Arrhes {bookingSettings.depositsRequired ? "obligatoires" : "optionnelles"}</span>
                   <strong>{formatMoneyFromCents(depositAmount)}</strong>
-                  <small>Reste a payer sur place : {formatMoneyFromCents(remainingAmount)}</small>
+                  <small>Reste à payer sur place : {formatMoneyFromCents(remainingAmount)}</small>
                 </div>
               )}
 

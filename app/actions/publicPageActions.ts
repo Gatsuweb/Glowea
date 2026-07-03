@@ -1056,7 +1056,9 @@ export async function createPublicBooking(input: PublicBookingInput) {
   });
   const clientFullName = `${firstName} ${lastName}`.trim() || firstName;
   const timeLabel = scheduledAt.toLocaleTimeString("fr-FR", { timeZone: BOOKING_TIME_ZONE, hour: "2-digit", minute: "2-digit" });
+  const endTimeLabel = endAt.toLocaleTimeString("fr-FR", { timeZone: BOOKING_TIME_ZONE, hour: "2-digit", minute: "2-digit" });
   const dateLabel = scheduledAt.toLocaleDateString("fr-FR", { timeZone: BOOKING_TIME_ZONE, weekday: "short", day: "2-digit", month: "short" });
+  const fullDateLabel = scheduledAt.toLocaleDateString("fr-FR", { timeZone: BOOKING_TIME_ZONE, weekday: "long", day: "2-digit", month: "long", year: "numeric" });
   const priceCents = serviceSelection.totalPriceCents;
   const serviceLabel = serviceSelection.label;
   const businessName = getPublicBusinessName(profile);
@@ -1287,6 +1289,8 @@ export async function createPublicBooking(input: PublicBookingInput) {
   revalidatePath("/dashboard");
   revalidatePath(`/pro/${profile.slug}`);
 
+  let emailConfirmationSent = false;
+
   try {
     await sendPushToTenant(profile.tenantId, {
       title: "Nouvelle réservation",
@@ -1329,6 +1333,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
         text: body,
         replyTo: profile.email,
       });
+      emailConfirmationSent = emailResult.success;
 
       await prisma.messageLog.update({
         where: { id: messageLog.id },
@@ -1354,6 +1359,28 @@ export async function createPublicBooking(input: PublicBookingInput) {
     scheduledAt: reservation.appointment.scheduledAt.toISOString(),
     requiresPayment: reservation.requiresDeposit,
     checkoutUrl,
+    confirmation: {
+      appointmentId: reservation.appointment.id,
+      clientName: clientFullName,
+      businessName,
+      services: serviceSelection.snapshots.map((service) => service.nameSnapshot),
+      serviceName: serviceLabel,
+      scheduledAt: reservation.appointment.scheduledAt.toISOString(),
+      endAt: reservation.appointment.endAt?.toISOString() || endAt.toISOString(),
+      dateLabel: fullDateLabel,
+      startTimeLabel: timeLabel,
+      endTimeLabel,
+      durationMin: serviceSelection.totalDurationMin,
+      priceCents,
+      depositAmount: reservation.depositAmount,
+      paidDepositAmount: reservation.requiresDeposit ? reservation.depositAmount : 0,
+      remainingAmount: Math.max(priceCents - (reservation.requiresDeposit ? reservation.depositAmount : 0), 0),
+      address: [profile.address, profile.city].filter(Boolean).join(", "),
+      status: reservation.appointment.status,
+      paymentStatus: reservation.appointment.paymentStatus,
+      requiresPayment: reservation.requiresDeposit,
+      emailConfirmationSent,
+    },
   };
 
   logBookingTimezone("API_RETURNED", {
