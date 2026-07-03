@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { slugifyDirectorySegment } from "../../../lib/directory";
 import { absoluteUrl } from "../../../lib/seo";
 import prisma from "../../../lib/prisma";
 import { syncAppointmentPaymentFromCheckoutSessionId } from "../../../lib/stripeAppointmentSync";
 import { getSubscriptionAccessFromTenant } from "../../../lib/subscription";
 import PublicBookingModal from "./PublicBookingModal";
 import PublicGallery from "./PublicGallery";
+import PublicServiceList from "./PublicServiceList";
 import styles from "./publicProfile.module.css";
 
 type PublicService = {
@@ -34,15 +37,6 @@ function Icon({ name }: { name: keyof typeof iconPaths }) {
       <path d={iconPaths[name]} />
     </svg>
   );
-}
-
-function formatPrice(value: number) {
-  if (!value) return "Sur devis";
-  return `A partir de ${new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(value)}`;
 }
 
 function normalizeInstagram(value: string | null) {
@@ -319,6 +313,7 @@ export default async function PublicProPage({
     ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
     : 0;
   const profileJsonLd = getProfileJsonLd(profile);
+  const citySlug = slugifyDirectorySegment(profile.city);
 
   return (
     <main className={styles.page}>
@@ -335,6 +330,12 @@ export default async function PublicProPage({
                 src={profile.coverImageUrl || "/landing/fond.png"}
                 alt={`Photo de couverture de ${title}`}
                 className={styles.coverImage}
+                loading="eager"
+                decoding="async"
+                fetchPriority="high"
+                width={720}
+                height={405}
+                sizes="(max-width: 980px) calc(100vw - 56px), 360px"
               />
             </div>
             <div className={styles.identityRow}>
@@ -343,6 +344,11 @@ export default async function PublicProPage({
                 src={profile.avatarUrl || "/logo-mini.png"}
                 alt={`Logo ou portrait de ${title}`}
                 className={styles.avatar}
+                loading="eager"
+                decoding="async"
+                width={144}
+                height={144}
+                sizes="72px"
               />
               <div>
                 <span className={styles.kicker}>Studio beaute</span>
@@ -381,6 +387,13 @@ export default async function PublicProPage({
                 <div><Icon name="clock" /><span>Horaires</span><strong>{profile.openingHours}</strong></div>
               )}
             </div>
+
+            <div className={styles.directoryLinks}>
+              <Link href="/annuaire">Voir l&apos;annuaire Glowea</Link>
+              {profile.city && citySlug && (
+                <Link href={`/annuaire/${citySlug}`}>Professionnelles beauté à {profile.city}</Link>
+              )}
+            </div>
           </div>
         </aside>
 
@@ -394,47 +407,12 @@ export default async function PublicProPage({
             {/* <div className={styles.sectionHeader}>
               <p>{services.length} prestation{services.length > 1 ? "s" : ""} disponible{services.length > 1 ? "s" : ""} a la reservation.</p>
             </div> */}
-            <div className={styles.serviceGrid}>
-              {services.map((service) => (
-                <PublicBookingModal
-                  key={service.id}
-                  slug={profile.slug}
-                  services={bookingServices}
-                  initialServiceId={service.id}
-                  triggerClassName={styles.serviceCardButton}
-                  triggerLabel={`Reserver ${service.name}`}
-                  triggerContent={(
-                    <>
-                      {service.imageUrl && (
-                        <>
-                          {/* eslint-disable-next-line @next/next/no-img-element -- Public service URLs are user-configured and not constrained to Next image domains. */}
-                          <img
-                            src={service.imageUrl}
-                            alt={`Prestation ${service.name} chez ${title}`}
-                            className={styles.serviceCardImage}
-                          />
-                        </>
-                      )}
-                      <div className={styles.serviceCardTop}>
-                        <span className={styles.serviceCategory}>{service.category}</span>
-                        <div className={styles.serviceCardCopy}>
-                          <h3>{service.name}</h3>
-                          <p className={styles.serviceDescription}>{service.description}</p>
-                        </div>
-                      </div>
-                      <div className={styles.serviceMeta}>
-                        <span className={styles.serviceMetaTag}>{service.durationMin} min</span>
-                        <strong>{formatPrice(service.price)}</strong>
-                      </div>
-                      <div className={styles.serviceCardCta}>
-                        <span>Reserver cette prestation</span>
-                        <span aria-hidden="true">↗</span>
-                      </div>
-                    </>
-                  )}
-                />
-              ))}
-            </div>
+            <PublicServiceList
+              services={services}
+              bookingServices={bookingServices}
+              slug={profile.slug}
+              title={title}
+            />
           </section>
 
           <section className={styles.gallerySection}>

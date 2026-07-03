@@ -8,16 +8,21 @@ type GalleryImage = {
   alt: string;
 };
 
+const initialGalleryCount = 9;
+
 export default function PublicGallery({ images }: { images: GalleryImage[] }) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [isZoomed, setIsZoomed] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
-  const activeImage = activeIndex === null ? null : images[activeIndex];
+  const hasHiddenImages = images.length > initialGalleryCount;
+  const visibleImages = showAll ? images : images.slice(0, initialGalleryCount);
+  const activeImage = activeIndex === null ? null : visibleImages[activeIndex];
 
   function goTo(delta: number) {
     if (activeIndex === null) return;
     setIsZoomed(false);
-    setActiveIndex((activeIndex + delta + images.length) % images.length);
+    setActiveIndex((activeIndex + delta + visibleImages.length) % visibleImages.length);
   }
 
   if (images.length === 0) {
@@ -30,8 +35,8 @@ export default function PublicGallery({ images }: { images: GalleryImage[] }) {
 
   return (
     <>
-      <div className={styles.galleryGrid}>
-        {images.map((image, index) => (
+      <div className={styles.galleryGrid} id="public-gallery-grid">
+        {visibleImages.map((image, index) => (
           <button
             className={styles.galleryItem}
             key={`${image.imageUrl}-${index}`}
@@ -39,10 +44,32 @@ export default function PublicGallery({ images }: { images: GalleryImage[] }) {
             onClick={() => setActiveIndex(index)}
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- Public gallery URLs are user-configured and not constrained to Next image domains. */}
-            <img src={image.imageUrl} alt={image.alt || "Galerie beaute"} />
+            <img
+              src={image.imageUrl}
+              alt={image.alt || "Galerie beaute"}
+              loading="lazy"
+              decoding="async"
+              width={640}
+              height={640}
+              sizes="(max-width: 640px) calc(50vw - 20px), (max-width: 980px) 30vw, 320px"
+            />
           </button>
         ))}
       </div>
+
+      {hasHiddenImages && (
+        <div className={styles.showMoreWrap}>
+          <button
+            type="button"
+            className={styles.showMoreButton}
+            onClick={() => setShowAll((value) => !value)}
+            aria-controls="public-gallery-grid"
+            aria-expanded={showAll}
+          >
+            {showAll ? "Afficher moins de photos" : `Voir toute la galerie (${images.length})`}
+          </button>
+        </div>
+      )}
 
       {activeImage && (
         <div className={styles.lightboxOverlay} role="dialog" aria-modal="true" aria-label="Galerie">
@@ -59,6 +86,10 @@ export default function PublicGallery({ images }: { images: GalleryImage[] }) {
             className={isZoomed ? styles.lightboxImageZoomed : styles.lightboxImage}
             src={activeImage.imageUrl}
             alt={activeImage.alt || "Galerie beaute"}
+            loading="eager"
+            decoding="async"
+            width={1200}
+            height={900}
           />
         </div>
       )}

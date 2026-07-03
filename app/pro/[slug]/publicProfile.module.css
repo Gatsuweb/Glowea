@@ -265,6 +265,40 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.showMoreWrap {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  margin-top: 20px;
+}
+
+.showMoreButton {
+  background: #fffaf6;
+  border: 1px solid #ead8cf;
+  box-shadow: 0 14px 34px rgba(72, 37, 35, 0.08);
+  color: #7a2637;
+  cursor: pointer;
+  font-weight: 900;
+  min-height: 46px;
+  padding: 0 18px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.showMoreButton:hover {
+  border-color: rgba(122, 38, 55, 0.35);
+  box-shadow: 0 18px 42px rgba(72, 37, 35, 0.12);
+  transform: translateY(-1px);
+}
+
+.showMoreHint {
+  color: #7b6860;
+  font-size: 0.88rem;
+  font-weight: 700;
+  margin: 0;
+  text-align: center;
+}
+
 .serviceCardButton {
   background:
     linear-gradient(180deg, rgba(40, 21, 24, 0.04) 0%, rgba(40, 21, 24, 0.12) 32%, rgba(31, 17, 19, 0.82) 100%),
@@ -992,6 +1026,14 @@
 
   .serviceGrid {
     grid-template-columns: 1fr;
+  }
+
+  .showMoreWrap {
+    justify-items: stretch;
+  }
+
+  .showMoreButton {
+    width: 100%;
   }
 
   .serviceCardButton {
