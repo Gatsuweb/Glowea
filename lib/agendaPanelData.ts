@@ -1,29 +1,7 @@
 import prisma from "./prisma";
 import type { AppointmentStatusValue } from "./appointmentStatus";
 import { getAppointmentServicesSummary } from "./appointmentServices";
-
-function formatParisDebug(date: Date) {
-  if (Number.isNaN(date.getTime())) return "Invalid Date";
-
-  return new Intl.DateTimeFormat("fr-FR", {
-    timeZone: "Europe/Paris",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).format(date);
-}
-
-function logBookingTime(label: string, payload: Record<string, unknown>) {
-  console.log(`[booking-timezone] ${label}`, {
-    runtimeTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    runtimeOffsetMin: new Date().getTimezoneOffset(),
-    ...payload,
-  });
-}
+import { formatBookingTimeDebug, logBookingTimezone } from "./bookingTimezone";
 
 export type AgendaPanelData = {
   appointments: Array<{
@@ -228,19 +206,19 @@ export async function getAgendaPanelData(tenantId: string, userId?: string | nul
       : new Date(app.scheduledAt.getTime() + serviceSummary.totalDurationMin * 60000).toISOString();
 
     if (app.source === "ONLINE_BOOKING") {
-      logBookingTime("AGENDA_DB_READ", {
+      logBookingTimezone("AGENDA_DB_READ", {
         appointmentId: app.id,
         dbScheduledAtIso: app.scheduledAt.toISOString(),
-        dbScheduledAtEuropeParis: formatParisDebug(app.scheduledAt),
+        dbScheduledAtEuropeParis: formatBookingTimeDebug(app.scheduledAt),
         dbEndAtIso: app.endAt?.toISOString() || null,
-        dbEndAtEuropeParis: app.endAt ? formatParisDebug(app.endAt) : null,
+        dbEndAtEuropeParis: app.endAt ? formatBookingTimeDebug(app.endAt) : null,
       });
-      logBookingTime("AGENDA_API_RETURNED", {
+      logBookingTimezone("AGENDA_API_RETURNED", {
         appointmentId: app.id,
         scheduledAtIso: serializedScheduledAt,
-        scheduledAtEuropeParis: formatParisDebug(new Date(serializedScheduledAt)),
+        scheduledAtEuropeParis: formatBookingTimeDebug(new Date(serializedScheduledAt)),
         endAtIso: serializedEndAt,
-        endAtEuropeParis: formatParisDebug(new Date(serializedEndAt)),
+        endAtEuropeParis: formatBookingTimeDebug(new Date(serializedEndAt)),
       });
     }
 

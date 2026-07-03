@@ -17,6 +17,12 @@ import { getSubscriptionAccessFromTenant, getTenantSubscriptionAccess } from "..
 import { getExistingTenantId, getTenantId } from "../../lib/tenant";
 import { getClientIdentityValues } from "../../lib/clientIdentity";
 import { getAvailablePublicSlug, isUniqueConstraintError, slugifyPublicProfile } from "../../lib/publicSlug";
+import {
+  BOOKING_TIME_ZONE,
+  formatBookingTimeDebug,
+  localDateTimeToUtc,
+  logBookingTimezone,
+} from "../../lib/bookingTimezone";
 
 export type PublicProfileInput = {
   isPublished: boolean;
@@ -207,29 +213,6 @@ function toInt(value: unknown, fallback: number, min: number, max: number) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(max, Math.max(min, Math.round(parsed)));
-}
-
-function formatParisDebug(date: Date) {
-  if (Number.isNaN(date.getTime())) return "Invalid Date";
-
-  return new Intl.DateTimeFormat("fr-FR", {
-    timeZone: "Europe/Paris",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).format(date);
-}
-
-function logBookingTime(label: string, payload: Record<string, unknown>) {
-  console.log(`[booking-timezone] ${label}`, {
-    runtimeTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    runtimeOffsetMin: new Date().getTimezoneOffset(),
-    ...payload,
-  });
 }
 
 function isValidTime(value: unknown) {
@@ -981,7 +964,7 @@ export async function deleteReview(id: string) {
 
 export async function createPublicBooking(input: PublicBookingInput) {
   const slug = slugifyPublicProfile(input.slug);
-  logBookingTime("API_RECEIVED_RAW_INPUT", {
+  logBookingTimezone("API_RECEIVED_RAW_INPUT", {
     slug,
     inputDate: input.date,
     inputTime: input.time,
@@ -1001,11 +984,11 @@ export async function createPublicBooking(input: PublicBookingInput) {
     return { success: false as const, error: "Le prénom et le téléphone sont obligatoires." };
   }
 
-  const scheduledAt = new Date(`${safeString(input.date, 10)}T${safeString(input.time, 5)}:00`);
-  logBookingTime("API_RECEIVED_PARSED", {
-    sourceString: `${safeString(input.date, 10)}T${safeString(input.time, 5)}:00`,
+  const scheduledAt = localDateTimeToUtc(safeString(input.date, 10), `${safeString(input.time, 5)}:00`);
+  logBookingTimezone("API_RECEIVED_PARSED", {
+    sourceString: `${safeString(input.date, 10)}T${safeString(input.time, 5)}:00[${BOOKING_TIME_ZONE}]`,
     scheduledAtIso: Number.isNaN(scheduledAt.getTime()) ? null : scheduledAt.toISOString(),
-    scheduledAtEuropeParis: formatParisDebug(scheduledAt),
+    scheduledAtEuropeParis: formatBookingTimeDebug(scheduledAt),
     scheduledAtEpochMs: Number.isNaN(scheduledAt.getTime()) ? null : scheduledAt.getTime(),
   });
   if (Number.isNaN(scheduledAt.getTime()) || scheduledAt < new Date()) {
@@ -1064,16 +1047,16 @@ export async function createPublicBooking(input: PublicBookingInput) {
   }
 
   const endAt = new Date(scheduledAt.getTime() + serviceSelection.totalDurationMin * 60000);
-  logBookingTime("API_BEFORE_DB_SAVE", {
+  logBookingTimezone("API_BEFORE_DB_SAVE", {
     scheduledAtIso: scheduledAt.toISOString(),
-    scheduledAtEuropeParis: formatParisDebug(scheduledAt),
+    scheduledAtEuropeParis: formatBookingTimeDebug(scheduledAt),
     endAtIso: endAt.toISOString(),
-    endAtEuropeParis: formatParisDebug(endAt),
+    endAtEuropeParis: formatBookingTimeDebug(endAt),
     durationMin: serviceSelection.totalDurationMin,
   });
   const clientFullName = `${firstName} ${lastName}`.trim() || firstName;
-  const timeLabel = scheduledAt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-  const dateLabel = scheduledAt.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" });
+  const timeLabel = scheduledAt.toLocaleTimeString("fr-FR", { timeZone: BOOKING_TIME_ZONE, hour: "2-digit", minute: "2-digit" });
+  const dateLabel = scheduledAt.toLocaleDateString("fr-FR", { timeZone: BOOKING_TIME_ZONE, weekday: "short", day: "2-digit", month: "short" });
   const priceCents = serviceSelection.totalPriceCents;
   const serviceLabel = serviceSelection.label;
   const businessName = getPublicBusinessName(profile);
@@ -1178,12 +1161,12 @@ export async function createPublicBooking(input: PublicBookingInput) {
         },
       });
 
-      logBookingTime("DB_SAVED", {
+      logBookingTimezone("DB_SAVED", {
         appointmentId: appointment.id,
         dbScheduledAtIso: appointment.scheduledAt.toISOString(),
-        dbScheduledAtEuropeParis: formatParisDebug(appointment.scheduledAt),
+        dbScheduledAtEuropeParis: formatBookingTimeDebug(appointment.scheduledAt),
         dbEndAtIso: appointment.endAt?.toISOString() || null,
-        dbEndAtEuropeParis: appointment.endAt ? formatParisDebug(appointment.endAt) : null,
+        dbEndAtEuropeParis: appointment.endAt ? formatBookingTimeDebug(appointment.endAt) : null,
         source: appointment.source,
       });
 
@@ -1373,10 +1356,10 @@ export async function createPublicBooking(input: PublicBookingInput) {
     checkoutUrl,
   };
 
-  logBookingTime("API_RETURNED", {
+  logBookingTimezone("API_RETURNED", {
     appointmentId: response.appointmentId,
     scheduledAtIso: response.scheduledAt,
-    scheduledAtEuropeParis: formatParisDebug(new Date(response.scheduledAt)),
+    scheduledAtEuropeParis: formatBookingTimeDebug(new Date(response.scheduledAt)),
     requiresPayment: response.requiresPayment,
   });
 

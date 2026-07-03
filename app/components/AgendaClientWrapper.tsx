@@ -22,6 +22,7 @@ import {
 
 import { exportElementToPDF } from "../../lib/exportUtils";
 import { useRouter, useSearchParams } from "next/navigation";
+import { formatBookingTimeDebug, logBookingTimezone } from "../../lib/bookingTimezone";
 
 type AgendaClient = {
   id: string;
@@ -144,29 +145,6 @@ const SLOT_MINUTES = 30;
 const SLOT_HEIGHT = 28;
 const TOUCH_DIRECTION_THRESHOLD_PX = 8;
 const DEFAULT_EVENT_COLOR = "#8B4B54";
-
-function formatParisDebug(date: Date) {
-  if (Number.isNaN(date.getTime())) return "Invalid Date";
-
-  return new Intl.DateTimeFormat("fr-FR", {
-    timeZone: "Europe/Paris",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).format(date);
-}
-
-function logBookingTime(label: string, payload: Record<string, unknown>) {
-  console.log(`[booking-timezone] ${label}`, {
-    browserTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    browserOffsetMin: new Date().getTimezoneOffset(),
-    ...payload,
-  });
-}
 
 function normalizeHexColor(color?: string | null) {
   const value = color?.trim();
@@ -385,14 +363,14 @@ export default function AgendaClientWrapper({
       const scheduledAt = new Date(appointment.scheduledAt);
       const endAt = new Date(appointment.endAt);
 
-      logBookingTime("AGENDA_CLIENT_RECEIVED", {
+      logBookingTimezone("AGENDA_CLIENT_RECEIVED", {
         appointmentId: appointment.id,
         scheduledAtRaw: appointment.scheduledAt,
         scheduledAtParsedIso: Number.isNaN(scheduledAt.getTime()) ? null : scheduledAt.toISOString(),
-        scheduledAtEuropeParis: formatParisDebug(scheduledAt),
+        scheduledAtEuropeParis: formatBookingTimeDebug(scheduledAt),
         endAtRaw: appointment.endAt,
         endAtParsedIso: Number.isNaN(endAt.getTime()) ? null : endAt.toISOString(),
-        endAtEuropeParis: formatParisDebug(endAt),
+        endAtEuropeParis: formatBookingTimeDebug(endAt),
       });
     });
   }, [appointments]);
@@ -1822,16 +1800,16 @@ export default function AgendaClientWrapper({
                               app.client.noShowCount ? `${app.client.noShowCount} no-show${app.client.noShowCount > 1 ? "s" : ""}` : "Cliente a surveiller"
                             );
 
-                            logBookingTime("CALENDAR_RENDERED", {
+                            logBookingTimezone("CALENDAR_RENDERED", {
                               appointmentId: app.id,
                               scheduledAtRaw: app.scheduledAt,
                               scheduledAtParsedIso: appDate.toISOString(),
-                              scheduledAtEuropeParis: formatParisDebug(appDate),
+                              scheduledAtEuropeParis: formatBookingTimeDebug(appDate),
                               endAtRaw: app.endAt,
                               endAtParsedIso: endAt.toISOString(),
-                              endAtEuropeParis: formatParisDebug(endAt),
+                              endAtEuropeParis: formatBookingTimeDebug(endAt),
                               renderedDayIndex: dayIndex,
-                              renderedDayEuropeParis: formatParisDebug(day),
+                              renderedDayEuropeParis: formatBookingTimeDebug(day),
                               renderedSlotLabel: slot.label,
                               topOffsetPx: topOffset,
                               heightPx: height,

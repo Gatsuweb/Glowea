@@ -2,6 +2,12 @@ import prisma from "./prisma";
 import { getBlockingAppointmentWhere, isBlockingAppointment } from "./appointmentStatus";
 import { getAppointmentServicesSummary, normalizeAppointmentServiceIds } from "./appointmentServices";
 import type { Prisma } from "@prisma/client";
+import {
+  getZonedDayBounds,
+  getZonedDayIndex,
+  getZonedMinutes,
+  zonedDateAtMinutes,
+} from "./bookingTimezone";
 
 type BreakWindow = {
   start: string;
@@ -90,17 +96,11 @@ function minutesToTime(totalMinutes: number) {
 }
 
 function dateAtMinutes(date: Date, totalMinutes: number) {
-  const next = new Date(date);
-  next.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
-  return next;
+  return zonedDateAtMinutes(date, totalMinutes);
 }
 
 function getDayBounds(date: Date) {
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(date);
-  end.setHours(23, 59, 59, 999);
-  return { start, end };
+  return getZonedDayBounds(date);
 }
 
 function normalizeBreaks(value: unknown): BreakWindow[] {
@@ -245,7 +245,7 @@ function getAvailableSlotsFromWindows(params: {
 }) {
   const now = params.now || new Date();
   const bookingSettings = normalizePublicBookingSettings(params.settings);
-  const daySchedule = getWeekSchedule(params.settings)[params.date.getDay()];
+  const daySchedule = getWeekSchedule(params.settings)[getZonedDayIndex(params.date)];
   if (!daySchedule.isOpen) return [];
 
   const openStart = parseTimeToMinutes(daySchedule.start);
@@ -445,7 +445,7 @@ export async function assertPublicSlotAvailable(params: {
   }
 
   const bookingSettings = normalizePublicBookingSettings(settings);
-  const startMinutes = params.scheduledAt.getHours() * 60 + params.scheduledAt.getMinutes();
+  const startMinutes = getZonedMinutes(params.scheduledAt);
   const expectedTime = minutesToTime(startMinutes);
   const slots = getAvailableSlotsFromWindows({
     date: params.scheduledAt,

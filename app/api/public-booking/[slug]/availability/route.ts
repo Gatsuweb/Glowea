@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { getPublicAvailability } from "@/lib/bookingAvailability";
+import {
+  formatBookingTimeDebug,
+  localDateTimeToUtc,
+  logBookingTimezone,
+} from "@/lib/bookingTimezone";
 import prisma from "@/lib/prisma";
 import { getSubscriptionAccessFromTenant } from "@/lib/subscription";
 
@@ -8,31 +13,8 @@ export const dynamic = "force-dynamic";
 
 function parseDate(value: string | null) {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const date = new Date(`${value}T00:00:00`);
+  const date = localDateTimeToUtc(value, "00:00:00");
   return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function formatParisDebug(date: Date) {
-  if (Number.isNaN(date.getTime())) return "Invalid Date";
-
-  return new Intl.DateTimeFormat("fr-FR", {
-    timeZone: "Europe/Paris",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).format(date);
-}
-
-function logBookingTime(label: string, payload: Record<string, unknown>) {
-  console.log(`[booking-timezone] ${label}`, {
-    runtimeTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    runtimeOffsetMin: new Date().getTimezoneOffset(),
-    ...payload,
-  });
 }
 
 export async function GET(
@@ -48,12 +30,12 @@ export async function GET(
   ].map((id) => id.trim()).filter(Boolean);
   const date = parseDate(url.searchParams.get("date"));
 
-  logBookingTime("AVAILABILITY_API_RECEIVED", {
+  logBookingTimezone("AVAILABILITY_API_RECEIVED", {
     slug: params.slug,
     requestUrl: req.url,
     queryDate: url.searchParams.get("date"),
     parsedDateIso: date ? date.toISOString() : null,
-    parsedDateEuropeParis: date ? formatParisDebug(date) : null,
+    parsedDateEuropeParis: date ? formatBookingTimeDebug(date) : null,
     serviceId,
     serviceIds,
   });
@@ -102,7 +84,7 @@ export async function GET(
     priceCents: availability.priceCents,
   };
 
-  logBookingTime("AVAILABILITY_API_RETURNED", {
+  logBookingTimezone("AVAILABILITY_API_RETURNED", {
     slug: params.slug,
     queryDate: url.searchParams.get("date"),
     firstSlot: response.slots[0] || null,

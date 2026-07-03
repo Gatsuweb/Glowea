@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { createPublicBooking } from "../../actions/publicPageActions";
+import { formatBookingTimeDebug, logBookingTimezone } from "../../../lib/bookingTimezone";
 import styles from "./publicProfile.module.css";
 
 type BookingService = {
@@ -26,29 +27,6 @@ type BookingSettings = {
 
 function getToday() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function formatParisDebug(date: Date) {
-  if (Number.isNaN(date.getTime())) return "Invalid Date";
-
-  return new Intl.DateTimeFormat("fr-FR", {
-    timeZone: "Europe/Paris",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).format(date);
-}
-
-function logBookingTime(label: string, payload: Record<string, unknown>) {
-  console.log(`[booking-timezone] ${label}`, {
-    browserTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    browserOffsetMin: new Date().getTimezoneOffset(),
-    ...payload,
-  });
 }
 
 export default function PublicBookingModal({
@@ -130,7 +108,7 @@ export default function PublicBookingModal({
         if (!response.ok || !data.success) {
           throw new Error(data.error || "Impossible de charger les creneaux.");
         }
-        logBookingTime("AVAILABILITY_API_RETURNED", {
+        logBookingTimezone("AVAILABILITY_API_RETURNED_CLIENT", {
           date,
           firstSlot: data.slots?.[0] || null,
           selectedServiceIds,
@@ -170,15 +148,15 @@ export default function PublicBookingModal({
     const clientSelected = new Date(`${date}T${time}:00`);
     const selectedSlot = slots.find((slot) => slot.time === time) || null;
 
-    logBookingTime("CLIENT_SELECTED", {
+    logBookingTimezone("CLIENT_SELECTED", {
       selectedLabel: `${date} ${time} Europe/Paris`,
       selectedDate: date,
       selectedTime: time,
       parsedLocalIso: Number.isNaN(clientSelected.getTime()) ? null : clientSelected.toISOString(),
-      parsedEuropeParis: formatParisDebug(clientSelected),
+      parsedEuropeParis: formatBookingTimeDebug(clientSelected),
       selectedSlot,
     });
-    logBookingTime("API_SENT", {
+    logBookingTimezone("API_SENT", {
       action: "createPublicBooking",
       payload: {
         slug,
@@ -204,10 +182,10 @@ export default function PublicBookingModal({
         message,
       });
 
-      logBookingTime("API_RETURNED_TO_CLIENT", {
+      logBookingTimezone("API_RETURNED_TO_CLIENT", {
         result,
         returnedScheduledAtIso: result.success ? result.scheduledAt : null,
-        returnedScheduledAtEuropeParis: result.success ? formatParisDebug(new Date(result.scheduledAt)) : null,
+        returnedScheduledAtEuropeParis: result.success ? formatBookingTimeDebug(new Date(result.scheduledAt)) : null,
       });
 
       if (!result.success) {
