@@ -71,10 +71,7 @@ export default function PushNotificationManager() {
         return;
       }
 
-      const registration = await navigator.serviceWorker.getRegistration();
-      const existingSubscription = registration ? await registration.pushManager.getSubscription() : null;
-
-      if (!pushEnabled || !existingSubscription) {
+      if (!pushEnabled) {
         if (isMounted) setState("ready");
         return;
       }
