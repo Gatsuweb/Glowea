@@ -221,6 +221,7 @@
   gap: 8px;
   margin-top: 18px;
   padding-top: 14px;
+  display: none;
 }
 
 .directoryLinks a {
