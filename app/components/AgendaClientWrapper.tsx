@@ -145,6 +145,29 @@ const SLOT_HEIGHT = 28;
 const TOUCH_DIRECTION_THRESHOLD_PX = 8;
 const DEFAULT_EVENT_COLOR = "#8B4B54";
 
+function formatParisDebug(date: Date) {
+  if (Number.isNaN(date.getTime())) return "Invalid Date";
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function logBookingTime(label: string, payload: Record<string, unknown>) {
+  console.log(`[booking-timezone] ${label}`, {
+    browserTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    browserOffsetMin: new Date().getTimezoneOffset(),
+    ...payload,
+  });
+}
+
 function normalizeHexColor(color?: string | null) {
   const value = color?.trim();
   if (!value) return DEFAULT_EVENT_COLOR;
@@ -356,6 +379,23 @@ export default function AgendaClientWrapper({
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  useEffect(() => {
+    appointments.forEach((appointment) => {
+      const scheduledAt = new Date(appointment.scheduledAt);
+      const endAt = new Date(appointment.endAt);
+
+      logBookingTime("AGENDA_CLIENT_RECEIVED", {
+        appointmentId: appointment.id,
+        scheduledAtRaw: appointment.scheduledAt,
+        scheduledAtParsedIso: Number.isNaN(scheduledAt.getTime()) ? null : scheduledAt.toISOString(),
+        scheduledAtEuropeParis: formatParisDebug(scheduledAt),
+        endAtRaw: appointment.endAt,
+        endAtParsedIso: Number.isNaN(endAt.getTime()) ? null : endAt.toISOString(),
+        endAtEuropeParis: formatParisDebug(endAt),
+      });
+    });
+  }, [appointments]);
 
   useEffect(() => {
     setCurrentBookingSettings(bookingSettings);
@@ -1781,6 +1821,21 @@ export default function AgendaClientWrapper({
                             const eventRiskReason = app.client.riskReason || (
                               app.client.noShowCount ? `${app.client.noShowCount} no-show${app.client.noShowCount > 1 ? "s" : ""}` : "Cliente a surveiller"
                             );
+
+                            logBookingTime("CALENDAR_RENDERED", {
+                              appointmentId: app.id,
+                              scheduledAtRaw: app.scheduledAt,
+                              scheduledAtParsedIso: appDate.toISOString(),
+                              scheduledAtEuropeParis: formatParisDebug(appDate),
+                              endAtRaw: app.endAt,
+                              endAtParsedIso: endAt.toISOString(),
+                              endAtEuropeParis: formatParisDebug(endAt),
+                              renderedDayIndex: dayIndex,
+                              renderedDayEuropeParis: formatParisDebug(day),
+                              renderedSlotLabel: slot.label,
+                              topOffsetPx: topOffset,
+                              heightPx: height,
+                            });
 
                             return (
                               <div 

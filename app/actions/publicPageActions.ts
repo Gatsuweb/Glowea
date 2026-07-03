@@ -209,6 +209,29 @@ function toInt(value: unknown, fallback: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Math.round(parsed)));
 }
 
+function formatParisDebug(date: Date) {
+  if (Number.isNaN(date.getTime())) return "Invalid Date";
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function logBookingTime(label: string, payload: Record<string, unknown>) {
+  console.log(`[booking-timezone] ${label}`, {
+    runtimeTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    runtimeOffsetMin: new Date().getTimezoneOffset(),
+    ...payload,
+  });
+}
+
 function isValidTime(value: unknown) {
   if (typeof value !== "string") return false;
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
@@ -958,6 +981,14 @@ export async function deleteReview(id: string) {
 
 export async function createPublicBooking(input: PublicBookingInput) {
   const slug = slugifyPublicProfile(input.slug);
+  logBookingTime("API_RECEIVED_RAW_INPUT", {
+    slug,
+    inputDate: input.date,
+    inputTime: input.time,
+    inputServiceId: input.serviceId,
+    inputServiceIds: input.serviceIds,
+    clientSelectedLabel: `${safeString(input.date, 10)} ${safeString(input.time, 5)} Europe/Paris`,
+  });
   const firstName = safeString(input.firstName, 80);
   const lastName = safeString(input.lastName, 80);
   const phone = safeString(input.phone, 60);
@@ -971,6 +1002,12 @@ export async function createPublicBooking(input: PublicBookingInput) {
   }
 
   const scheduledAt = new Date(`${safeString(input.date, 10)}T${safeString(input.time, 5)}:00`);
+  logBookingTime("API_RECEIVED_PARSED", {
+    sourceString: `${safeString(input.date, 10)}T${safeString(input.time, 5)}:00`,
+    scheduledAtIso: Number.isNaN(scheduledAt.getTime()) ? null : scheduledAt.toISOString(),
+    scheduledAtEuropeParis: formatParisDebug(scheduledAt),
+    scheduledAtEpochMs: Number.isNaN(scheduledAt.getTime()) ? null : scheduledAt.getTime(),
+  });
   if (Number.isNaN(scheduledAt.getTime()) || scheduledAt < new Date()) {
     return { success: false as const, error: "Choisissez un créneau à venir." };
   }
@@ -1027,6 +1064,13 @@ export async function createPublicBooking(input: PublicBookingInput) {
   }
 
   const endAt = new Date(scheduledAt.getTime() + serviceSelection.totalDurationMin * 60000);
+  logBookingTime("API_BEFORE_DB_SAVE", {
+    scheduledAtIso: scheduledAt.toISOString(),
+    scheduledAtEuropeParis: formatParisDebug(scheduledAt),
+    endAtIso: endAt.toISOString(),
+    endAtEuropeParis: formatParisDebug(endAt),
+    durationMin: serviceSelection.totalDurationMin,
+  });
   const clientFullName = `${firstName} ${lastName}`.trim() || firstName;
   const timeLabel = scheduledAt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
   const dateLabel = scheduledAt.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" });
@@ -1132,6 +1176,15 @@ export async function createPublicBooking(input: PublicBookingInput) {
           notes: message ? `Réservation en ligne - ${message}` : "Réservation en ligne",
           updatedAt: new Date(),
         },
+      });
+
+      logBookingTime("DB_SAVED", {
+        appointmentId: appointment.id,
+        dbScheduledAtIso: appointment.scheduledAt.toISOString(),
+        dbScheduledAtEuropeParis: formatParisDebug(appointment.scheduledAt),
+        dbEndAtIso: appointment.endAt?.toISOString() || null,
+        dbEndAtEuropeParis: appointment.endAt ? formatParisDebug(appointment.endAt) : null,
+        source: appointment.source,
       });
 
       await replaceAppointmentServices(tx, appointment.id, serviceSelection.snapshots);
@@ -1311,7 +1364,7 @@ export async function createPublicBooking(input: PublicBookingInput) {
     }
   }
 
-  return {
+  const response = {
     success: true as const,
     appointmentId: reservation.appointment.id,
     serviceName: serviceLabel,
@@ -1319,6 +1372,15 @@ export async function createPublicBooking(input: PublicBookingInput) {
     requiresPayment: reservation.requiresDeposit,
     checkoutUrl,
   };
+
+  logBookingTime("API_RETURNED", {
+    appointmentId: response.appointmentId,
+    scheduledAtIso: response.scheduledAt,
+    scheduledAtEuropeParis: formatParisDebug(new Date(response.scheduledAt)),
+    requiresPayment: response.requiresPayment,
+  });
+
+  return response;
   } catch (error) {
     console.error("Error creating public booking:", error);
     const message = error instanceof Error && error.message ? error.message : "Ce créneau vient d'être réservé. Choisissez un autre horaire.";

@@ -28,6 +28,29 @@ function getToday() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function formatParisDebug(date: Date) {
+  if (Number.isNaN(date.getTime())) return "Invalid Date";
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function logBookingTime(label: string, payload: Record<string, unknown>) {
+  console.log(`[booking-timezone] ${label}`, {
+    browserTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    browserOffsetMin: new Date().getTimezoneOffset(),
+    ...payload,
+  });
+}
+
 export default function PublicBookingModal({
   slug,
   services,
@@ -107,6 +130,12 @@ export default function PublicBookingModal({
         if (!response.ok || !data.success) {
           throw new Error(data.error || "Impossible de charger les creneaux.");
         }
+        logBookingTime("AVAILABILITY_API_RETURNED", {
+          date,
+          firstSlot: data.slots?.[0] || null,
+          selectedServiceIds,
+          slots: (data.slots || []).slice(0, 5),
+        });
         setSlots(data.slots || []);
         setBookingSettings(data.bookingSettings || null);
         setDepositAmount(Number(data.depositAmount || 0));
@@ -138,6 +167,27 @@ export default function PublicBookingModal({
   function submitBooking(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFeedback(null);
+    const clientSelected = new Date(`${date}T${time}:00`);
+    const selectedSlot = slots.find((slot) => slot.time === time) || null;
+
+    logBookingTime("CLIENT_SELECTED", {
+      selectedLabel: `${date} ${time} Europe/Paris`,
+      selectedDate: date,
+      selectedTime: time,
+      parsedLocalIso: Number.isNaN(clientSelected.getTime()) ? null : clientSelected.toISOString(),
+      parsedEuropeParis: formatParisDebug(clientSelected),
+      selectedSlot,
+    });
+    logBookingTime("API_SENT", {
+      action: "createPublicBooking",
+      payload: {
+        slug,
+        serviceId: selectedServiceIds[0] || "",
+        serviceIds: selectedServiceIds,
+        date,
+        time,
+      },
+    });
 
     startTransition(async () => {
       const result = await createPublicBooking({
@@ -152,6 +202,12 @@ export default function PublicBookingModal({
         email,
         instagram,
         message,
+      });
+
+      logBookingTime("API_RETURNED_TO_CLIENT", {
+        result,
+        returnedScheduledAtIso: result.success ? result.scheduledAt : null,
+        returnedScheduledAtEuropeParis: result.success ? formatParisDebug(new Date(result.scheduledAt)) : null,
       });
 
       if (!result.success) {

@@ -2,6 +2,29 @@ import prisma from "./prisma";
 import type { AppointmentStatusValue } from "./appointmentStatus";
 import { getAppointmentServicesSummary } from "./appointmentServices";
 
+function formatParisDebug(date: Date) {
+  if (Number.isNaN(date.getTime())) return "Invalid Date";
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function logBookingTime(label: string, payload: Record<string, unknown>) {
+  console.log(`[booking-timezone] ${label}`, {
+    runtimeTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    runtimeOffsetMin: new Date().getTimezoneOffset(),
+    ...payload,
+  });
+}
+
 export type AgendaPanelData = {
   appointments: Array<{
     id: string;
@@ -199,13 +222,32 @@ export async function getAgendaPanelData(tenantId: string, userId?: string | nul
   const appointments = appointmentsData.map((app) => {
     const serviceSummary = getAppointmentServicesSummary(app);
     const primaryService = app.AppointmentService[0]?.Service || app.Service;
+    const serializedScheduledAt = app.scheduledAt.toISOString();
+    const serializedEndAt = app.endAt
+      ? app.endAt.toISOString()
+      : new Date(app.scheduledAt.getTime() + serviceSummary.totalDurationMin * 60000).toISOString();
+
+    if (app.source === "ONLINE_BOOKING") {
+      logBookingTime("AGENDA_DB_READ", {
+        appointmentId: app.id,
+        dbScheduledAtIso: app.scheduledAt.toISOString(),
+        dbScheduledAtEuropeParis: formatParisDebug(app.scheduledAt),
+        dbEndAtIso: app.endAt?.toISOString() || null,
+        dbEndAtEuropeParis: app.endAt ? formatParisDebug(app.endAt) : null,
+      });
+      logBookingTime("AGENDA_API_RETURNED", {
+        appointmentId: app.id,
+        scheduledAtIso: serializedScheduledAt,
+        scheduledAtEuropeParis: formatParisDebug(new Date(serializedScheduledAt)),
+        endAtIso: serializedEndAt,
+        endAtEuropeParis: formatParisDebug(new Date(serializedEndAt)),
+      });
+    }
 
     return {
       id: app.id,
-      scheduledAt: app.scheduledAt.toISOString(),
-      endAt: app.endAt
-        ? app.endAt.toISOString()
-        : new Date(app.scheduledAt.getTime() + serviceSummary.totalDurationMin * 60000).toISOString(),
+      scheduledAt: serializedScheduledAt,
+      endAt: serializedEndAt,
       status: app.status,
       paymentStatus: app.paymentStatus,
       price: app.price,

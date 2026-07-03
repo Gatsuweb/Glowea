@@ -12,6 +12,29 @@ function parseDate(value: string | null) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function formatParisDebug(date: Date) {
+  if (Number.isNaN(date.getTime())) return "Invalid Date";
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function logBookingTime(label: string, payload: Record<string, unknown>) {
+  console.log(`[booking-timezone] ${label}`, {
+    runtimeTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    runtimeOffsetMin: new Date().getTimezoneOffset(),
+    ...payload,
+  });
+}
+
 export async function GET(
   req: Request,
   context: { params: Promise<{ slug: string }> | { slug: string } }
@@ -24,6 +47,16 @@ export async function GET(
     ...(url.searchParams.get("serviceIds") || "").split(","),
   ].map((id) => id.trim()).filter(Boolean);
   const date = parseDate(url.searchParams.get("date"));
+
+  logBookingTime("AVAILABILITY_API_RECEIVED", {
+    slug: params.slug,
+    requestUrl: req.url,
+    queryDate: url.searchParams.get("date"),
+    parsedDateIso: date ? date.toISOString() : null,
+    parsedDateEuropeParis: date ? formatParisDebug(date) : null,
+    serviceId,
+    serviceIds,
+  });
 
   if ((!serviceId && serviceIds.length === 0) || !date) {
     return NextResponse.json({ success: false, error: "Prestation ou date invalide." }, { status: 400 });
@@ -60,12 +93,22 @@ export async function GET(
     return NextResponse.json(availability, { status: 404 });
   }
 
-  return NextResponse.json({
+  const response = {
     success: true,
     slots: availability.slots,
     durationMin: availability.durationMin,
     bookingSettings: availability.bookingSettings,
     depositAmount: availability.depositAmount,
     priceCents: availability.priceCents,
+  };
+
+  logBookingTime("AVAILABILITY_API_RETURNED", {
+    slug: params.slug,
+    queryDate: url.searchParams.get("date"),
+    firstSlot: response.slots[0] || null,
+    slots: response.slots.slice(0, 5),
+    slotCount: response.slots.length,
   });
+
+  return NextResponse.json(response);
 }
