@@ -10,6 +10,7 @@ import {
 } from "../../lib/appointmentStatus";
 import { getAppointmentServicesSummary } from "../../lib/appointmentServices";
 import { getCurrentUserRecord } from "../../lib/tenant";
+import { BOOKING_TIME_ZONE } from "../../lib/bookingTimezone";
 
 export const dynamic = "force-dynamic";
 
@@ -413,7 +414,11 @@ export default async function DashboardPage({
       serviceId: serviceSummary.primaryServiceId || app.serviceId,
       scheduledAt: app.scheduledAt.toISOString(),
       notes: app.notes || "",
-      time: app.scheduledAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      time: app.scheduledAt.toLocaleTimeString('fr-FR', {
+        timeZone: BOOKING_TIME_ZONE,
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
       clientName: `${app.Client?.firstName} ${app.Client?.lastName || ''}`.trim(),
       clientEmail: app.Client?.email || "",
       clientPhone: app.Client?.phone || "",
