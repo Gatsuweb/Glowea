@@ -102,6 +102,25 @@ export function getZonedDayBounds(date: Date, timeZone = BOOKING_TIME_ZONE) {
   };
 }
 
+export function formatBookingTimeLabel(date: Date, timeZone = BOOKING_TIME_ZONE) {
+  return date.toLocaleTimeString("fr-FR", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function formatBookingDateLabel(
+  date: Date,
+  options: Intl.DateTimeFormatOptions = { weekday: "short", day: "2-digit", month: "short" },
+  timeZone = BOOKING_TIME_ZONE
+) {
+  return date.toLocaleDateString("fr-FR", {
+    timeZone,
+    ...options,
+  });
+}
+
 export function formatBookingTimeDebug(date: Date, timeZone = BOOKING_TIME_ZONE) {
   if (Number.isNaN(date.getTime())) return "Invalid Date";
   const parts = getZonedParts(date, timeZone);

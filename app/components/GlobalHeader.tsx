@@ -7,6 +7,7 @@ import NotificationBell from "./NotificationBell";
 import prisma from "../../lib/prisma";
 import { getTenantId } from "../../lib/tenant";
 import { REMINDER_ELIGIBLE_APPOINTMENT_STATUSES } from "../../lib/appointmentStatus";
+import { formatBookingDateLabel, formatBookingTimeLabel } from "../../lib/bookingTimezone";
 import { sendPushToTenant } from "../../lib/push";
 
 async function processHeaderReminders(tenantId: string) {
@@ -36,8 +37,8 @@ async function processHeaderReminders(tenantId: string) {
   for (const reminder of dueReminders) {
     const appointment = reminder.Appointment;
     const clientName = `${appointment.Client?.firstName || ""} ${appointment.Client?.lastName || ""}`.trim() || "Client";
-    const timeStr = new Date(appointment.scheduledAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-    const dateStr = new Date(appointment.scheduledAt).toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" });
+    const timeStr = formatBookingTimeLabel(appointment.scheduledAt);
+    const dateStr = formatBookingDateLabel(appointment.scheduledAt);
     const serviceName = appointment.Service?.name || "Prestation";
 
     try {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import prisma from "../../../../lib/prisma";
 import { REMINDER_ELIGIBLE_APPOINTMENT_STATUSES } from "../../../../lib/appointmentStatus";
+import { formatBookingTimeLabel } from "../../../../lib/bookingTimezone";
 import { getSubscriptionAccessFromTenant } from "../../../../lib/subscription";
 import { getSmsProvider, getTwilioDiagnostics, sendSms } from "../../../../lib/twilio";
 
@@ -68,11 +69,7 @@ function formatSmsMessage(params: {
   const businessName = params.businessName?.trim() || "votre prestataire";
   const businessAddress = params.businessAddress?.trim();
   const businessPhone = params.businessPhone?.trim();
-  const time = params.scheduledAt.toLocaleTimeString("fr-FR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Europe/Paris",
-  });
+  const time = formatBookingTimeLabel(params.scheduledAt);
 
   const messageLines = [
     `Bonjour ${firstName}`,

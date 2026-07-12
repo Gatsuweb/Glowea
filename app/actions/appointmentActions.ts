@@ -22,6 +22,7 @@ import {
   getBlockingAppointmentWhere,
   isValidAppointmentStatus,
 } from "../../lib/appointmentStatus";
+import { formatBookingDateLabel, formatBookingTimeLabel } from "../../lib/bookingTimezone";
 import { notifyLoyalClientIfNeeded } from "../../lib/notificationEvents";
 import { sendPushToTenant } from "../../lib/push";
 import { addNoShowClientFlag } from "../../lib/clientVigilance";
@@ -160,10 +161,7 @@ function formatConflictMessage(conflict: Awaited<ReturnType<typeof findConflicti
   if (!conflict) return "Ce créneau est déjà occupé";
 
   const clientName = `${conflict.Client?.firstName || ""} ${conflict.Client?.lastName || ""}`.trim() || "une cliente";
-  const time = conflict.scheduledAt.toLocaleTimeString("fr-FR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const time = formatBookingTimeLabel(conflict.scheduledAt);
 
   return `Conflit horaire : ${clientName} a déjà un rendez-vous à ${time}`;
 }
@@ -252,8 +250,8 @@ export async function processDueAppointmentReminders() {
   for (const reminder of dueReminders) {
     const appointment = reminder.Appointment;
     const clientName = `${appointment.Client?.firstName || ""} ${appointment.Client?.lastName || ""}`.trim() || "Client";
-    const timeStr = new Date(appointment.scheduledAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-    const dateStr = new Date(appointment.scheduledAt).toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" });
+    const timeStr = formatBookingTimeLabel(appointment.scheduledAt);
+    const dateStr = formatBookingDateLabel(appointment.scheduledAt);
     const serviceName = appointment.Service?.name || "Prestation";
 
     const shouldSendPush = await prisma.$transaction(async (tx) => {

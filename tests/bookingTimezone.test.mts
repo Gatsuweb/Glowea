@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  formatBookingDateLabel,
+  formatBookingTimeLabel,
   formatBookingTimeDebug,
   localDateTimeToUtc,
 } from "../lib/bookingTimezone.ts";
@@ -26,6 +28,13 @@ describe("booking timezone conversion", () => {
     assert.equal(endAt.toISOString(), "2026-07-02T08:30:00.000Z");
     assert.equal(formatBookingTimeDebug(scheduledAt), "2026-07-02 09:30:00 Europe/Paris");
     assert.equal(formatBookingTimeDebug(endAt), "2026-07-02 10:30:00 Europe/Paris");
+  });
+
+  it("formats stored UTC appointment times for Europe/Paris notifications", () => {
+    const scheduledAt = new Date("2026-07-02T08:30:00.000Z");
+
+    assert.equal(formatBookingTimeLabel(scheduledAt), "10:30");
+    assert.match(formatBookingDateLabel(scheduledAt), /02 juil\./);
   });
 
   it("blocks overlapping one-hour slots around a 09:30-10:30 Europe/Paris booking", () => {
