@@ -7,9 +7,16 @@ import {
   COMPLETED_APPOINTMENT_STATUSES,
   getActiveStatsAppointmentWhere,
   isActiveStatsAppointment,
+<<<<<<< HEAD:app/dashboard/(main)/page.tsx
 } from "../../../lib/appointmentStatus";
 import { getAppointmentServicesSummary } from "../../../lib/appointmentServices";
 import { getCurrentUserRecord } from "../../../lib/tenant";
+=======
+} from "../../lib/appointmentStatus";
+import { getAppointmentServicesSummary } from "../../lib/appointmentServices";
+import { getCurrentUserRecord } from "../../lib/tenant";
+import { BOOKING_TIME_ZONE } from "../../lib/bookingTimezone";
+>>>>>>> eb5eb8df819533ec3e2d366cb1e172cc5782c4fd:app/dashboard/page.tsx
 
 export const dynamic = "force-dynamic";
 
@@ -413,7 +420,11 @@ export default async function DashboardPage({
       serviceId: serviceSummary.primaryServiceId || app.serviceId,
       scheduledAt: app.scheduledAt.toISOString(),
       notes: app.notes || "",
-      time: app.scheduledAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      time: app.scheduledAt.toLocaleTimeString('fr-FR', {
+        timeZone: BOOKING_TIME_ZONE,
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
       clientName: `${app.Client?.firstName} ${app.Client?.lastName || ''}`.trim(),
       clientEmail: app.Client?.email || "",
       clientPhone: app.Client?.phone || "",
