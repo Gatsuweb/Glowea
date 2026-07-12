@@ -47,6 +47,11 @@ function PricingCheckoutContent() {
         return;
       }
 
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        throw new Error("Votre session a expire. Connectez-vous pour continuer le paiement.");
+      }
+
       const payload = await response.json();
       if (!response.ok || !payload.url) {
         throw new Error(payload.error || "Impossible de demarrer le paiement.");

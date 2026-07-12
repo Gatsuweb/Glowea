@@ -9,10 +9,23 @@ export const metadata: Metadata = {
   },
 }
 
-export default function Page() {
+function getSafeRedirectUrl(value: string | string[] | undefined) {
+  const redirectUrl = Array.isArray(value) ? value[0] : value;
+  if (!redirectUrl?.startsWith("/") || redirectUrl.startsWith("//")) return "/dashboard";
+  return redirectUrl;
+}
+
+export default async function Page({
+  searchParams,
+}: {
+  searchParams?: Promise<{ redirect_url?: string | string[] }>;
+}) {
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const redirectUrl = getSafeRedirectUrl(resolvedSearchParams.redirect_url);
+
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-      <SignUp forceRedirectUrl="/dashboard" />
+      <SignUp forceRedirectUrl={redirectUrl} />
     </div>
   )
 }

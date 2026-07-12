@@ -9,6 +9,7 @@ const isPublicRoute = createRouteMatcher([
   "/pro(.*)",
   "/api/public-booking(.*)",
   "/api/cron(.*)",
+  "/api/stripe/checkout",
   "/api/stripe/webhook(.*)",
 ]);
 
