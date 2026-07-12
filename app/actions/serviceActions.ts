@@ -3,7 +3,7 @@
 import prisma from "../../lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "../../lib/tenant";
-import { requireTenantMutationAccess } from "../../lib/subscription";
+import { requireTenantMutationAccess, requireTenantPermission } from "../../lib/subscription";
 
 function revalidateServiceViews() {
   revalidatePath("/dashboard");
@@ -93,6 +93,15 @@ export async function createService(data: {
 
 export async function getServices() {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantPermission(
+    TENANT_ID,
+    "canUseMainDashboard",
+    "Le dashboard principal n'est pas inclus dans votre abonnement actuel."
+  );
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const services = await prisma.service.findMany({
       where: { tenantId: TENANT_ID, isActive: true },

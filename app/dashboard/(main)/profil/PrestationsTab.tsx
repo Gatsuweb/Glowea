@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import styles from "./profil.module.css";
-import { getServices, createService, deleteService } from "../../actions/serviceActions";
+import { getServices, createService, deleteService } from "../../../actions/serviceActions";
 
 type ServiceItem = {
   id: string;

@@ -1,8 +1,8 @@
 import React from "react";
-import prisma from "../../../lib/prisma";
-import ClientsClientWrapper from "../../components/ClientsClientWrapper";
-import { getTenantId } from "../../../lib/tenant";
-import { getTenantSubscriptionAccess } from "../../../lib/subscription";
+import prisma from "../../../../lib/prisma";
+import ClientsClientWrapper from "../../../components/ClientsClientWrapper";
+import { getTenantId } from "../../../../lib/tenant";
+import { getTenantSubscriptionAccess } from "../../../../lib/subscription";
 
 export const dynamic = "force-dynamic";
 

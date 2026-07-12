@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
-import styles from "../dashboard/agenda/agenda.module.css";
+import styles from "../dashboard/(main)/agenda/agenda.module.css";
 import SessionModal from "./SessionModal";
 import PaymentModal from "./PaymentModal";
 import NewAppointmentModal from "./NewAppointmentModal";

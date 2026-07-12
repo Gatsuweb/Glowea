@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAppointmentFinancialSummary } from "@/lib/appointmentFinance";
 import { getAppointmentServicesLabel } from "@/lib/appointmentServices";
-import { requireTenantMutationAccess } from "@/lib/subscription";
+import { requireTenantPermission } from "@/lib/subscription";
 import { stripe } from "@/lib/stripe";
 import { getCurrentUserRecord } from "@/lib/tenant";
 
@@ -60,7 +60,11 @@ export async function POST(
 
   const currentUserRecord = await getCurrentUserRecord();
   const tenantId = currentUserRecord.tenantId;
-  const access = await requireTenantMutationAccess(tenantId);
+  const access = await requireTenantPermission(
+    tenantId,
+    "canUsePaymentLinks",
+    "Les liens de paiement sont disponibles avec l'abonnement Pro."
+  );
   if (!access.allowed) {
     return NextResponse.json({ error: access.error }, { status: 403 });
   }
@@ -73,6 +77,10 @@ export async function POST(
 
   if (!isPaymentType(paymentType)) {
     return NextResponse.json({ error: "Invalid payment type" }, { status: 400 });
+  }
+
+  if (paymentType === "deposit" && !access.access.canUseDeposits) {
+    return NextResponse.json({ error: "Les arrhes sont disponibles avec l'abonnement Pro." }, { status: 403 });
   }
 
   const user = await prisma.user.findFirst({

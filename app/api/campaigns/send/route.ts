@@ -16,6 +16,7 @@ import {
 
 const SEGMENTS: CampaignTargetSegment[] = ["ALL", "TOP_CLIENTS", "INACTIVE"];
 const CHANNELS: CampaignChannel[] = ["SMS", "EMAIL", "MOCK"];
+const CAMPAIGN_REQUIRED_ERROR = "Les campagnes sont disponibles avec l'abonnement Pro.";
 
 function isSegment(value: unknown): value is CampaignTargetSegment {
   return typeof value === "string" && SEGMENTS.includes(value as CampaignTargetSegment);
@@ -41,6 +42,14 @@ type RecipientError = {
 export async function POST(request: Request) {
   try {
     const tenantId = await getTenantId();
+    const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
+    if (!subscriptionAccess.canUseCampaigns) {
+      return NextResponse.json(
+        { success: false, error: subscriptionAccess.isActive ? CAMPAIGN_REQUIRED_ERROR : "Un abonnement actif est necessaire pour envoyer une campagne" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json() as Record<string, unknown>;
     const targetSegment = body.targetSegment;
     const templateId = typeof body.templateId === "string" ? body.templateId : "";
@@ -67,7 +76,6 @@ export async function POST(request: Request) {
     const channel = requestedChannel || (template.channel === "EMAIL" ? "EMAIL" : "SMS");
     const providerMode = getCampaignProviderMode(channel);
     const twilioDiagnostics = getTwilioDiagnostics();
-    const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
 
     console.info("[campaign:send] start", {
       tenantId,
@@ -80,13 +88,6 @@ export async function POST(request: Request) {
       hasTwilioFromNumber: twilioDiagnostics.hasFromNumber,
       twilioFromNumber: twilioDiagnostics.fromNumber,
     });
-
-    if (!subscriptionAccess.canUseApp) {
-      return NextResponse.json(
-        { success: false, error: "Un abonnement actif est necessaire pour envoyer une campagne" },
-        { status: 403 }
-      );
-    }
 
     if (channel === "SMS" && !subscriptionAccess.canUseSms) {
       return NextResponse.json(

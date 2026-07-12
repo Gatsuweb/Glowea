@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import styles from "../dashboard/clients/clients.module.css";
+import styles from "../dashboard/(main)/clients/clients.module.css";
 import SessionModal from "./SessionModal";
 import NewAppointmentModal from "./NewAppointmentModal";
 import NewClientModal from "./NewClientModal";

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import React, { useState } from "react";
-import styles from "../dashboard/stock/stock.module.css";
+import styles from "../dashboard/(main)/stock/stock.module.css";
 import { adjustStock, deleteProduct } from "../actions/stockActions";
 import NewProductModal from "./NewProductModal";
 

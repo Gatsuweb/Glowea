@@ -1,36 +1,16 @@
 import type { MetadataRoute } from "next";
 import { absoluteUrl } from "../lib/seo";
-import prisma from "../lib/prisma";
-import { getSubscriptionAccessFromTenant } from "../lib/subscription";
+import { getDirectoryCitiesFromProfiles, getDirectoryProfiles } from "../lib/directory";
 
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const profiles = await prisma.publicProfile.findMany({
-    where: {
-      isPublished: true,
-    },
-    select: {
-      slug: true,
-      updatedAt: true,
-      Tenant: {
-        select: {
-          subscriptionPlan: true,
-          subscriptionStatus: true,
-          trialEndsAt: true,
-          Subscription: {
-            select: {
-              currentPeriodEnd: true,
-              cancelAtPeriodEnd: true,
-            },
-          },
-        },
-      },
-    },
-    orderBy: {
-      updatedAt: "desc",
-    },
-  });
+  const profiles = await getDirectoryProfiles();
+  const cities = getDirectoryCitiesFromProfiles(profiles);
+  const directoryLastModified = profiles.reduce<Date | null>((latest, profile) => {
+    if (!latest || profile.updatedAt > latest) return profile.updatedAt;
+    return latest;
+  }, null);
 
   const urls: MetadataRoute.Sitemap = [
     {
@@ -59,11 +39,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  for (const profile of profiles) {
-    if (!getSubscriptionAccessFromTenant(profile.Tenant).canUsePublicPage) {
-      continue;
-    }
+  if (directoryLastModified) {
+    urls.push({
+      url: absoluteUrl("/annuaire"),
+      lastModified: directoryLastModified,
+      changeFrequency: "weekly",
+      priority: 0.7,
+    });
+  }
 
+  for (const city of cities) {
+    urls.push({
+      url: absoluteUrl(`/annuaire/${city.slug}`),
+      lastModified: city.updatedAt,
+      changeFrequency: "weekly",
+      priority: 0.65,
+    });
+  }
+
+  for (const profile of profiles) {
     urls.push({
       url: absoluteUrl(`/pro/${profile.slug}`),
       lastModified: profile.updatedAt,

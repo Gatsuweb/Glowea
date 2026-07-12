@@ -2,7 +2,7 @@
 
 import prisma from "../../lib/prisma";
 import { getTenantId } from "../../lib/tenant";
-import { requireTenantMutationAccess } from "../../lib/subscription";
+import { requireTenantMutationAccess, requireTenantPermission } from "../../lib/subscription";
 import {
   COMPLETED_APPOINTMENT_STATUSES,
   getActiveStatsAppointmentWhere,
@@ -117,6 +117,15 @@ function getAppointmentDurationHours(appointment: CompletedAppointmentWithServic
 export async function getVueEnsembleData(monthString: string) {
 
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantPermission(
+    TENANT_ID,
+    "canUseAccounting",
+    "La comptabilite n'est pas incluse dans votre abonnement actuel."
+  );
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const startDate = new Date(`${monthString}-01T00:00:00Z`);
     const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0, 23, 59, 59, 999);
@@ -287,6 +296,15 @@ export async function createTransaction(data: {
 
 export async function getStatsData(monthString: string) {
   const TENANT_ID = await getTenantId();
+  const access = await requireTenantPermission(
+    TENANT_ID,
+    "canUseStats",
+    "Les statistiques ne sont pas incluses dans votre abonnement actuel."
+  );
+  if (!access.allowed) {
+    return { success: false, error: access.error };
+  }
+
   try {
     const startDate = new Date(`${monthString}-01T00:00:00Z`);
     const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0, 23, 59, 59, 999);

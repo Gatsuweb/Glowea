@@ -1,0 +1,298 @@
+.page {
+  background: #fbf7f5;
+  color: #332826;
+  display: grid;
+  gap: 22px;
+  min-height: 100vh;
+  padding: 28px;
+}
+
+.header,
+.section,
+.upgradeBand,
+.notice,
+.success,
+.error {
+  background: rgba(255, 253, 250, 0.94);
+  border: 1px solid rgba(109, 60, 66, 0.12);
+  box-shadow: 0 18px 45px rgba(72, 37, 35, 0.08);
+}
+
+.header {
+  align-items: flex-start;
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  padding: 28px;
+}
+
+.header span,
+.sectionHeader span,
+.upgradeBand span,
+.previewBox span {
+  color: #8b4b54;
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.header h1,
+.sectionHeader h2 {
+  font-family: var(--font-title);
+  font-weight: 400;
+  margin: 6px 0 0;
+}
+
+.header h1 {
+  font-size: clamp(2.3rem, 6vw, 4.6rem);
+  line-height: 0.95;
+}
+
+.header p {
+  color: #6b5751;
+  line-height: 1.55;
+  max-width: 620px;
+}
+
+.previewBox {
+  background: #f8eee8;
+  border: 1px solid #ead8cf;
+  display: grid;
+  gap: 8px;
+  min-width: min(360px, 100%);
+  padding: 16px;
+}
+
+.previewBox strong {
+  overflow-wrap: anywhere;
+}
+
+.previewBox div,
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.previewBox a,
+.previewBox button,
+.sectionHeader button,
+.rowActions button,
+.upgradeBand button,
+.galleryItem button {
+  align-items: center;
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 850;
+  justify-content: center;
+  min-height: 42px;
+  padding: 9px 14px;
+  text-decoration: none;
+}
+
+.sectionHeader button,
+.upgradeBand button,
+.rowActions button:first-child {
+  background: #7a2637;
+  border: 1px solid #7a2637;
+  color: #fff;
+}
+
+.previewBox a,
+.previewBox button,
+.rowActions button,
+.galleryItem button {
+  background: #fffaf6;
+  border: 1px solid #cdb7aa;
+  color: #6b3944;
+}
+
+.sectionHeader button:disabled,
+.rowActions button:disabled,
+.upgradeBand button:disabled,
+.galleryItem button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.notice,
+.success,
+.error {
+  font-weight: 800;
+  padding: 14px 16px;
+}
+
+.notice {
+  color: #7a2637;
+}
+
+.success {
+  background: #e8f3eb;
+  color: #3b8251;
+}
+
+.error {
+  background: #fce8e8;
+  color: #b42318;
+}
+
+.upgradeBand {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 20px 24px;
+}
+
+.upgradeBand strong {
+  display: block;
+  margin-top: 4px;
+}
+
+.section {
+  display: grid;
+  gap: 22px;
+  padding: 26px;
+}
+
+.sectionHeader {
+  align-items: center;
+  border-bottom: 1px solid #ead8cf;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding-bottom: 18px;
+}
+
+.formGrid,
+.serviceEditor {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.formGrid label,
+.serviceEditor label {
+  color: #6b5751;
+  display: grid;
+  gap: 7px;
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.formGrid input,
+.formGrid textarea,
+.serviceEditor input,
+.serviceEditor textarea {
+  background: #fffaf6;
+  border: 1px solid #d9c6ba;
+  color: #332826;
+  font: inherit;
+  min-height: 42px;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.formGrid textarea,
+.serviceEditor textarea {
+  resize: vertical;
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+.toggleLine {
+  align-items: center;
+  display: flex !important;
+  flex-direction: row;
+  gap: 10px;
+}
+
+.toggleLine input {
+  min-height: auto;
+  width: auto;
+}
+
+.serviceList {
+  display: grid;
+  gap: 12px;
+}
+
+.serviceItem {
+  align-items: flex-start;
+  background: #fffaf6;
+  border: 1px solid #ead8cf;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 16px;
+}
+
+.serviceItem strong,
+.serviceItem span {
+  display: block;
+}
+
+.serviceItem span {
+  color: #8b4b54;
+  font-size: 0.88rem;
+  font-weight: 850;
+  margin-top: 4px;
+}
+
+.serviceItem p {
+  color: #6b5751;
+  margin: 8px 0 0;
+}
+
+.serviceEditor {
+  width: 100%;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.galleryGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.galleryItem {
+  background: #fffaf6;
+  border: 1px solid #ead8cf;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.galleryItem img {
+  aspect-ratio: 1;
+  object-fit: cover;
+  width: 100%;
+}
+
+.empty {
+  color: #6b5751;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .header,
+  .upgradeBand,
+  .serviceItem {
+    display: grid;
+  }
+
+  .formGrid,
+  .serviceEditor,
+  .galleryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .page {
+    padding: 16px;
+  }
+}

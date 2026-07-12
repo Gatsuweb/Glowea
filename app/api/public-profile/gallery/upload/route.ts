@@ -7,6 +7,7 @@ import { getTenantId } from "../../../../../lib/tenant";
 
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const PUBLIC_PAGE_REQUIRED_ERROR = "La page publique est disponible avec Glowea Presence ou Pro.";
 
 function getFileExtension(file: File) {
   const fromName = file.name.split(".").pop()?.toLowerCase();
@@ -25,9 +26,9 @@ export async function POST(request: Request) {
     const tenantId = await getTenantId();
     const access = await getTenantSubscriptionAccess(tenantId);
 
-    if (!access.canUsePublicPage) {
+    if (!access.canEditPublicPage) {
       return NextResponse.json(
-        { success: false, error: "La page publique est disponible avec Glowea Pro." },
+        { success: false, error: PUBLIC_PAGE_REQUIRED_ERROR },
         { status: 403 }
       );
     }

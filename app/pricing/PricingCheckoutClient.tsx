@@ -1,52 +1,16 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
-  PlanPriceDisplay,
   PricingBillingProvider,
-  PricingBillingToggle,
   type BillingCycle,
-  usePricingBilling,
+  type PricingPlanKey,
 } from "../components/PricingBilling";
+import PricingCards from "./PricingCards";
 import styles from "./pricing.module.css";
 
-type PlanKey = "essential" | "pro";
 type PrivateOffer = "founder";
-
-const plans: Array<{
-  key: PlanKey;
-  name: string;
-  description: string;
-  features: string[];
-  featured?: boolean;
-}> = [
-  {
-    key: "essential",
-    name: "Essentiel",
-    description: "Pour gérer vos clientes, rendez-vous, sessions, stock et comptabilité.",
-    features: [
-      "Agenda et rendez-vous",
-      "Fiches clientes completes",
-      "Sessions techniques",
-      "Stock produits",
-      "Suivi revenus et charges",
-    ],
-  },
-  {
-    key: "pro",
-    name: "Pro",
-    description: "Pour garder l'accès complet et automatiser la croissance de votre activite.",
-    features: [
-      "Tout Essentiel",
-      "SMS automatiques",
-      "Emails automatiques",
-      "Fidelisation clientes",
-      "Mini-site et réservation en ligne a venir",
-    ],
-    featured: true,
-  },
-];
 
 export default function PricingCheckoutClient() {
   return (
@@ -57,14 +21,17 @@ export default function PricingCheckoutClient() {
 }
 
 function PricingCheckoutContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const canceled = searchParams.get("canceled") === "true";
   const privateOffer: PrivateOffer | null = searchParams.get("offer") === "founder" ? "founder" : null;
-  const { billing } = usePricingBilling();
-  const [loadingPlan, setLoadingPlan] = useState<PlanKey | null>(null);
+  const requestedPlan = searchParams.get("plan");
+  const highlightedPlan: PricingPlanKey | null =
+    requestedPlan === "presence" || requestedPlan === "essential" || requestedPlan === "pro" ? requestedPlan : null;
+  const [loadingPlan, setLoadingPlan] = useState<PricingPlanKey | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function startCheckout(plan: PlanKey, selectedBilling: BillingCycle, offer?: PrivateOffer) {
+  async function startCheckout(plan: PricingPlanKey, selectedBilling: BillingCycle, offer?: PrivateOffer) {
     setLoadingPlan(plan);
     setError(null);
 
@@ -72,8 +39,13 @@ function PricingCheckoutContent() {
       const response = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, billing: selectedBilling, offer }),
+        body: JSON.stringify({ plan, billing: plan === "presence" ? "monthly" : selectedBilling, offer }),
       });
+
+      if (response.status === 401) {
+        router.push(`/sign-up?redirect_url=${encodeURIComponent(`/pricing?plan=${plan}`)}`);
+        return;
+      }
 
       const payload = await response.json();
       if (!response.ok || !payload.url) {
@@ -141,44 +113,11 @@ function PricingCheckoutContent() {
         </section>
       ) : (
         <>
-          <PricingBillingToggle
-            className={styles.billingToggle}
-            optionClassName={styles.billingOption}
-            activeClassName={styles.billingOptionActive}
-            recommendedClassName={styles.billingOptionRecommended}
-            badgeClassName={styles.billingBadge}
+          <PricingCards
+            highlightedPlan={highlightedPlan}
+            loadingPlan={loadingPlan}
+            onSelectPlan={(plan, selectedBilling) => startCheckout(plan, plan === "presence" ? "monthly" : selectedBilling)}
           />
-
-          <section className={styles.grid}>
-            {plans.map((plan) => (
-              <article key={plan.key} className={`${styles.card} ${plan.featured ? styles.featured : ""}`}>
-                {plan.featured && <div className={styles.badge}>Accès complet</div>}
-                <div className={styles.cardHeader}>
-                  <h2>{plan.name}</h2>
-                  <p>{plan.description}</p>
-                </div>
-                <PlanPriceDisplay
-                  plan={plan.key}
-                  priceClassName={styles.price}
-                  noteClassName={styles.priceNote}
-                  savingClassName={styles.savingBadge}
-                />
-                <ul>
-                  {plan.features.map((feature) => (
-                    <li key={feature}>{feature}</li>
-                  ))}
-                </ul>
-                <button
-                  type="button"
-                  className={plan.featured ? styles.primaryButton : styles.secondaryButton}
-                  onClick={() => startCheckout(plan.key, billing)}
-                  disabled={loadingPlan !== null}
-                >
-                  {loadingPlan === plan.key ? "Redirection..." : `Choisir ${plan.name}`}
-                </button>
-              </article>
-            ))}
-          </section>
         </>
       )}
     </main>

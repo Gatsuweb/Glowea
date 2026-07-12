@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import prisma from "../../lib/prisma";
 import { getSupabaseAdminClient, publicStorageBucket } from "../../lib/supabaseAdmin";
 import { getTenantId } from "../../lib/tenant";
-import { requireTenantMutationAccess } from "../../lib/subscription";
+import { requireTenantMutationAccess, requireTenantPermission } from "../../lib/subscription";
 import { getProductCategoryBySlug } from "../../src/constants/productCategories";
 import { getAppointmentServicesSummary } from "../../lib/appointmentServices";
 import { notifyStockLowIfNeeded } from "../../lib/notificationEvents";
@@ -89,6 +89,20 @@ async function getTenantAppointment(tenantId: string, appointmentId: string, cli
   }
 
   return appointment;
+}
+
+async function requireTechnicalSessionReadAccess(tenantId: string) {
+  const access = await requireTenantPermission(
+    tenantId,
+    "canUseTechnicalSessions",
+    "Les sessions techniques ne sont pas incluses dans votre abonnement actuel."
+  );
+
+  if (!access.allowed) {
+    return { success: false as const, error: access.error };
+  }
+
+  return null;
 }
 
 async function upsertBaseSession(
@@ -332,6 +346,9 @@ async function syncSessionPhotos(
 
 export async function getSessionModalData(clientId: string | undefined, appointmentId?: string) {
   const TENANT_ID = await getTenantId();
+  const denied = await requireTechnicalSessionReadAccess(TENANT_ID);
+  if (denied) return denied;
+
   try {
     let clientInfo = null;
     let appointmentServices = null;
@@ -454,6 +471,9 @@ export async function startSession(data: {
 
 export async function getLashSessionByAppointmentId(appointmentId: string) {
   const TENANT_ID = await getTenantId();
+  const denied = await requireTechnicalSessionReadAccess(TENANT_ID);
+  if (denied) return denied;
+
   try {
     const session = await prisma.session.findFirst({
       where: { appointmentId, tenantId: TENANT_ID },
@@ -488,6 +508,9 @@ export async function getLashSessionByAppointmentId(appointmentId: string) {
 
 export async function getBrowliftSessionByAppointmentId(appointmentId: string) {
   const TENANT_ID = await getTenantId();
+  const denied = await requireTechnicalSessionReadAccess(TENANT_ID);
+  if (denied) return denied;
+
   try {
     const session = await prisma.session.findFirst({
       where: { appointmentId, tenantId: TENANT_ID },
@@ -522,6 +545,9 @@ export async function getBrowliftSessionByAppointmentId(appointmentId: string) {
 
 export async function getLashLiftSessionByAppointmentId(appointmentId: string) {
   const TENANT_ID = await getTenantId();
+  const denied = await requireTechnicalSessionReadAccess(TENANT_ID);
+  if (denied) return denied;
+
   try {
     const session = await prisma.session.findFirst({
       where: { appointmentId, tenantId: TENANT_ID },
@@ -556,6 +582,9 @@ export async function getLashLiftSessionByAppointmentId(appointmentId: string) {
 
 export async function getNailSessionByAppointmentId(appointmentId: string) {
   const TENANT_ID = await getTenantId();
+  const denied = await requireTechnicalSessionReadAccess(TENANT_ID);
+  if (denied) return denied;
+
   try {
     const session = await prisma.session.findFirst({
       where: { appointmentId, tenantId: TENANT_ID },

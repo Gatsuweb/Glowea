@@ -1,15 +1,15 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
-import DashboardClientWrapper from "../components/DashboardClientWrapper";
-import prisma from "../../lib/prisma";
-import { getTenantSubscriptionAccess } from "../../lib/subscription";
-import { syncCheckoutSessionById } from "../../lib/stripeSubscriptionSync";
+import DashboardClientWrapper from "../../components/DashboardClientWrapper";
+import prisma from "../../../lib/prisma";
+import { getTenantSubscriptionAccess } from "../../../lib/subscription";
+import { syncCheckoutSessionById } from "../../../lib/stripeSubscriptionSync";
 import {
   COMPLETED_APPOINTMENT_STATUSES,
   getActiveStatsAppointmentWhere,
   isActiveStatsAppointment,
-} from "../../lib/appointmentStatus";
-import { getAppointmentServicesSummary } from "../../lib/appointmentServices";
-import { getCurrentUserRecord } from "../../lib/tenant";
+} from "../../../lib/appointmentStatus";
+import { getAppointmentServicesSummary } from "../../../lib/appointmentServices";
+import { getCurrentUserRecord } from "../../../lib/tenant";
 
 export const dynamic = "force-dynamic";
 

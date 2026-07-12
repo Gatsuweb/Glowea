@@ -7,6 +7,7 @@ export function getAppUrl(requestUrl: string) {
 
 function getSubscriptionPriceIds() {
   return [
+    process.env.STRIPE_PRICE_PRESENCE_MONTHLY,
     process.env.STRIPE_PRICE_ESSENTIAL,
     process.env.STRIPE_PRICE_STARTER,
     process.env.STRIPE_PRICE_ESSENTIAL_YEARLY,

@@ -10,6 +10,7 @@ import styles from "../page.module.css";
 const navLinks = [
   { href: "#fonctionnalites", label: "Fonctionnalités" },
   { href: "#specialites", label: "Spécialités" },
+  { href: "/annuaire", label: "Annuaire" },
   { href: "#prix", label: "Tarifs" },
   { href: "#faq", label: "FAQ" },
 ];

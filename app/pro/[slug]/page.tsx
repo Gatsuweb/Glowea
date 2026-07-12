@@ -6,6 +6,7 @@ import { absoluteUrl } from "../../../lib/seo";
 import prisma from "../../../lib/prisma";
 import { syncAppointmentPaymentFromCheckoutSessionId } from "../../../lib/stripeAppointmentSync";
 import { getSubscriptionAccessFromTenant } from "../../../lib/subscription";
+import PublicContactButton, { getPublicContactAction } from "./PublicContactButton";
 import PublicBookingModal from "./PublicBookingModal";
 import PublicGallery from "./PublicGallery";
 import PublicServiceList from "./PublicServiceList";
@@ -312,6 +313,9 @@ export default async function PublicProPage({
   const averageRating = reviews.length
     ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
     : 0;
+  const subscriptionAccess = getSubscriptionAccessFromTenant(profile.Tenant);
+  const canUseBooking = subscriptionAccess.canUseBooking;
+  const contactAction = getPublicContactAction(profile);
   const profileJsonLd = getProfileJsonLd(profile);
   const citySlug = slugifyDirectorySegment(profile.city);
 
@@ -360,12 +364,16 @@ export default async function PublicProPage({
               {profile.description || "Des prestations beaute soignees, avec reservation simple et suivi personnalise."}
             </p>
 
-            <PublicBookingModal
-              slug={profile.slug}
-              services={bookingServices}
-              triggerClassName={styles.primaryCta}
-              triggerLabel="Reserver un rendez-vous"
-            />
+            {canUseBooking ? (
+              <PublicBookingModal
+                slug={profile.slug}
+                services={bookingServices}
+                triggerClassName={styles.primaryCta}
+                triggerLabel="Reserver un rendez-vous"
+              />
+            ) : (
+              <PublicContactButton action={contactAction} className={styles.primaryCta} />
+            )}
 
             <div className={styles.infoList}>
               {(profile.address || profile.city) && (
@@ -412,6 +420,8 @@ export default async function PublicProPage({
               bookingServices={bookingServices}
               slug={profile.slug}
               title={title}
+              canUseBooking={canUseBooking}
+              contactAction={contactAction}
             />
           </section>
 
@@ -446,12 +456,16 @@ export default async function PublicProPage({
       </div>
 
       <div className={styles.mobileStickyCta}>
-        <PublicBookingModal
-          slug={profile.slug}
-          services={bookingServices}
-          triggerClassName={styles.stickyCtaButton}
-          triggerLabel="Reserver maintenant"
-        />
+        {canUseBooking ? (
+          <PublicBookingModal
+            slug={profile.slug}
+            services={bookingServices}
+            triggerClassName={styles.stickyCtaButton}
+            triggerLabel="Reserver maintenant"
+          />
+        ) : (
+          <PublicContactButton action={contactAction} className={styles.stickyCtaButton} />
+        )}
       </div>
     </main>
   );

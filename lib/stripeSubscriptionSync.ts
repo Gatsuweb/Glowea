@@ -5,6 +5,7 @@ import prisma from "./prisma";
 import { stripe } from "./stripe";
 
 function getPlanFromMetadata(plan?: string | null): SubscriptionPlan | null {
+  if (plan === "presence" || plan === "PRESENCE") return "PRESENCE";
   if (plan === "essential" || plan === "ESSENTIAL") return "ESSENTIAL";
   if (plan === "pro" || plan === "PRO") return "PRO";
   return null;
@@ -14,6 +15,7 @@ function getPlanFromPriceId(priceId?: string | null, metadataPlan?: string | nul
   if (!priceId) return getPlanFromMetadata(metadataPlan) ?? "FREE";
 
   const prices: Record<string, SubscriptionPlan> = {};
+  if (process.env.STRIPE_PRICE_PRESENCE_MONTHLY) prices[process.env.STRIPE_PRICE_PRESENCE_MONTHLY] = "PRESENCE";
   if (process.env.STRIPE_PRICE_ESSENTIAL) prices[process.env.STRIPE_PRICE_ESSENTIAL] = "ESSENTIAL";
   if (process.env.STRIPE_PRICE_STARTER) prices[process.env.STRIPE_PRICE_STARTER] = "ESSENTIAL";
   if (process.env.STRIPE_PRICE_ESSENTIAL_YEARLY) prices[process.env.STRIPE_PRICE_ESSENTIAL_YEARLY] = "ESSENTIAL";

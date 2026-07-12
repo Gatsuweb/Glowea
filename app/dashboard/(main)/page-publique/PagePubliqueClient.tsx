@@ -13,8 +13,8 @@ import {
   saveReview,
   updatePublicProfile,
   type getPublicPageConfig,
-} from "../../actions/publicPageActions";
-import { PRICING_PATH } from "../../../lib/pricing";
+} from "../../../actions/publicPageActions";
+import { PRICING_PATH } from "../../../../lib/pricing";
 import styles from "./pagePublique.module.css";
 
 type ConfigData = Awaited<ReturnType<typeof getPublicPageConfig>>;

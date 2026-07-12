@@ -1,8 +1,8 @@
 import React from "react";
 import ComptaClient from "./ComptaClient";
-import { getVueEnsembleData, getStatsData } from "../../actions/comptaActions";
-import { getTenantId } from "../../../lib/tenant";
-import { getTenantSubscriptionAccess } from "../../../lib/subscription";
+import { getVueEnsembleData, getStatsData } from "../../../actions/comptaActions";
+import { getTenantId } from "../../../../lib/tenant";
+import { getTenantSubscriptionAccess } from "../../../../lib/subscription";
 
 export const dynamic = "force-dynamic";
 

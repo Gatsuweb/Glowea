@@ -13,6 +13,7 @@ import {
 
 const SEGMENTS: CampaignTargetSegment[] = ["ALL", "TOP_CLIENTS", "INACTIVE"];
 const CHANNELS: CampaignChannel[] = ["SMS", "EMAIL", "MOCK"];
+const CAMPAIGN_REQUIRED_ERROR = "Les campagnes sont disponibles avec l'abonnement Pro.";
 
 function isSegment(value: unknown): value is CampaignTargetSegment {
   return typeof value === "string" && SEGMENTS.includes(value as CampaignTargetSegment);
@@ -26,9 +27,9 @@ export async function POST(request: Request) {
   try {
     const tenantId = await getTenantId();
     const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
-    if (!subscriptionAccess.canUseApp) {
+    if (!subscriptionAccess.canUseCampaigns) {
       return NextResponse.json(
-        { success: false, error: "Un abonnement actif est necessaire pour previsualiser une campagne" },
+        { success: false, error: subscriptionAccess.isActive ? CAMPAIGN_REQUIRED_ERROR : "Un abonnement actif est necessaire pour previsualiser une campagne" },
         { status: 403 }
       );
     }

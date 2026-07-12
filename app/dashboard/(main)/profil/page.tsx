@@ -3,15 +3,15 @@
 import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
 import styles from "./profil.module.css";
-import PromoModal, { type EditableMessageTemplate } from "../../components/PromoModal";
+import PromoModal, { type EditableMessageTemplate } from "../../../components/PromoModal";
 import PrestationsTab from "./PrestationsTab";
 import {
   getProfileData,
   updateProfileData,
   type ProfileData,
   type ProfileNotificationPreferences,
-} from "../../actions/profileActions";
-import { PRICING_PATH } from "../../../lib/pricing";
+} from "../../../actions/profileActions";
+import { PRICING_PATH } from "../../../../lib/pricing";
 
 const planDetails: Record<ProfileData["subscriptionPlan"], {
   name: string;
@@ -24,6 +24,12 @@ const planDetails: Record<ProfileData["subscriptionPlan"], {
     price: "0 EUR",
     description: "Votre espace est pret. Choisissez une formule pour utiliser Glowea au quotidien.",
     features: ["Compte Glowea", "Preparation de l'espace"],
+  },
+  PRESENCE: {
+    name: "Presence",
+    price: "14,90 EUR",
+    description: "Votre page professionnelle publique, visible et partageable.",
+    features: ["Page publique premium", "Catalogue de prestations", "Galerie photos", "Coordonnees et liens de contact", "Annuaire Glowea"],
   },
   ESSENTIAL: {
     name: "Essentiel",

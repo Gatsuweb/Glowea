@@ -5,6 +5,8 @@ import { getTenantSubscriptionAccess } from "../../../../../lib/subscription";
 import { getStoragePathFromPublicUrl, getSupabaseAdminClient, publicStorageBucket } from "../../../../../lib/supabaseAdmin";
 import { getTenantId } from "../../../../../lib/tenant";
 
+const PUBLIC_PAGE_REQUIRED_ERROR = "La page publique est disponible avec Glowea Presence ou Pro.";
+
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -13,9 +15,9 @@ export async function DELETE(
     const tenantId = await getTenantId();
     const access = await getTenantSubscriptionAccess(tenantId);
 
-    if (!access.canUsePublicPage) {
+    if (!access.canEditPublicPage) {
       return NextResponse.json(
-        { success: false, error: "La page publique est disponible avec Glowea Pro." },
+        { success: false, error: PUBLIC_PAGE_REQUIRED_ERROR },
         { status: 403 }
       );
     }

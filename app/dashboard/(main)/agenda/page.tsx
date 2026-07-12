@@ -1,8 +1,8 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
-import AgendaClientWrapper from "../../components/AgendaClientWrapper";
-import { getAgendaPanelData } from "../../../lib/agendaPanelData";
-import { getTenantSubscriptionAccess } from "../../../lib/subscription";
-import { syncAppointmentPaymentFromCheckoutSessionId } from "../../../lib/stripeAppointmentSync";
+import AgendaClientWrapper from "../../../components/AgendaClientWrapper";
+import { getAgendaPanelData } from "../../../../lib/agendaPanelData";
+import { getTenantSubscriptionAccess } from "../../../../lib/subscription";
+import { syncAppointmentPaymentFromCheckoutSessionId } from "../../../../lib/stripeAppointmentSync";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,7 @@ export default async function AgendaPage({
     }
   }
 
-  const { getTenantId } = await import("../../../lib/tenant");
+  const { getTenantId } = await import("../../../../lib/tenant");
   const tenantId = await getTenantId();
   const { userId } = await auth();
   const resolvedSearchParams = searchParams ? await searchParams : {};

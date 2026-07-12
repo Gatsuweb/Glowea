@@ -6,6 +6,7 @@ import { getTenantSubscriptionAccess } from "../../../../lib/subscription";
 import { getCampaignTemplates } from "../../../../lib/campaigns";
 
 const CHANNELS: MessageChannel[] = ["SMS", "EMAIL"];
+const CAMPAIGN_REQUIRED_ERROR = "Les campagnes sont disponibles avec l'abonnement Pro.";
 
 function getTemplateType(channel: MessageChannel): MessageTemplateType {
   return channel === "EMAIL" ? "EMAIL" : "SMS";
@@ -43,9 +44,9 @@ export async function GET() {
     const tenantId = await getTenantId();
     const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
 
-    if (!subscriptionAccess.canUseApp) {
+    if (!subscriptionAccess.canUseCampaigns) {
       return NextResponse.json(
-        { success: false, error: "Un abonnement actif est necessaire pour acceder aux templates" },
+        { success: false, error: subscriptionAccess.isActive ? CAMPAIGN_REQUIRED_ERROR : "Un abonnement actif est necessaire pour acceder aux templates" },
         { status: 403 }
       );
     }
@@ -77,9 +78,9 @@ export async function POST(request: Request) {
   try {
     const tenantId = await getTenantId();
     const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
-    if (!subscriptionAccess.canUseApp) {
+    if (!subscriptionAccess.canUseCampaigns) {
       return NextResponse.json(
-        { success: false, error: "Un abonnement actif est necessaire pour enregistrer un template" },
+        { success: false, error: subscriptionAccess.isActive ? CAMPAIGN_REQUIRED_ERROR : "Un abonnement actif est necessaire pour enregistrer un template" },
         { status: 403 }
       );
     }
@@ -117,9 +118,9 @@ export async function PATCH(request: Request) {
   try {
     const tenantId = await getTenantId();
     const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
-    if (!subscriptionAccess.canUseApp) {
+    if (!subscriptionAccess.canUseCampaigns) {
       return NextResponse.json(
-        { success: false, error: "Un abonnement actif est necessaire pour modifier un template" },
+        { success: false, error: subscriptionAccess.isActive ? CAMPAIGN_REQUIRED_ERROR : "Un abonnement actif est necessaire pour modifier un template" },
         { status: 403 }
       );
     }
@@ -170,9 +171,9 @@ export async function DELETE(request: Request) {
   try {
     const tenantId = await getTenantId();
     const subscriptionAccess = await getTenantSubscriptionAccess(tenantId);
-    if (!subscriptionAccess.canUseApp) {
+    if (!subscriptionAccess.canUseCampaigns) {
       return NextResponse.json(
-        { success: false, error: "Un abonnement actif est necessaire pour supprimer un template" },
+        { success: false, error: subscriptionAccess.isActive ? CAMPAIGN_REQUIRED_ERROR : "Un abonnement actif est necessaire pour supprimer un template" },
         { status: 403 }
       );
     }

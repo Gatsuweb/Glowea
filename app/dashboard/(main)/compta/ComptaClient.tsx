@@ -3,10 +3,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import styles from "./compta.module.css";
-import SparkBarChart from "../../components/SparkBarChart";
-import { getVueEnsembleData, createTransaction, createCharge, getStatsData } from "../../actions/comptaActions";
-import { exportElementToPDF } from "../../../lib/exportUtils";
-import SendClientTemplateModal from "../../components/SendClientTemplateModal";
+import SparkBarChart from "../../../components/SparkBarChart";
+import { getVueEnsembleData, createTransaction, createCharge, getStatsData } from "../../../actions/comptaActions";
+import { exportElementToPDF } from "../../../../lib/exportUtils";
+import SendClientTemplateModal from "../../../components/SendClientTemplateModal";
 
 type TransactionType = "INCOME" | "EXPENSE";
 

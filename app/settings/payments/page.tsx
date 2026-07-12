@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import prisma from "@/lib/prisma";
+import { getTenantSubscriptionAccess } from "@/lib/subscription";
 import { getCurrentUserRecord } from "@/lib/tenant";
 
 import PaymentsSettingsClient from "./PaymentsSettingsClient";
@@ -17,6 +18,12 @@ export default async function PaymentsSettingsPage() {
   }
 
   const currentUserRecord = await getCurrentUserRecord();
+  const subscriptionAccess = await getTenantSubscriptionAccess(currentUserRecord.tenantId);
+
+  if (subscriptionAccess.canUsePresenceDashboard && !subscriptionAccess.canUseMainDashboard) {
+    redirect("/dashboard/presence");
+  }
+
   const user = await prisma.user.findFirst({
     where: { id: currentUserRecord.id, tenantId: currentUserRecord.tenantId },
     select: {

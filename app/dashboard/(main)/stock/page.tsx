@@ -1,13 +1,13 @@
 import React from "react";
-import prisma from "../../../lib/prisma";
-import StockClientWrapper from "../../components/StockClientWrapper";
-import { getTenantId } from "../../../lib/tenant";
-import { getTenantSubscriptionAccess } from "../../../lib/subscription";
+import prisma from "../../../../lib/prisma";
+import StockClientWrapper from "../../../components/StockClientWrapper";
+import { getTenantId } from "../../../../lib/tenant";
+import { getTenantSubscriptionAccess } from "../../../../lib/subscription";
 import {
   PRODUCT_CATEGORIES,
   getProductCategoryBySlug,
   getStoredProductCategoryName,
-} from "../../../src/constants/productCategories";
+} from "../../../../src/constants/productCategories";
 
 
 export const dynamic = "force-dynamic";

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import prisma from "../../lib/prisma";
 import { getCurrentUserRecord, getTenantId } from "../../lib/tenant";
-import { requireTenantMutationAccess } from "../../lib/subscription";
+import { requireTenantMutationAccess, requireTenantPermission } from "../../lib/subscription";
 import {
   getAppointmentFinancialSummary,
   isOfflinePaymentMethod,
@@ -175,8 +175,25 @@ async function cancelPendingReminders(tenantId: string, appointmentId: string) {
   });
 }
 
+async function requireAgendaActionAccess(tenantId: string) {
+  const access = await requireTenantPermission(
+    tenantId,
+    "canUseAgenda",
+    "L'agenda n'est pas inclus dans votre abonnement actuel."
+  );
+
+  if (!access.allowed) {
+    return { success: false as const, error: access.error };
+  }
+
+  return null;
+}
+
 export async function schedule24hRemindersForUpcomingAppointments() {
   const tenantId = await getTenantId();
+  const denied = await requireAgendaActionAccess(tenantId);
+  if (denied) return denied;
+
   const now = new Date();
 
   const appointments = await prisma.appointment.findMany({
@@ -205,6 +222,9 @@ export async function schedule24hRemindersForUpcomingAppointments() {
 
 export async function processDueAppointmentReminders() {
   const tenantId = await getTenantId();
+  const denied = await requireAgendaActionAccess(tenantId);
+  if (denied) return denied;
+
   const now = new Date();
 
   const dueReminders = await prisma.appointmentReminder.findMany({
@@ -288,6 +308,9 @@ export async function processDueAppointmentReminders() {
 
 export async function markAllNotificationsRead() {
   const tenantId = await getTenantId();
+  const denied = await requireAgendaActionAccess(tenantId);
+  if (denied) return denied;
+
   const now = new Date();
 
   const res = await prisma.notification.updateMany({
@@ -300,6 +323,9 @@ export async function markAllNotificationsRead() {
 
 export async function markOnlineBookingNotificationsRead() {
   const tenantId = await getTenantId();
+  const denied = await requireAgendaActionAccess(tenantId);
+  if (denied) return denied;
+
   const now = new Date();
 
   const res = await prisma.notification.updateMany({

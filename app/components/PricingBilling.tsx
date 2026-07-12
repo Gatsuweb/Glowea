@@ -3,7 +3,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 
 export type BillingCycle = "monthly" | "yearly";
-export type PricingPlanKey = "essential" | "pro";
+export type PricingPlanKey = "presence" | "essential" | "pro";
 
 type BillingContextValue = {
   billing: BillingCycle;
@@ -15,12 +15,18 @@ type PricingCopy = {
   yearlyMonthlyPrice: string;
   monthlyNote: string;
   yearlyNote: string;
-  yearlyBadge: string;
+  yearlyBadge?: string;
 };
 
 const BillingContext = createContext<BillingContextValue | null>(null);
 
 const pricingCopy: Record<PricingPlanKey, PricingCopy> = {
+  presence: {
+    monthlyPrice: "14,90 EUR",
+    yearlyMonthlyPrice: "14,90 EUR",
+    monthlyNote: "facture mensuellement",
+    yearlyNote: "facture mensuellement",
+  },
   essential: {
     monthlyPrice: "39,90 €",
     yearlyMonthlyPrice: "33,25 €",
@@ -129,7 +135,7 @@ export function PlanPriceDisplay({
 
   return (
     <div className={stackClassName}>
-      {isYearly && savingClassName ? (
+      {isYearly && savingClassName && copy.yearlyBadge ? (
         <div className={savingClassName}>{copy.yearlyBadge}</div>
       ) : null}
       <div className={priceClassName}>

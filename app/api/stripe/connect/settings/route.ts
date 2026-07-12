@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 
 import prisma from "@/lib/prisma";
-import { requireTenantMutationAccess } from "@/lib/subscription";
+import { requireTenantPermission } from "@/lib/subscription";
 import { getCurrentUserRecord } from "@/lib/tenant";
 import {
   jsonError,
@@ -36,7 +36,11 @@ export async function PATCH(req: Request) {
 
     const currentUserRecord = await getCurrentUserRecord();
     tenantId = currentUserRecord.tenantId;
-    const access = await requireTenantMutationAccess(tenantId);
+    const access = await requireTenantPermission(
+      tenantId,
+      "canUseDeposits",
+      "Les arrhes sont disponibles avec l'abonnement Pro."
+    );
     if (!access.allowed) {
       return jsonError(403, access.error);
     }

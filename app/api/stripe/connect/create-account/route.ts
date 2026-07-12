@@ -2,7 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 
 import prisma from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
-import { requireTenantMutationAccess } from "@/lib/subscription";
+import { requireTenantPermission } from "@/lib/subscription";
 import { getCurrentUserRecord } from "@/lib/tenant";
 import {
   clearStripeConnectState,
@@ -30,7 +30,11 @@ export async function POST(req: Request) {
 
     const currentUserRecord = await getCurrentUserRecord();
     tenantId = currentUserRecord.tenantId;
-    const access = await requireTenantMutationAccess(tenantId);
+    const access = await requireTenantPermission(
+      tenantId,
+      "canUseStripePayments",
+      "Les paiements Stripe sont disponibles avec l'abonnement Pro."
+    );
     if (!access.allowed) {
       return jsonError(403, access.error);
     }

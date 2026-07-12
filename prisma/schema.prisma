@@ -1428,6 +1428,7 @@ enum SubscriptionStatus {
 
 enum SubscriptionPlan {
   FREE
+  PRESENCE
   ESSENTIAL
   PRO
   PREMIUM

@@ -18,6 +18,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const priceMap = {
+  presence: {
+    monthly: process.env.STRIPE_PRICE_PRESENCE_MONTHLY,
+    yearly: undefined,
+  },
   essential: {
     monthly: process.env.STRIPE_PRICE_ESSENTIAL || process.env.STRIPE_PRICE_STARTER,
     yearly: process.env.STRIPE_PRICE_ESSENTIAL_YEARLY,
@@ -33,7 +37,7 @@ type CheckoutBilling = "monthly" | "yearly";
 type CheckoutOffer = "founder";
 
 function isCheckoutPlan(value: unknown): value is CheckoutPlan {
-  return value === "essential" || value === "pro";
+  return value === "presence" || value === "essential" || value === "pro";
 }
 
 function isCheckoutBilling(value: unknown): value is CheckoutBilling {
@@ -89,7 +93,7 @@ export async function POST(req: Request) {
   }
 
   const checkoutOffer = isCheckoutOffer(offer) ? offer : null;
-  const resolvedBilling: CheckoutBilling = checkoutOffer === "founder" ? "monthly" : billing;
+  const resolvedBilling: CheckoutBilling = checkoutOffer === "founder" || plan === "presence" ? "monthly" : billing;
   const priceId =
     checkoutOffer === "founder" && plan === "pro"
       ? process.env.STRIPE_PRICE_PRO_BETA_MONTHLY
@@ -147,7 +151,9 @@ export async function POST(req: Request) {
   if (currentSubscriptions.length > 0) {
     const portalSession = await createCustomerPortalSession({
       customerId,
-      returnUrl: `${appUrl}/dashboard/profil?tab=abonnements&stripe_portal=return`,
+      returnUrl: tenant.subscriptionPlan === "PRESENCE"
+        ? `${appUrl}/dashboard/presence?stripe_portal=return`
+        : `${appUrl}/dashboard/profil?tab=abonnements&stripe_portal=return`,
     });
 
     return NextResponse.json({
@@ -177,7 +183,7 @@ export async function POST(req: Request) {
     subscription_data: {
       metadata,
     },
-    success_url: `${appUrl}/dashboard?success=true&session_id={CHECKOUT_SESSION_ID}`,
+    success_url: `${appUrl}${plan === "presence" ? "/dashboard/presence" : "/dashboard"}?success=true&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}${PRICING_CANCELED_PATH}`,
   });
 

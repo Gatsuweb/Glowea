@@ -3,7 +3,7 @@
 import prisma from "../../lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getTenantId } from "../../lib/tenant";
-import { requireTenantMutationAccess } from "../../lib/subscription";
+import { requireTenantMutationAccess, requireTenantPermission } from "../../lib/subscription";
 
 export type ConsentSnapshot = {
   contactLenses: "Oui" | "Non";
@@ -51,6 +51,14 @@ export async function getConsent(clientId: string) {
   if (!clientId) return { success: false as const, error: "Cliente introuvable" };
 
   const tenantId = await getTenantId();
+  const access = await requireTenantPermission(
+    tenantId,
+    "canUseClients",
+    "Le CRM clientes n'est pas inclus dans votre abonnement actuel."
+  );
+  if (!access.allowed) {
+    return { success: false as const, error: access.error };
+  }
 
   try {
     const client = await ensureOwnedClient(tenantId, clientId);
