@@ -24,7 +24,14 @@ function PricingCheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const canceled = searchParams.get("canceled") === "true";
-  const privateOffer: PrivateOffer | null = searchParams.get("offer") === "founder" ? "founder" : null;
+  const privateOffer: PrivateOffer | null =
+    searchParams.get("offer") === "founder" ||
+    searchParams.has("founder") ||
+    searchParams.has("fondator") ||
+    searchParams.has("fondateur") ||
+    searchParams.has("fondatrice")
+      ? "founder"
+      : null;
   const requestedPlan = searchParams.get("plan");
   const highlightedPlan: PricingPlanKey | null =
     requestedPlan === "presence" || requestedPlan === "essential" || requestedPlan === "pro" ? requestedPlan : null;
@@ -43,7 +50,9 @@ function PricingCheckoutContent() {
       });
 
       if (response.status === 401) {
-        router.push(`/sign-up?redirect_url=${encodeURIComponent(`/pricing?plan=${plan}`)}`);
+        const redirectParams = new URLSearchParams({ plan });
+        if (offer) redirectParams.set("offer", offer);
+        router.push(`/sign-up?redirect_url=${encodeURIComponent(`/pricing?${redirectParams.toString()}`)}`);
         return;
       }
 

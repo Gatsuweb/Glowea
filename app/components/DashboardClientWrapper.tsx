@@ -307,7 +307,7 @@ export default function DashboardClientWrapper({
   };
 
   const openSubscriptionSettings = () => {
-    router.push("/dashboard/profil?tab=abonnements");
+    router.push(PRICING_PATH);
   };
 
   const guardMutation = (action: () => void) => {
@@ -429,7 +429,7 @@ export default function DashboardClientWrapper({
             <strong>{limitedAccessTitle}</strong>
             <span>{limitedAccessText}</span>
           </div>
-          <button type="button" onClick={openSubscriptionSettings}>Gerer mon abonnement</button>
+          <button type="button" onClick={openSubscriptionSettings}>Activer l&apos;offre fondatrice</button>
         </section>
       )}
 

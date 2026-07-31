@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Navbar from "../../components/Navbar";
@@ -6,6 +7,7 @@ import GlobalHeader from "../../components/GlobalHeader";
 import OnboardingChecklist from "../../components/OnboardingChecklist";
 import QuickAgendaDrawer from "../../components/QuickAgendaDrawer";
 import PushNotificationManager from "../../components/PushNotificationManager";
+import TrialExpiredPricingRedirect from "../../components/TrialExpiredPricingRedirect";
 import { getAgendaPanelData } from "../../../lib/agendaPanelData";
 import { getTenantSubscriptionAccess } from "../../../lib/subscription";
 import { getTenantId } from "../../../lib/tenant";
@@ -54,6 +56,9 @@ export default async function DashboardLayout({
 
   return (
     <>
+      <Suspense fallback={null}>
+        <TrialExpiredPricingRedirect subscriptionAccess={subscriptionAccess} />
+      </Suspense>
       <Navbar />
       <GlobalHeader />
       <QuickAgendaDrawer agendaData={quickAgendaProps} />
